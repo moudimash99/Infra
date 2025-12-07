@@ -1,0 +1,37 @@
+version: "3.8"
+services:
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    restart: unless-stopped
+    ports: ["8080:8080"]
+    privileged: true
+    devices: ["/dev/kmsg"]
+    mem_limit: "80m"
+    command:
+      - --docker_only
+      - --store_container_labels=false
+      - --disable_metrics=percpu,hugetlb,resctrl,sched,referenced_memory,cpu_topology,udp,tcp,advtcp,process,disk,diskIO
+      - --housekeeping_interval=30s
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    ports: ["9100:9100"]
+    mem_limit: "40m"
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($|/)
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro

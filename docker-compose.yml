@@ -1,0 +1,26 @@
+version: "3.9"
+
+services:
+  web:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+      - PORT=3000
+    expose:
+      - "3000"
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - /home/ec2-user/cloudflare-certs:/etc/nginx/certs:ro
+    restart: unless-stopped
