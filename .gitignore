@@ -83,3 +83,4 @@ test-output/
 node_modules/
 
 certs/
+token.txt
