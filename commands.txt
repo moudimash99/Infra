@@ -1,0 +1,1 @@
+ssh -i "$env:USERPROFILE\.ssh\key1.pem" ec2-user@51.20.59.169
