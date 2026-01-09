@@ -1,17 +1,24 @@
-version: "3.9"
-
 services:
   nginx:
     image: nginx:1.27-alpine
     container_name: nginx
     ports:
-      - "80:80"
-      - "443:443"
+      - "8080:80"          # local test; optional
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - /home/ec2-user/cloudflare-certs:/etc/nginx/certs:ro
     restart: unless-stopped
-    # (optional) networks: add this if you're using a custom network
+    networks:
+      - proxy_net
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    depends_on:
+      - nginx
+    restart: unless-stopped
     networks:
       - proxy_net
 
@@ -20,7 +27,7 @@ services:
     container_name: cadvisor
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "8081:8080"
     privileged: true
     devices:
       - "/dev/kmsg"
@@ -36,8 +43,6 @@ services:
       - /sys:/sys:ro
       - /sys/fs/cgroup:/sys/fs/cgroup:ro
       - /var/lib/docker/:/var/lib/docker:ro
-    # networks:
-    #   - proxy_net    # optional – see note below
 
   node-exporter:
     image: prom/node-exporter:latest
@@ -54,9 +59,7 @@ services:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /:/rootfs:ro
-    # networks:
-    #   - proxy_net    # optional – see note below
 
 networks:
   proxy_net:
-    external: true       # uses the shared network you created
+    external: true
