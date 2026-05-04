@@ -60,14 +60,7 @@ services:
       - /sys:/host/sys:ro
       - /:/rootfs:ro
 
-  boardxplorer:
-    image: boardxplorer
-    container_name: boardxplorer
-    restart: unless-stopped
-    expose:
-      - "8000"
-    networks:
-      - proxy_net
+
 
 networks:
   proxy_net:
