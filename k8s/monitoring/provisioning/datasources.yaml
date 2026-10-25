@@ -1,0 +1,9 @@
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: prometheus  # the dashboards in dashboards/ point at this uid
+    type: prometheus
+    access: proxy
+    url: http://prometheus.monitoring.svc
+    isDefault: true
+    editable: false

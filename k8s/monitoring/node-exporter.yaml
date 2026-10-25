@@ -1,0 +1,44 @@
+# node-exporter on every node (DaemonSet): CPU, memory, disks, network of the machine itself.
+# Host network and host PID so it sees the real interfaces (eno2, wlo1) and processes; the host's /
+# is mounted read-only for the disks. Port 9110, since the old Docker node-exporter (~/Infra, which
+# only sees its own container network) still holds 9100.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-exporter
+  namespace: monitoring
+  labels: { app: node-exporter }
+spec:
+  selector:
+    matchLabels: { app: node-exporter }
+  template:
+    metadata:
+      labels: { app: node-exporter }
+    spec:
+      hostNetwork: true
+      hostPID: true
+      securityContext: { runAsUser: 65534, runAsNonRoot: true }
+      containers:
+        - name: node-exporter
+          image: prom/node-exporter:v1.12.1
+          args:
+            - --web.listen-address=:9110
+            - --path.rootfs=/host
+            - --collector.filesystem.mount-points-exclude=^/(dev|proc|run|sys|var/lib/docker/.+|var/lib/kubelet/.+|run/k3s/.+)($|/)
+            - --collector.netclass.ignored-devices=^(veth.*|cni.*|flannel.*)$
+            - --collector.netdev.device-exclude=^(veth.*|cni.*|flannel.*)$
+          ports:
+            - { name: metrics, containerPort: 9110 }
+          volumeMounts:
+            - { name: root, mountPath: /host, readOnly: true, mountPropagation: HostToContainer }
+            - { name: udev, mountPath: /run/udev, readOnly: true }  # disk names and models
+          resources:
+            requests: { cpu: 10m, memory: 24Mi }
+            limits: { memory: 64Mi }
+      volumes:
+        - name: root
+          hostPath: { path: / }
+        - name: udev
+          hostPath: { path: /run/udev }
+      tolerations:
+        - operator: Exists  # every node, control plane included

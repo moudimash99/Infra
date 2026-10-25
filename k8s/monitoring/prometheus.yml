@@ -1,0 +1,95 @@
+# What Prometheus collects, every 30 s. Each job adds cluster="homelab", which the Kubernetes
+# dashboards filter on. kustomize turns this file into the ConfigMap prometheus-config; a change
+# restarts Prometheus with the new file (kubectl apply -k monitoring/ --server-side).
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+    relabel_configs: &cluster
+      - { target_label: cluster, replacement: homelab }
+
+  # Each machine: CPU, memory, disk, network. node-exporter.yaml runs one per node on port 9110;
+  # a node that joins the cluster shows up here by itself.
+  - job_name: node-exporter
+    kubernetes_sd_configs:
+      - role: node
+    relabel_configs:
+      - { target_label: cluster, replacement: homelab }
+      - source_labels: [__address__]
+        regex: (.+):\d+
+        replacement: $1:9110
+        target_label: __address__
+      - { source_labels: [__meta_kubernetes_node_name], target_label: node }
+
+  # Docker containers on .135 (frigate, nginx, cloudflared, ...): cAdvisor in Docker (~/Infra).
+  - job_name: cadvisor-docker
+    static_configs:
+      - targets: ['192.168.1.135:8081']
+    relabel_configs: *cluster
+    metric_relabel_configs:
+      # The machine's size already comes from the kubelet; twice would count the server double.
+      - source_labels: [__name__]
+        regex: machine_.*
+        action: drop
+
+  # Frigate's own numbers: camera fps, detector speed, CPU per process.
+  - job_name: frigate
+    metrics_path: /api/metrics
+    static_configs:
+      - targets: ['192.168.1.135:5000']
+    relabel_configs: *cluster
+
+  # The cluster's containers (pods), with namespace/pod/container labels. Each node's kubelet has a
+  # built-in cAdvisor; it is read through the API server (node proxy), so no port is opened.
+  - job_name: kubelet-cadvisor
+    scheme: https
+    authorization:
+      credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    kubernetes_sd_configs:
+      - role: node
+    relabel_configs:
+      - { target_label: cluster, replacement: homelab }
+      - { target_label: __address__, replacement: kubernetes.default.svc:443 }
+      - source_labels: [__meta_kubernetes_node_name]
+        target_label: __metrics_path__
+        replacement: /api/v1/nodes/$1/proxy/metrics/cadvisor
+      - source_labels: [__meta_kubernetes_node_name]
+        target_label: node
+    metric_relabel_configs:
+      # Rarely used and many series.
+      - source_labels: [__name__]
+        regex: container_(tasks_state|memory_failures_total|blkio_device_usage_total)
+        action: drop
+
+  # The cluster's objects: pods, restarts, deployments, requests and limits.
+  - job_name: kube-state-metrics
+    static_configs:
+      - targets: ['kube-state-metrics.monitoring.svc:8080']
+    relabel_configs: *cluster
+
+  # Any pod with the annotation prometheus.io/scrape: "true" (Traefik has it; add it to an app
+  # that serves /metrics and it is collected with no change here).
+  - job_name: pods
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - { target_label: cluster, replacement: homelab }
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        regex: "true"
+        action: keep
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        regex: (.+)
+        target_label: __metrics_path__
+      - source_labels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_annotation_prometheus_io_port]
+        regex: (.+);(\d+)
+        replacement: $1:$2
+        target_label: __address__
+      - { source_labels: [__meta_kubernetes_namespace], target_label: namespace }
+      - { source_labels: [__meta_kubernetes_pod_name], target_label: pod }
+      - { source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name], target_label: app }

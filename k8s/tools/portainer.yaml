@@ -1,0 +1,98 @@
+# portainer.machaka.net: web UI for the cluster and for Docker on .135 (through the agent in
+# ~/portainer-agent on the server). Behind Cloudflare Access, plus Portainer's own login.
+# AGENT_SECRET (Secret portainer-agent) is shared with that Docker agent; it is not in this repo.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tools
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: portainer
+  namespace: tools
+---
+# Portainer manages the whole cluster, so it needs cluster-admin.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: portainer
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: cluster-admin }
+subjects:
+  - { kind: ServiceAccount, name: portainer, namespace: tools }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: portainer-data
+  namespace: tools
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources: { requests: { storage: 1Gi } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: portainer
+  namespace: tools
+  labels: { app: portainer }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }  # one copy owns /data
+  selector:
+    matchLabels: { app: portainer }
+  template:
+    metadata:
+      labels: { app: portainer }
+    spec:
+      serviceAccountName: portainer
+      containers:
+        - name: portainer
+          image: portainer/portainer-ce:2.45.3
+          env:
+            - name: AGENT_SECRET
+              valueFrom: { secretKeyRef: { name: portainer-agent, key: AGENT_SECRET } }
+          ports:
+            - { name: http, containerPort: 9000 }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+          readinessProbe:
+            httpGet: { path: /api/system/status, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /api/system/status, port: http }
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 20m, memory: 64Mi }
+            limits: { memory: 384Mi }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: portainer-data }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: portainer
+  namespace: tools
+spec:
+  selector: { app: portainer }
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: portainer
+  namespace: tools
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: portainer.machaka.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: portainer, port: { name: http } }

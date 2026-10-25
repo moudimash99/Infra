@@ -1,0 +1,107 @@
+# beszel.machaka.net: light monitoring with history and alerts (hub), plus one agent per machine.
+# The agent runs on every node (DaemonSet, host network) and reads the machine and its Docker
+# containers; the hub connects to it on port 45876 and only an agent holding the hub's public key
+# (Secret beszel-agent, key KEY) answers. Behind Cloudflare Access, plus Beszel's own login.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: beszel-data
+  namespace: tools
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources: { requests: { storage: 2Gi } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: beszel
+  namespace: tools
+  labels: { app: beszel }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }  # one copy owns its database
+  selector:
+    matchLabels: { app: beszel }
+  template:
+    metadata:
+      labels: { app: beszel }
+    spec:
+      containers:
+        - name: beszel
+          image: henrygd/beszel:0.21.1
+          env:
+            - { name: APP_URL, value: "https://beszel.machaka.net" }
+          ports:
+            - { name: http, containerPort: 8090 }
+          volumeMounts:
+            - { name: data, mountPath: /beszel_data }
+          readinessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: http }
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { memory: 256Mi }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: beszel-data }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: beszel
+  namespace: tools
+spec:
+  selector: { app: beszel }
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: beszel
+  namespace: tools
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: beszel.machaka.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: beszel, port: { name: http } }
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: beszel-agent
+  namespace: tools
+  labels: { app: beszel-agent }
+spec:
+  selector:
+    matchLabels: { app: beszel-agent }
+  template:
+    metadata:
+      labels: { app: beszel-agent }
+    spec:
+      hostNetwork: true  # the machine's own network numbers, and reachable at <node ip>:45876
+      containers:
+        - name: beszel-agent
+          image: henrygd/beszel-agent:0.21.1
+          env:
+            - { name: LISTEN, value: "45876" }
+            - name: KEY
+              valueFrom: { secretKeyRef: { name: beszel-agent, key: KEY } }
+          volumeMounts:
+            - { name: docker, mountPath: /var/run/docker.sock, readOnly: true }
+          resources:
+            requests: { cpu: 5m, memory: 16Mi }
+            limits: { memory: 128Mi }
+      volumes:
+        - name: docker
+          hostPath: { path: /var/run/docker.sock, type: Socket }

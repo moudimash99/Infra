@@ -1,0 +1,16 @@
+# Settings for the Traefik that k3s installs (k3s merges these into its own Helm values).
+# nginx sits in front of Traefik and already sets X-Forwarded-For / X-Real-IP / X-Forwarded-Proto
+# from Cloudflare's request. Traffic reaching Traefik through a node shows up from the node's pod
+# network gateway (10.42.N.1), so trust forwarded headers from the pod network; otherwise Traefik
+# replaces them and every visitor looks like 10.42.0.1 (the website's link tracking needs the real one).
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    ports:
+      web:
+        forwardedHeaders:
+          trustedIPs: ["10.42.0.0/16"]
