@@ -1,0 +1,73 @@
+# cat.machaka.net: the cat weight tracker (Flask + SQLite).
+# Image built on the server from ~/Cat-Weight (commit b93165d) and loaded into k3s by hand,
+# so it is never pulled (imagePullPolicy: Never) until a registry exists.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: apps
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cat-weight
+  namespace: apps
+  labels: { app: cat-weight }
+spec:
+  replicas: 1
+  # SQLite: never two copies at once, so the old pod stops before the new one starts.
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: cat-weight }
+  template:
+    metadata:
+      labels: { app: cat-weight }
+    spec:
+      # The data lives in a folder on .135, so the pod must run there.
+      nodeSelector: { kubernetes.io/hostname: moudimash99 }
+      containers:
+        - name: cat-weight
+          image: docker.io/library/cat-weight:b93165d
+          imagePullPolicy: Never
+          ports:
+            - { name: http, containerPort: 8002 }
+          volumeMounts:
+            - { name: data, mountPath: /app/data }
+          readinessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: { port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 10m, memory: 64Mi }
+            limits: { memory: 256Mi }
+      volumes:
+        - name: data
+          hostPath: { path: /home/moudimash99/Cat-Weight/data, type: Directory }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cat-weight
+  namespace: apps
+spec:
+  selector: { app: cat-weight }
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cat-weight
+  namespace: apps
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: cat.machaka.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: cat-weight, port: { name: http } }

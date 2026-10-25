@@ -1,0 +1,8 @@
+apiVersion: 1
+providers:
+  - name: homelab
+    folder: Homelab
+    type: file
+    allowUiUpdates: true  # can be changed in the browser, but a restart puts the file's version back
+    options:
+      path: /var/lib/grafana-dashboards

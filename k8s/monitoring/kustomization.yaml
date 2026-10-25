@@ -1,0 +1,29 @@
+# kubectl apply -k monitoring/ --server-side
+# (--server-side because the dashboards are too big for kubectl's last-applied annotation)
+# The generated ConfigMaps get a hash in their name, so a changed file restarts the pod that uses it.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+resources:
+  - prometheus.yaml
+  - kube-state-metrics.yaml
+  - node-exporter.yaml
+  - grafana.yaml
+configMapGenerator:
+  - name: prometheus-config
+    files: [prometheus.yml]
+  - name: grafana-datasources
+    files: [provisioning/datasources.yaml]
+  - name: grafana-dashboard-providers
+    files: [provisioning/dashboards.yaml]
+  # Dashboards from grafana.com (id in brackets), with the data source set to uid "prometheus".
+  - name: dashboard-node-exporter-full   # Node Exporter Full (1860)
+    files: [dashboards/node-exporter-full.json]
+  - name: dashboard-k8s-global           # Kubernetes / Views / Global (15757)
+    files: [dashboards/k8s-global.json]
+  - name: dashboard-k8s-pods             # Kubernetes / Views / Pods (15760)
+    files: [dashboards/k8s-pods.json]
+  - name: dashboard-traefik              # Traefik Official Standalone Dashboard (17346)
+    files: [dashboards/traefik.json]
+  - name: dashboard-docker-containers    # cadvisor dashboard (19792)
+    files: [dashboards/docker-containers.json]

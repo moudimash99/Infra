@@ -1,0 +1,69 @@
+# unmatched.machaka.net: Unmatched fighter matcher + tournaments (Flask + gunicorn).
+# Image: the one the Docker copy ran on 2026-10-24 (~/unmatched_matcher), loaded into k3s by hand.
+# Secrets (SECRET_KEY, TOURNAMENT_PASSWORD_HASH) are in the Secret unmatched-env,
+# made on the server from ~/unmatched_matcher/.env; they are not in this repo.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unmatched
+  namespace: apps
+  labels: { app: unmatched }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }  # saved data in files: never two copies at once
+  selector:
+    matchLabels: { app: unmatched }
+  template:
+    metadata:
+      labels: { app: unmatched }
+    spec:
+      nodeSelector: { kubernetes.io/hostname: moudimash99 }
+      containers:
+        - name: unmatched
+          image: docker.io/library/unmatched:2026-10-24
+          imagePullPolicy: Never
+          envFrom:
+            - secretRef: { name: unmatched-env }
+          ports:
+            - { name: http, containerPort: 8001 }
+          volumeMounts:
+            - { name: data, mountPath: /app/data }
+          readinessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: { port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 10m, memory: 128Mi }
+            limits: { memory: 384Mi }
+      volumes:
+        - name: data
+          hostPath: { path: /home/moudimash99/unmatched_matcher/data, type: Directory }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: unmatched
+  namespace: apps
+spec:
+  selector: { app: unmatched }
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: unmatched
+  namespace: apps
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: unmatched.machaka.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: unmatched, port: { name: http } }

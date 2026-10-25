@@ -1,0 +1,103 @@
+# grafana.machaka.net: charts over Prometheus. The data source and the dashboards in dashboards/
+# are loaded at start (provisioning/); dashboards made in the browser are kept in its volume.
+# Login admin, password in the Secret monitoring/grafana-admin. Behind Cloudflare Access too.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data
+  namespace: monitoring
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources: { requests: { storage: 1Gi } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels: { app: grafana }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }  # SQLite: one copy at a time
+  selector:
+    matchLabels: { app: grafana }
+  template:
+    metadata:
+      labels: { app: grafana }
+    spec:
+      securityContext: { fsGroup: 472 }
+      containers:
+        - name: grafana
+          image: grafana/grafana:13.2.3
+          env:
+            - { name: GF_SERVER_ROOT_URL, value: "https://grafana.machaka.net" }
+            - { name: GF_ANALYTICS_REPORTING_ENABLED, value: "false" }
+            - { name: GF_ANALYTICS_CHECK_FOR_UPDATES, value: "false" }
+            - { name: GF_USERS_ALLOW_SIGN_UP, value: "false" }
+            # Memory: Grafana 13 holds ~400Mi once dashboards are open, more without these. No extra
+            # apps (Drilldown, ...) installed at start, and Go frees memory sooner.
+            - { name: GF_PLUGINS_PREINSTALL_DISABLED, value: "true" }
+            - { name: GOMEMLIMIT, value: "350MiB" }
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom: { secretKeyRef: { name: grafana-admin, key: admin-user } }
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom: { secretKeyRef: { name: grafana-admin, key: admin-password } }
+          ports:
+            - { name: http, containerPort: 3000 }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/grafana }
+            - { name: datasources, mountPath: /etc/grafana/provisioning/datasources }
+            - { name: providers, mountPath: /etc/grafana/provisioning/dashboards }
+            - { name: dashboards, mountPath: /var/lib/grafana-dashboards }
+          readinessProbe:
+            httpGet: { path: /api/health, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /api/health, port: http }
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 20m, memory: 256Mi }
+            limits: { memory: 768Mi }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: grafana-data }
+        - name: datasources
+          configMap: { name: grafana-datasources }
+        - name: providers
+          configMap: { name: grafana-dashboard-providers }
+        - name: dashboards
+          projected:
+            sources:
+              - configMap: { name: dashboard-node-exporter-full }
+              - configMap: { name: dashboard-k8s-global }
+              - configMap: { name: dashboard-k8s-pods }
+              - configMap: { name: dashboard-traefik }
+              - configMap: { name: dashboard-docker-containers }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  selector: { app: grafana }
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: grafana.machaka.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: grafana, port: { name: http } }

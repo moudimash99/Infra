@@ -1,0 +1,74 @@
+# boardxplorer.machaka.net: BoardGameGeek collection explorer (Django + SQLite).
+# Image: the one the Docker copy ran on 2026-10-24 (~/BoardXplorer), loaded into k3s by hand.
+# Secrets (BGG_TOKEN, DJANGO_DEFAULT_USERNAME/PASSWORD) are in the Secret boardxplorer-env,
+# made on the server from ~/BoardXplorer/.env; they are not in this repo.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: boardxplorer
+  namespace: apps
+  labels: { app: boardxplorer }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }  # SQLite: never two copies at once
+  selector:
+    matchLabels: { app: boardxplorer }
+  template:
+    metadata:
+      labels: { app: boardxplorer }
+    spec:
+      nodeSelector: { kubernetes.io/hostname: moudimash99 }
+      containers:
+        - name: boardxplorer
+          image: docker.io/library/boardxplorer:2026-10-24
+          imagePullPolicy: Never
+          command: ["sh", "-c", "python manage.py migrate --noinput && python manage.py createcachetable && python manage.py create_default_user && gunicorn game_interface.wsgi:application --bind 0.0.0.0:8000"]
+          env:
+            - { name: DJANGO_ALLOWED_HOSTS, value: "*" }
+            - { name: DJANGO_DB_PATH, value: /data/db.sqlite3 }
+          envFrom:
+            - secretRef: { name: boardxplorer-env }
+          ports:
+            - { name: http, containerPort: 8000 }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+          readinessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: { port: http }
+            initialDelaySeconds: 60
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 10m, memory: 96Mi }
+            limits: { memory: 384Mi }
+      volumes:
+        - name: data
+          # Copied from the Docker volume boardxplorer_sqlite_data at the move.
+          hostPath: { path: /home/moudimash99/BoardXplorer/data, type: Directory }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: boardxplorer
+  namespace: apps
+spec:
+  selector: { app: boardxplorer }
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: boardxplorer
+  namespace: apps
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: boardxplorer.machaka.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: boardxplorer, port: { name: http } }
