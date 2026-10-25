@@ -62,7 +62,17 @@ Never `docker compose up` an app that runs in the cluster: two copies would writ
 |---|---|---|---|
 | Portainer | portainer.machaka.net | `admin` | Containers and pods: the cluster (`homelab`) and Docker on .135 (`server-docker`, through `~/portainer-agent` on the server) |
 | Beszel | beszel.machaka.net | owner's email | CPU, memory, disk, network and Docker containers per machine, with history. One agent per node |
-| Uptime Kuma | status.machaka.net | `admin` | Checks each site every minute |
+| Uptime Kuma | status.machaka.net | `admin` | Checks each site and tool every minute; its status page `homelab` feeds the home page |
+| Home page | lab.machaka.net | (Cloudflare only) | One page with every site and tool and their live numbers (Homepage, `k8s/tools/homepage.yaml`) |
+
+**Alerts** go by email to the owner's Gmail (the `to` key of the Secret below), sent through Gmail SMTP with the same Gmail sender
+as the Free Motion night emails (Secret `tools/alert-smtp`). Their settings live in each tool's own
+database, not in this repo:
+
+- Uptime Kuma: notification "Email (Gmail)", on every check (and the default for new ones): a
+  site down after 3 failed checks, and back up.
+- Beszel, for every machine: down for 2 min; CPU or memory above 90% for 10 min; disk above 85%.
+  Settings → Notifications in Beszel to change them.
 
 ### Monitoring (namespace `monitoring`)
 
@@ -94,6 +104,7 @@ Memory (2026-10-25): tools ~250 MB, Prometheus ~120 MB, Grafana ~300-450 MB.
 1. An Ingress in the cluster (host name, class `traefik`).
 2. Cloudflare DNS: a CNAME to the tunnel, proxied (or one wildcard `*` record for all).
 3. Cloudflare Zero Trust → Access: add the name to the self-hosted app, so it asks for the login first.
+4. Optional: a tile in `k8s/tools/homepage.yaml`, and a check in Uptime Kuma.
 
 ### Secrets
 
@@ -108,6 +119,8 @@ Not in this repo. Made on the server with `sudo k3s kubectl create secret ...`:
 | tools/beszel-agent | KEY: the Beszel hub's public key (from `id_ed25519` in its volume) |
 | tools/tool-logins | passwords of Portainer, Beszel, Uptime Kuma |
 | monitoring/grafana-admin | admin-user, admin-password |
+| tools/alert-smtp | user, password (Gmail app password), to |
+| tools/homepage-env | HOMEPAGE_VAR_PORTAINER_KEY: a Portainer API key named "homepage" |
 
 Read a password in your own terminal:
 
