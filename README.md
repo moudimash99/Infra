@@ -21,6 +21,9 @@ The server runs on Wi-Fi (`wlo1`, 192.168.1.116, static on the router). The Ethe
 its database, its API and Traefik's outside address all follow that address. To change it: stop k3s,
 change the flag in `k3s.service`, run `k3s server --cluster-reset` with the same flags, start k3s.
 
+Uptime Kuma, Beszel and Portainer still hold `.135` in their own databases. `k8s/cluster/old-address.yaml`
+forwards those ports to `.116`, so they keep working without that address on the server.
+
 ## nginx
 
 `nginx/conf.d/site.conf`. A name moved into the cluster has `proxy_pass http://192.168.1.116:80`
