@@ -25,10 +25,10 @@ scrape_configs:
         target_label: __address__
       - { source_labels: [__meta_kubernetes_node_name], target_label: node }
 
-  # Docker containers on .135 (frigate, nginx, cloudflared, ...): cAdvisor in Docker (~/Infra).
+  # Docker containers on .116 (frigate, nginx, cloudflared, ...): cAdvisor in Docker (~/Infra).
   - job_name: cadvisor-docker
     static_configs:
-      - targets: ['192.168.1.135:8081']
+      - targets: ['192.168.1.116:8081']
     relabel_configs: *cluster
     metric_relabel_configs:
       # The machine's size already comes from the kubelet; twice would count the server double.
@@ -40,7 +40,7 @@ scrape_configs:
   - job_name: frigate
     metrics_path: /api/metrics
     static_configs:
-      - targets: ['192.168.1.135:5000']
+      - targets: ['192.168.1.116:5000']
     relabel_configs: *cluster
 
   # The cluster's containers (pods), with namespace/pod/container labels. Each node's kubelet has a

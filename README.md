@@ -1,6 +1,6 @@
 # Infra
 
-Everything that runs on the home server, 192.168.1.135 (Ubuntu, 8 cores, 7.6 GB). The server keeps a
+Everything that runs on the home server, 192.168.1.116 (Ubuntu, 8 cores, 7.6 GB). The server keeps a
 clone of this repo in `~/Infra`; Docker runs from there.
 
 ```
@@ -14,9 +14,16 @@ internet ─ Cloudflare (DNS, Access login) ─ tunnel ─ cloudflared ─ nginx
   servers (k3s was installed with `--cluster-init`).
 - `Prometheus/`: the old setup for an EC2 machine, not used.
 
+## Network
+
+The server runs on Wi-Fi (`wlo1`, 192.168.1.116, static on the router). The Ethernet cable (`eno2`,
+192.168.1.135) is bad since 2026-10-27 and waits to be replaced. k3s has `--node-ip 192.168.1.116`, so
+its database, its API and Traefik's outside address all follow that address. To change it: stop k3s,
+change the flag in `k3s.service`, run `k3s server --cluster-reset` with the same flags, start k3s.
+
 ## nginx
 
-`nginx/conf.d/site.conf`. A name moved into the cluster has `proxy_pass http://192.168.1.135:80`
+`nginx/conf.d/site.conf`. A name moved into the cluster has `proxy_pass http://192.168.1.116:80`
 (Traefik). The `*.machaka.net` catch-all also goes to Traefik, so a new app in the cluster needs only
 its Ingress and a DNS record. After a change: `docker exec nginx nginx -s reload`.
 
@@ -36,7 +43,7 @@ X-Forwarded-Proto that nginx sets; without it every visitor looks like 10.42.0.1
 
 ### Apps (namespace `apps`)
 
-| App | Host | Data (hostPath on .135) |
+| App | Host | Data (hostPath on the server) |
 |---|---|---|
 | cat-weight | cat.machaka.net | `~/Cat-Weight/data` |
 | boardxplorer | boardxplorer.machaka.net | `~/BoardXplorer/data` |
@@ -60,7 +67,7 @@ Never `docker compose up` an app that runs in the cluster: two copies would writ
 
 | Tool | Address | Login | What it does |
 |---|---|---|---|
-| Portainer | portainer.machaka.net | `admin` | Containers and pods: the cluster (`homelab`) and Docker on .135 (`server-docker`, through `~/portainer-agent` on the server) |
+| Portainer | portainer.machaka.net | `admin` | Containers and pods: the cluster (`homelab`) and Docker on the server (`server-docker`, through `~/portainer-agent` on the server) |
 | Beszel | beszel.machaka.net | owner's email | CPU, memory, disk, network and Docker containers per machine, with history. One agent per node |
 | Uptime Kuma | status.machaka.net | `admin` | Checks each site and tool every minute; its status page `homelab` feeds the home page |
 | Home page | lab.machaka.net | (Cloudflare only) | One page with every site and tool and their live numbers (Homepage, `k8s/tools/homepage.yaml`) |
@@ -84,7 +91,7 @@ draws it. What is collected is all in `k8s/monitoring/prometheus.yml`:
 | node-exporter | each machine: CPU, memory, disks, network | DaemonSet, port 9110 on every node |
 | kubelet-cadvisor | each pod's containers | the kubelets, through the API server |
 | kube-state-metrics | pods up, restarts, requests and limits | Deployment |
-| cadvisor-docker | the Docker containers on .135 | cAdvisor in `docker-compose.yml`, port 8081 |
+| cadvisor-docker | the Docker containers on the server | cAdvisor in `docker-compose.yml`, port 8081 |
 | frigate | camera fps, detector speed | Frigate's `/api/metrics` |
 | pods | any pod annotated `prometheus.io/scrape: "true"` (Traefik today) | the pods |
 

@@ -1,5 +1,6 @@
 # machaka.net and mohammad.machaka.net: personal website (Next.js) with the CV link tracking.
-# Image: the one the Docker copy ran on 2026-10-24 (~/Personal-Website), loaded into k3s by hand.
+# Image: built on the server from ~/Personal-Website and loaded into k3s by hand (2026-10-29: Opened on top, no Hot, 15 per page; 2026-10-28: the links
+# dashboard with the Opened list; 2026-10-24: the one the Docker copy ran). Back: set the older tag.
 # ADMIN_KEY is in the Secret website-env, made on the server from ~/Personal-Website/.env;
 # it is not in this repo.
 apiVersion: apps/v1
@@ -20,7 +21,7 @@ spec:
       nodeSelector: { kubernetes.io/hostname: moudimash99 }
       containers:
         - name: website
-          image: docker.io/library/personal-website:2026-10-24
+          image: docker.io/library/personal-website:2026-10-29
           imagePullPolicy: Never
           env:
             - { name: NODE_ENV, value: production }

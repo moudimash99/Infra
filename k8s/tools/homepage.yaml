@@ -147,12 +147,12 @@ data:
               url: http://prometheus.monitoring.svc
     - Home:
         - Frigate:
-            href: http://192.168.1.135:5000
+            href: http://192.168.1.116:5000
             description: Cameras (home network only)
             icon: frigate.png
             widget:
               type: frigate
-              url: http://192.168.1.135:5000
+              url: http://192.168.1.116:5000
   bookmarks.yaml: |
     - Admin:
         - Infra repo:

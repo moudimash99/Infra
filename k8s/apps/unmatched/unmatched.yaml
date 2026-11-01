@@ -1,5 +1,5 @@
 # unmatched.machaka.net: Unmatched fighter matcher + tournaments (Flask + gunicorn).
-# Image: the one the Docker copy ran on 2026-10-24 (~/unmatched_matcher), loaded into k3s by hand.
+# Image: built from ~/unmatched_matcher, loaded into k3s by hand (the tag is the build time).
 # Secrets (SECRET_KEY, TOURNAMENT_PASSWORD_HASH) are in the Secret unmatched-env,
 # made on the server from ~/unmatched_matcher/.env; they are not in this repo.
 apiVersion: apps/v1
@@ -20,7 +20,7 @@ spec:
       nodeSelector: { kubernetes.io/hostname: moudimash99 }
       containers:
         - name: unmatched
-          image: docker.io/library/unmatched:2026-10-24
+          image: docker.io/library/unmatched:2026-10-29-0739
           imagePullPolicy: Never
           envFrom:
             - secretRef: { name: unmatched-env }
