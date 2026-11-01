@@ -22,7 +22,7 @@ spec:
     metadata:
       labels: { app: cat-weight }
     spec:
-      # The data lives in a folder on .135, so the pod must run there.
+      # The data lives in a folder on the server, so the pod must run there.
       nodeSelector: { kubernetes.io/hostname: moudimash99 }
       containers:
         - name: cat-weight

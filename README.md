@@ -140,4 +140,5 @@ kubectl -n monitoring get secret grafana-admin -o go-template='{{index .data "ad
 
 Before the move to k3s: `~/backups/pre-k3s-20261024-1641/` on the server, and a copy on the PC.
 Tools and monitoring keep their data on local-path volumes (`/var/lib/rancher/k3s/storage/`).
-No regular backup yet.
+k3s takes its own database snapshot every 12 hours and keeps 5, in `/var/lib/rancher/k3s/server/db/snapshots/`.
+A restore also needs `/var/lib/rancher/k3s/server/token`. Nothing is copied off the server on a schedule.

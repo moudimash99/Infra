@@ -28,6 +28,10 @@ spec:
       containers:
         - name: uptime-kuma
           image: louislam/uptime-kuma:2.5.7
+          env:
+            # Node's default is 250 ms per address: a short network blip failed the check in half
+            # a second (with a blank message) and sent a false "down" email.
+            - { name: NODE_OPTIONS, value: "--network-family-autoselection-attempt-timeout=2000" }
           ports:
             - { name: http, containerPort: 3001 }
           volumeMounts:

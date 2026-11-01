@@ -1,4 +1,4 @@
-# portainer.machaka.net: web UI for the cluster and for Docker on .135 (through the agent in
+# portainer.machaka.net: web UI for the cluster and for Docker on the server (through the agent in
 # ~/portainer-agent on the server). Behind Cloudflare Access, plus Portainer's own login.
 # AGENT_SECRET (Secret portainer-agent) is shared with that Docker agent; it is not in this repo.
 apiVersion: v1
