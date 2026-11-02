@@ -25,6 +25,35 @@ scrape_configs:
         target_label: __address__
       - { source_labels: [__meta_kubernetes_node_name], target_label: node }
 
+  # Memory per program on each machine, outside containers only (process-exporter.yaml).
+  - job_name: process-exporter
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - { target_label: cluster, replacement: homelab }
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        regex: process-exporter
+        action: keep
+      - source_labels: [__meta_kubernetes_pod_ip]
+        regex: (.+)
+        replacement: $1:9256
+        target_label: __address__
+      - { source_labels: [__meta_kubernetes_pod_node_name], target_label: node }
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: namedprocess_namegroup_memory_bytes
+        action: keep
+      - source_labels: [memtype]
+        regex: resident
+        action: keep
+      # Pods and Docker containers are already counted by cAdvisor.
+      - source_labels: [groupname]
+        regex: .*(kubepods|docker-[0-9a-f]+\.scope).*
+        action: drop
+      - source_labels: [groupname]
+        regex: ([^|]*)\|.*
+        target_label: program
+
   # Docker containers on .116 (nginx, cloudflared, ...): cAdvisor in Docker (~/Infra).
   - job_name: cadvisor-docker
     static_configs:

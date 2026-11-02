@@ -131,6 +131,7 @@ draws it. What is collected is all in `k8s/monitoring/prometheus.yml`:
 | Job | What | From |
 |---|---|---|
 | node-exporter | each machine: CPU, memory, disks, network, temperatures | DaemonSet, port 9110 on every node |
+| process-exporter | each machine: memory per program, outside containers | DaemonSet, port 9256 on each pod |
 | kubelet-cadvisor | each pod's containers | the kubelets, through the API server |
 | kube-state-metrics | pods up, restarts, requests and limits | Deployment |
 | cadvisor-docker | the Docker containers on the server | cAdvisor in `docker-compose.yml`, port 8081 |
@@ -139,9 +140,10 @@ draws it. What is collected is all in `k8s/monitoring/prometheus.yml`:
 
 **Home** is the simple one, and Grafana opens on it: is each machine, site and the camera OK, with
 temperature and memory over 24 hours. Its two "What is using memory" rows split each machine's memory
-into pods, Docker, k3s and everything else, and name the biggest containers. "Everything else" is what
-is left after those: Ubuntu's own services, the kernel and so on. It is worked out, not measured per
-program. The numbers are working memory, so they can differ a little from `free` or `ps`.
+into pods, Docker, k3s and everything else, and name the biggest containers and the biggest programs
+outside containers. "Everything else" is what is left after the first three, so it is worked out, not
+measured. A program's number includes memory it shares with others, so the lists can add up to more
+than a machine's total.
 
 The other dashboards (folder Homelab, from grafana.com, in `k8s/monitoring/dashboards/`): Node Exporter Full,
 Kubernetes / Views / Global and Pods, Traefik, Docker containers. The Docker one had its Compose
