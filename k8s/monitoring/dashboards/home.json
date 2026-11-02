@@ -1284,6 +1284,292 @@
           "mode": "multi"
         }
       }
+    },
+    {
+      "id": 26,
+      "type": "row",
+      "title": "What is using memory: Old laptop",
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 27,
+      "type": "bargauge",
+      "title": "By type",
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 10,
+        "h": 10
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "container_memory_working_set_bytes{job=\"kubelet-cadvisor\",id=\"/kubepods.slice\",node=\"moudimash99\"}",
+          "legendFormat": "Kubernetes pods",
+          "instant": true
+        },
+        {
+          "refId": "B",
+          "expr": "sum(container_memory_working_set_bytes{job=\"cadvisor-docker\",name!=\"\"})",
+          "legendFormat": "Docker containers",
+          "instant": true
+        },
+        {
+          "refId": "C",
+          "expr": "sum(container_memory_working_set_bytes{job=\"kubelet-cadvisor\",id=~\"/system.slice/k3s(-agent)?.service\",node=\"moudimash99\"})",
+          "legendFormat": "Kubernetes itself (k3s)",
+          "instant": true
+        },
+        {
+          "refId": "D",
+          "expr": "clamp_min(vector(scalar(node_memory_MemTotal_bytes{node=\"moudimash99\"} - node_memory_MemAvailable_bytes{node=\"moudimash99\"}) - scalar(container_memory_working_set_bytes{job=\"kubelet-cadvisor\",id=\"/kubepods.slice\",node=\"moudimash99\"}) - scalar(sum(container_memory_working_set_bytes{job=\"kubelet-cadvisor\",id=~\"/system.slice/k3s(-agent)?.service\",node=\"moudimash99\"})) - scalar(sum(container_memory_working_set_bytes{job=\"cadvisor-docker\",name!=\"\"}))), 0)",
+          "legendFormat": "Everything else",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "valueMode": "text",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 28,
+      "type": "bargauge",
+      "title": "Biggest containers",
+      "gridPos": {
+        "x": 10,
+        "y": 31,
+        "w": 14,
+        "h": 10
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, sum by (container) (container_memory_working_set_bytes{job=\"kubelet-cadvisor\",container!=\"\",container!=\"POD\",node=\"moudimash99\"}))",
+          "legendFormat": "{{container}}",
+          "instant": true
+        },
+        {
+          "refId": "B",
+          "expr": "topk(6, label_replace(container_memory_working_set_bytes{job=\"cadvisor-docker\",name!=\"\"}, \"container\", \"$1 (Docker)\", \"name\", \"(.*)\"))",
+          "legendFormat": "{{container}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "valueMode": "text",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 29,
+      "type": "row",
+      "title": "What is using memory: Acer",
+      "gridPos": {
+        "x": 0,
+        "y": 41,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 30,
+      "type": "bargauge",
+      "title": "By type",
+      "gridPos": {
+        "x": 0,
+        "y": 42,
+        "w": 10,
+        "h": 10
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "container_memory_working_set_bytes{job=\"kubelet-cadvisor\",id=\"/kubepods.slice\",node=\"acer-laptop\"}",
+          "legendFormat": "Kubernetes pods",
+          "instant": true
+        },
+        {
+          "refId": "B",
+          "expr": "sum(container_memory_working_set_bytes{job=\"kubelet-cadvisor\",id=~\"/system.slice/k3s(-agent)?.service\",node=\"acer-laptop\"})",
+          "legendFormat": "Kubernetes itself (k3s)",
+          "instant": true
+        },
+        {
+          "refId": "C",
+          "expr": "clamp_min(vector(scalar(node_memory_MemTotal_bytes{node=\"acer-laptop\"} - node_memory_MemAvailable_bytes{node=\"acer-laptop\"}) - scalar(container_memory_working_set_bytes{job=\"kubelet-cadvisor\",id=\"/kubepods.slice\",node=\"acer-laptop\"}) - scalar(sum(container_memory_working_set_bytes{job=\"kubelet-cadvisor\",id=~\"/system.slice/k3s(-agent)?.service\",node=\"acer-laptop\"}))), 0)",
+          "legendFormat": "Everything else",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "valueMode": "text",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 31,
+      "type": "bargauge",
+      "title": "Biggest containers",
+      "gridPos": {
+        "x": 10,
+        "y": 42,
+        "w": 14,
+        "h": 10
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, sum by (container) (container_memory_working_set_bytes{job=\"kubelet-cadvisor\",container!=\"\",container!=\"POD\",node=\"acer-laptop\"}))",
+          "legendFormat": "{{container}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "valueMode": "text",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
+      }
     }
   ]
 }

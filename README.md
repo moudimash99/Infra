@@ -138,7 +138,10 @@ draws it. What is collected is all in `k8s/monitoring/prometheus.yml`:
 | pods | any pod annotated `prometheus.io/scrape: "true"` (Traefik today) | the pods |
 
 **Home** is the simple one, and Grafana opens on it: is each machine, site and the camera OK, with
-temperature and memory over 24 hours.
+temperature and memory over 24 hours. Its two "What is using memory" rows split each machine's memory
+into pods, Docker, k3s and everything else, and name the biggest containers. "Everything else" is what
+is left after those: Ubuntu's own services, the kernel and so on. It is worked out, not measured per
+program. The numbers are working memory, so they can differ a little from `free` or `ps`.
 
 The other dashboards (folder Homelab, from grafana.com, in `k8s/monitoring/dashboards/`): Node Exporter Full,
 Kubernetes / Views / Global and Pods, Traefik, Docker containers. The Docker one had its Compose
