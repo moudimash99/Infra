@@ -27,3 +27,6 @@ configMapGenerator:
     files: [dashboards/traefik.json]
   - name: dashboard-docker-containers    # cadvisor dashboard (19792)
     files: [dashboards/docker-containers.json]
+  # Made here, not from grafana.com.
+  - name: dashboard-node-temperatures
+    files: [dashboards/node-temperatures.json]

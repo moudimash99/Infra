@@ -75,6 +75,7 @@ spec:
               - configMap: { name: dashboard-k8s-pods }
               - configMap: { name: dashboard-traefik }
               - configMap: { name: dashboard-docker-containers }
+              - configMap: { name: dashboard-node-temperatures }
 ---
 apiVersion: v1
 kind: Service
