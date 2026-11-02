@@ -30,3 +30,5 @@ configMapGenerator:
   # Made here, not from grafana.com.
   - name: dashboard-node-temperatures
     files: [dashboards/node-temperatures.json]
+  - name: dashboard-home                 # The simple one; Grafana opens on it
+    files: [dashboards/home.json]

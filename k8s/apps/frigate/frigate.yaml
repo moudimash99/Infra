@@ -1,0 +1,64 @@
+# Frigate: the living room camera, on the Acer (home network only, http://192.168.1.93:5000).
+# config.yml (with the camera's password) and Frigate's database are in /srv/apps/frigate/config on
+# the SSD, not in this repo. Recordings are in /var/lib/frigate/media on the 1 TB drive.
+# Host network, so its ports are the Acer's own: 5000 (web), 8554 (RTSP), 8555 (WebRTC).
+# Privileged so it can use the Intel GPU (/dev/dri) for video and for detection.
+# The Nvidia driver is blacklisted on the Acer, so the Intel GPU is the only one under /dev/dri.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frigate
+  namespace: apps
+  labels: { app: frigate }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }  # one copy owns the camera, the database and the recordings
+  selector:
+    matchLabels: { app: frigate }
+  template:
+    metadata:
+      labels: { app: frigate }
+    spec:
+      nodeSelector: { kubernetes.io/hostname: acer-laptop }
+      tolerations:
+        - { key: dedicated, value: worker, effect: NoSchedule }
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: frigate
+          # The 0.16.3 image that ran in Docker. Pinned, because "stable" moves between versions.
+          image: ghcr.io/blakeblackshear/frigate@sha256:cf4305d9f1c673d71c4d0fab30ca56ca05ac91168711a74ee7867a4691a7ad02
+          securityContext: { privileged: true }
+          ports:
+            - { name: http, containerPort: 5000 }
+            - { name: rtsp, containerPort: 8554 }
+            - { name: webrtc-tcp, containerPort: 8555, protocol: TCP }
+            - { name: webrtc-udp, containerPort: 8555, protocol: UDP }
+          volumeMounts:
+            - { name: localtime, mountPath: /etc/localtime, readOnly: true }
+            - { name: config, mountPath: /config }
+            - { name: media, mountPath: /media/frigate }
+            - { name: cache, mountPath: /tmp/cache }
+            - { name: shm, mountPath: /dev/shm }
+          readinessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /api/version, port: http }
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests: { cpu: 500m, memory: 1Gi }
+            limits: { memory: 3Gi }  # includes the 1 GB cache and the 128 MB shared memory below
+      volumes:
+        - name: localtime
+          hostPath: { path: /etc/localtime, type: File }
+        - name: config
+          hostPath: { path: /srv/apps/frigate/config, type: Directory }
+        - name: media
+          hostPath: { path: /var/lib/frigate/media, type: Directory }
+        - name: cache
+          emptyDir: { medium: Memory, sizeLimit: 1Gi }
+        - name: shm
+          emptyDir: { medium: Memory, sizeLimit: 128Mi }
