@@ -9,8 +9,8 @@ internet ─ Cloudflare (DNS, Access login) ─ tunnel ─ cloudflared ─ nginx
                                                                           └─ k3s Traefik :80 ─ pods, by host name
 ```
 
-- **Docker** (`docker-compose.yml`, `nginx/`): cloudflared, nginx, cAdvisor, node-exporter. Frigate and
-  the Free Motion hub run in Docker too, from their own folders.
+- **Docker** (`docker-compose.yml`, `nginx/`): cloudflared, nginx, cAdvisor, node-exporter. The Free
+  Motion hub runs in Docker too, from its own folder.
 - **Kubernetes** (`k8s/`): k3s, two nodes: `moudimash99` (the server) and `acer-laptop` (worker). The
   desktop (WSL2) joins later.
 - `Prometheus/`: the old setup for an EC2 machine, not used.
@@ -31,15 +31,18 @@ forwards those ports to `.116`, so they keep working without that address on the
 k3s agent. It runs on Wi-Fi (`wlp2s0`, MAC `3c:95:09:a0:1e:b5`); Ethernet (`enp3s0`, MAC
 `fc:45:96:e7:c8:23`) is not plugged in.
 
-- **Disks:** Ubuntu is on the 1 TB hard drive. The 128 GB SSD is mounted at `/srv` (`nofail`, so the
-  machine boots without it): k3s data in `/srv/k3s`, app data in `/srv/apps/<app>`.
+- **Disks:** Ubuntu is on the 1 TB hard drive, and `/` uses all of it (914 GB), including Frigate's
+  recordings in `/var/lib/frigate/media`. The 128 GB SSD is mounted at `/srv` (`nofail`, so the machine
+  boots without it): k3s data in `/srv/k3s`, app data in `/srv/apps/<app>`.
 - **k3s:** `/etc/rancher/k3s/config.yaml` sets the data folder, the label `role=worker` and the taint
   `dedicated=worker:NoSchedule`. Only pods with that toleration run there, plus DaemonSets that
   tolerate everything. The join address and token are in `/etc/systemd/system/k3s-agent.service.env`.
 - **Firewall (ufw):** SSH from anywhere; from 192.168.1.0/24: 10250/tcp (kubelet), 8472/udp (flannel),
-  9110/tcp (node-exporter), 45876/tcp (Beszel); everything from 10.42.0.0/16 and 10.43.0.0/16.
+  9110/tcp (node-exporter), 45876/tcp (Beszel), 5000/tcp, 8554/tcp and 8555 tcp+udp (Frigate); everything
+  from 10.42.0.0/16 and 10.43.0.0/16.
 - **Laptop settings:** swap off, sleep masked, lid ignored, Wi-Fi power saving off
-  (`wifi-powersave-off.service`), screen off (`screen-off.service`).
+  (`wifi-powersave-off.service`), screen off (`screen-off.service`), Nvidia driver blacklisted, so the
+  Intel GPU is the only one for Frigate.
 - **Restarts:** on 2026-11-02 a reboot stuck in the BIOS until it was fixed by hand. After that fix, a
   restart with nobody there took 49 s, and the three apps were back within a minute.
 
@@ -71,10 +74,17 @@ X-Forwarded-Proto that nginx sets; without it every visitor looks like 10.42.0.1
 | boardxplorer | boardxplorer.machaka.net | Acer | `/srv/apps/boardxplorer` |
 | unmatched | unmatched.machaka.net | Acer | `/srv/apps/unmatched` |
 | website | machaka.net, mohammad.machaka.net | server | `~/Personal-Website/tracking-data` |
+| frigate | http://192.168.1.93:5000 (home network only) | Acer | `/srv/apps/frigate/config`, `/var/lib/frigate/media` |
 
 All moved from Docker on 2026-10-24; the first three moved to the Acer on 2026-11-02. Their old data
 folders on the server (`~/Cat-Weight/data`, `~/BoardXplorer/data`, `~/unmatched_matcher/data`) stopped
 updating that day: they are a fallback only.
+
+Frigate moved from Docker to the Acer on 2026-11-02. Its container on the server (`~/frigate`) is stopped:
+never start it while the pod runs. Its old recordings copy slowly to the Acer through
+`frigate-copy.service` there, which pulls from the temporary `frigate-rsyncd` on the server (read-only,
+stops by itself after 48 hours). `/var/lib/frigate/copy-done` on the Acer means it finished. After that,
+`~/frigate/storage` on the server can go.
 
 Images are built on the server and loaded by hand until there is a registry. For the website:
 `docker save <image> | sudo k3s ctr images import -`. For an app on the Acer:
@@ -121,13 +131,21 @@ draws it. What is collected is all in `k8s/monitoring/prometheus.yml`:
 | Job | What | From |
 |---|---|---|
 | node-exporter | each machine: CPU, memory, disks, network, temperatures | DaemonSet, port 9110 on every node |
+| process-exporter | each machine: memory per program, outside containers | DaemonSet, port 9256 on each pod |
 | kubelet-cadvisor | each pod's containers | the kubelets, through the API server |
 | kube-state-metrics | pods up, restarts, requests and limits | Deployment |
 | cadvisor-docker | the Docker containers on the server | cAdvisor in `docker-compose.yml`, port 8081 |
 | frigate | camera fps, detector speed | Frigate's `/api/metrics` |
 | pods | any pod annotated `prometheus.io/scrape: "true"` (Traefik today) | the pods |
 
-Dashboards (folder Homelab, from grafana.com, in `k8s/monitoring/dashboards/`): Node Exporter Full,
+**Home** is the simple one, and Grafana opens on it: is each machine, site and the camera OK, with
+temperature and memory over 24 hours. Its two "What is using memory" rows split each machine's memory
+into pods, Docker, k3s and everything else, and name the biggest containers and the biggest programs
+outside containers. "Everything else" is what is left after the first three, so it is worked out, not
+measured. A program's number includes memory it shares with others, so the lists can add up to more
+than a machine's total.
+
+The other dashboards (folder Homelab, from grafana.com, in `k8s/monitoring/dashboards/`): Node Exporter Full,
 Kubernetes / Views / Global and Pods, Traefik, Docker containers. The Docker one had its Compose
 filter removed, because cAdvisor here does not keep container labels. Node temperatures is made here:
 the hottest CPU core per machine and every sensor, from `node_hwmon_temp_celsius`. Its numbers are also

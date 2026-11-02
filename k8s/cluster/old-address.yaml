@@ -1,5 +1,6 @@
 # Uptime Kuma, Beszel and Portainer keep 192.168.1.135 in their own databases. This forwards those
-# ports to the server's real address, so they work even with .135 on no connection at all.
+# ports to the machines they really run on, so they work even with .135 on no connection at all:
+# the two agents on the server, Frigate on the Acer.
 # Delete this file (and the objects) once they all use 192.168.1.116, or when .135 is back on Ethernet.
 # externalIPs is deprecated in Kubernetes 1.36: check this still works after a k3s upgrade.
 apiVersion: v1
@@ -22,8 +23,19 @@ metadata:
   labels: { kubernetes.io/service-name: old-address }
 addressType: IPv4
 ports:
-  - { name: frigate, port: 5000, protocol: TCP }
   - { name: portainer-agent, port: 9001, protocol: TCP }
   - { name: beszel-agent, port: 45876, protocol: TCP }
 endpoints:
   - addresses: [192.168.1.116]
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: old-address-frigate
+  namespace: tools
+  labels: { kubernetes.io/service-name: old-address }
+addressType: IPv4
+ports:
+  - { name: frigate, port: 5000, protocol: TCP }
+endpoints:
+  - addresses: [192.168.1.93]

@@ -1,0 +1,47 @@
+# process-exporter on every node (DaemonSet): memory per program, for the Home dashboard's "Programs
+# outside containers". Host PID, so it sees the machine's own processes in its /proc. Each group is
+# named program|cgroup; prometheus.yml drops the ones inside a container and keeps the program name.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: process-exporter
+  namespace: monitoring
+data:
+  config.yml: |
+    process_names:
+      - name: "{{.Comm}}|{{.Cgroups}}"
+        cmdline: ['.+']  # kernel threads have no command line and no memory of their own
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: process-exporter
+  namespace: monitoring
+  labels: { app: process-exporter }
+spec:
+  selector:
+    matchLabels: { app: process-exporter }
+  template:
+    metadata:
+      labels: { app: process-exporter }
+    spec:
+      hostPID: true
+      securityContext: { runAsUser: 65534, runAsNonRoot: true }
+      containers:
+        - name: process-exporter
+          image: ncabatoff/process-exporter:0.8.7
+          args:
+            - -config.path=/config/config.yml
+            - -gather-smaps=false
+          ports:
+            - { name: metrics, containerPort: 9256 }
+          volumeMounts:
+            - { name: config, mountPath: /config, readOnly: true }
+          resources:
+            requests: { cpu: 10m, memory: 24Mi }
+            limits: { memory: 96Mi }
+      volumes:
+        - name: config
+          configMap: { name: process-exporter }
+      tolerations:
+        - operator: Exists  # every node, control plane included

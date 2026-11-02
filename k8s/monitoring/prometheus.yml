@@ -25,7 +25,36 @@ scrape_configs:
         target_label: __address__
       - { source_labels: [__meta_kubernetes_node_name], target_label: node }
 
-  # Docker containers on .116 (frigate, nginx, cloudflared, ...): cAdvisor in Docker (~/Infra).
+  # Memory per program on each machine, outside containers only (process-exporter.yaml).
+  - job_name: process-exporter
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - { target_label: cluster, replacement: homelab }
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        regex: process-exporter
+        action: keep
+      - source_labels: [__meta_kubernetes_pod_ip]
+        regex: (.+)
+        replacement: $1:9256
+        target_label: __address__
+      - { source_labels: [__meta_kubernetes_pod_node_name], target_label: node }
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: namedprocess_namegroup_memory_bytes
+        action: keep
+      - source_labels: [memtype]
+        regex: resident
+        action: keep
+      # Pods and Docker containers are already counted by cAdvisor.
+      - source_labels: [groupname]
+        regex: .*(kubepods|docker-[0-9a-f]+\.scope).*
+        action: drop
+      - source_labels: [groupname]
+        regex: ([^|]*)\|.*
+        target_label: program
+
+  # Docker containers on .116 (nginx, cloudflared, ...): cAdvisor in Docker (~/Infra).
   - job_name: cadvisor-docker
     static_configs:
       - targets: ['192.168.1.116:8081']
@@ -36,11 +65,11 @@ scrape_configs:
         regex: machine_.*
         action: drop
 
-  # Frigate's own numbers: camera fps, detector speed, CPU per process.
+  # Frigate's own numbers: camera fps, detector speed, CPU per process. It runs on the Acer.
   - job_name: frigate
     metrics_path: /api/metrics
     static_configs:
-      - targets: ['192.168.1.116:5000']
+      - targets: ['192.168.1.93:5000']
     relabel_configs: *cluster
 
   # The cluster's containers (pods), with namespace/pod/container labels. Each node's kubelet has a

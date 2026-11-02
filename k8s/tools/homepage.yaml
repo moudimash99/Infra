@@ -131,7 +131,7 @@ data:
               key: "{{HOMEPAGE_VAR_PORTAINER_KEY}}"
     - Monitoring:
         - Grafana:
-            href: https://grafana.machaka.net
+            href: https://grafana.machaka.net/d/home-overview
             description: Dashboards over Prometheus
             icon: grafana.png
             namespace: monitoring
@@ -162,12 +162,12 @@ data:
                   format: { type: number, suffix: "°C", maximumFractionDigits: 0 }
     - Home:
         - Frigate:
-            href: http://192.168.1.116:5000
+            href: http://192.168.1.93:5000
             description: Cameras (home network only)
             icon: frigate.png
             widget:
               type: frigate
-              url: http://192.168.1.116:5000
+              url: http://192.168.1.93:5000
   bookmarks.yaml: |
     - Admin:
         - Infra repo:
