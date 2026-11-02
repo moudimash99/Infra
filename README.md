@@ -40,8 +40,8 @@ k3s agent. It runs on Wi-Fi (`wlp2s0`, MAC `3c:95:09:a0:1e:b5`); Ethernet (`enp3
   9110/tcp (node-exporter), 45876/tcp (Beszel); everything from 10.42.0.0/16 and 10.43.0.0/16.
 - **Laptop settings:** swap off, sleep masked, lid ignored, Wi-Fi power saving off
   (`wifi-powersave-off.service`), screen off (`screen-off.service`).
-- **Restarts:** on 2026-11-02 a reboot stuck in the BIOS until it was fixed by hand. A restart with
-  nobody there has not been proven since. Boardxplorer, cat-weight and unmatched are down while it is.
+- **Restarts:** on 2026-11-02 a reboot stuck in the BIOS until it was fixed by hand. After that fix, a
+  restart with nobody there took 49 s, and the three apps were back within a minute.
 
 ## nginx
 
@@ -176,5 +176,5 @@ Before the move to k3s: `~/backups/pre-k3s-20261024-1641/` on the server, and a 
 Tools and monitoring keep their data on local-path volumes (`/var/lib/rancher/k3s/storage/`).
 k3s takes its own database snapshot every 12 hours and keeps 5, in `/var/lib/rancher/k3s/server/db/snapshots/`.
 A restore also needs `/var/lib/rancher/k3s/server/token`. Nothing is copied off the server or the Acer
-on a schedule, so the data in `/srv/apps` on the Acer has no backup except the 2026-11-02 copy on the
-server.
+on a schedule. The data in `/srv/apps` on the Acer has only two copies from 2026-11-02: its old folders
+on the server, and `~/homelab-backup/2026-11-02/` on the PC, which also holds the `.env` files and tool logins.
