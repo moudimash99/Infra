@@ -57,7 +57,7 @@ data:
     layout:
       Sites: { style: row, columns: 3 }
       Tools: { style: row, columns: 3 }
-      Monitoring: { style: row, columns: 2 }
+      Monitoring: { style: row, columns: 3 }
       Home: { style: row, columns: 3 }
   widgets.yaml: |
     - kubernetes:
@@ -145,6 +145,21 @@ data:
             widget:
               type: prometheus
               url: http://prometheus.monitoring.svc
+        - Temperatures:
+            href: https://grafana.machaka.net/d/node-temperatures
+            description: Hottest CPU core on each machine
+            icon: mdi-thermometer
+            widget:
+              type: prometheusmetric
+              url: http://prometheus.monitoring.svc
+              refreshInterval: 30000
+              metrics:
+                - label: Old laptop
+                  query: max(node_hwmon_temp_celsius{chip="platform_coretemp_0",node="moudimash99"})
+                  format: { type: number, suffix: "°C", maximumFractionDigits: 0 }
+                - label: Acer
+                  query: max(node_hwmon_temp_celsius{chip="platform_coretemp_0",node="acer-laptop"})
+                  format: { type: number, suffix: "°C", maximumFractionDigits: 0 }
     - Home:
         - Frigate:
             href: http://192.168.1.116:5000

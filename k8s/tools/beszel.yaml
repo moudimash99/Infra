@@ -1,6 +1,6 @@
 # beszel.machaka.net: light monitoring with history and alerts (hub), plus one agent per machine.
-# The agent runs on every node (DaemonSet, host network) and reads the machine and its Docker
-# containers; the hub connects to it on port 45876 and only an agent holding the hub's public key
+# The agent runs on every node (DaemonSet, host network; beszel-agent-worker on nodes without Docker)
+# and reads the machine and its Docker containers; the hub connects to it on port 45876 and only an agent holding the hub's public key
 # (Secret beszel-agent, key KEY) answers. Behind Cloudflare Access, plus Beszel's own login.
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -105,3 +105,32 @@ spec:
       volumes:
         - name: docker
           hostPath: { path: /var/run/docker.sock, type: Socket }
+---
+# The same agent for worker nodes, which have no Docker, so no socket to mount.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: beszel-agent-worker
+  namespace: tools
+  labels: { app: beszel-agent-worker }
+spec:
+  selector:
+    matchLabels: { app: beszel-agent-worker }
+  template:
+    metadata:
+      labels: { app: beszel-agent-worker }
+    spec:
+      hostNetwork: true
+      nodeSelector: { role: worker }
+      tolerations:
+        - { key: dedicated, value: worker, effect: NoSchedule }
+      containers:
+        - name: beszel-agent
+          image: henrygd/beszel-agent:0.21.1
+          env:
+            - { name: LISTEN, value: "45876" }
+            - name: KEY
+              valueFrom: { secretKeyRef: { name: beszel-agent, key: KEY } }
+          resources:
+            requests: { cpu: 5m, memory: 16Mi }
+            limits: { memory: 128Mi }

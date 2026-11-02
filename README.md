@@ -1,7 +1,8 @@
 # Infra
 
-Everything that runs on the home server, 192.168.1.116 (Ubuntu, 8 cores, 7.6 GB). The server keeps a
-clone of this repo in `~/Infra`; Docker runs from there.
+Everything that runs at home. "The server" below is the old laptop, 192.168.1.116 (Ubuntu, 8 threads,
+7.6 GB): control plane, Traefik, Docker. The Acer laptop, 192.168.1.93, is the worker. The server keeps
+a clone of this repo in `~/Infra`; Docker runs from there.
 
 ```
 internet ─ Cloudflare (DNS, Access login) ─ tunnel ─ cloudflared ─ nginx ─┬─ Docker containers (proxy_net)
@@ -10,8 +11,8 @@ internet ─ Cloudflare (DNS, Access login) ─ tunnel ─ cloudflared ─ nginx
 
 - **Docker** (`docker-compose.yml`, `nginx/`): cloudflared, nginx, cAdvisor, node-exporter. Frigate and
   the Free Motion hub run in Docker too, from their own folders.
-- **Kubernetes** (`k8s/`): k3s, one node today. The desktop (WSL2) and a second machine join later as
-  servers (k3s was installed with `--cluster-init`).
+- **Kubernetes** (`k8s/`): k3s, two nodes: `moudimash99` (the server) and `acer-laptop` (worker). The
+  desktop (WSL2) joins later.
 - `Prometheus/`: the old setup for an EC2 machine, not used.
 
 ## Network
@@ -23,6 +24,24 @@ change the flag in `k3s.service`, run `k3s server --cluster-reset` with the same
 
 Uptime Kuma, Beszel and Portainer still hold `.135` in their own databases. `k8s/cluster/old-address.yaml`
 forwards those ports to `.116`, so they keep working without that address on the server.
+
+## The Acer worker
+
+`acer-laptop`, Aspire VX5-591G (Ubuntu 24.04, i5-7300HQ, 4 threads, 7.6 GB), joined on 2026-11-02 as a
+k3s agent. It runs on Wi-Fi (`wlp2s0`, MAC `3c:95:09:a0:1e:b5`); Ethernet (`enp3s0`, MAC
+`fc:45:96:e7:c8:23`) is not plugged in.
+
+- **Disks:** Ubuntu is on the 1 TB hard drive. The 128 GB SSD is mounted at `/srv` (`nofail`, so the
+  machine boots without it): k3s data in `/srv/k3s`, app data in `/srv/apps/<app>`.
+- **k3s:** `/etc/rancher/k3s/config.yaml` sets the data folder, the label `role=worker` and the taint
+  `dedicated=worker:NoSchedule`. Only pods with that toleration run there, plus DaemonSets that
+  tolerate everything. The join address and token are in `/etc/systemd/system/k3s-agent.service.env`.
+- **Firewall (ufw):** SSH from anywhere; from 192.168.1.0/24: 10250/tcp (kubelet), 8472/udp (flannel),
+  9110/tcp (node-exporter), 45876/tcp (Beszel); everything from 10.42.0.0/16 and 10.43.0.0/16.
+- **Laptop settings:** swap off, sleep masked, lid ignored, Wi-Fi power saving off
+  (`wifi-powersave-off.service`), screen off (`screen-off.service`).
+- **Restarts:** on 2026-11-02 a reboot stuck in the BIOS until it was fixed by hand. A restart with
+  nobody there has not been proven since. Boardxplorer, cat-weight and unmatched are down while it is.
 
 ## nginx
 
@@ -46,15 +65,25 @@ X-Forwarded-Proto that nginx sets; without it every visitor looks like 10.42.0.1
 
 ### Apps (namespace `apps`)
 
-| App | Host | Data (hostPath on the server) |
-|---|---|---|
-| cat-weight | cat.machaka.net | `~/Cat-Weight/data` |
-| boardxplorer | boardxplorer.machaka.net | `~/BoardXplorer/data` |
-| unmatched | unmatched.machaka.net | `~/unmatched_matcher/data` |
-| website | machaka.net, mohammad.machaka.net | `~/Personal-Website/tracking-data` |
+| App | Host | Runs on | Data (hostPath) |
+|---|---|---|---|
+| cat-weight | cat.machaka.net | Acer | `/srv/apps/cat-weight` |
+| boardxplorer | boardxplorer.machaka.net | Acer | `/srv/apps/boardxplorer` |
+| unmatched | unmatched.machaka.net | Acer | `/srv/apps/unmatched` |
+| website | machaka.net, mohammad.machaka.net | server | `~/Personal-Website/tracking-data` |
 
-All moved from Docker on 2026-10-24. Images are built on the server and loaded by hand
-(`docker save <image> | sudo k3s ctr images import -`) until there is a registry.
+All moved from Docker on 2026-10-24; the first three moved to the Acer on 2026-11-02. Their old data
+folders on the server (`~/Cat-Weight/data`, `~/BoardXplorer/data`, `~/unmatched_matcher/data`) stopped
+updating that day: they are a fallback only.
+
+Images are built on the server and loaded by hand until there is a registry. For the website:
+`docker save <image> | sudo k3s ctr images import -`. For an app on the Acer:
+
+```
+docker save <image> -o /tmp/image.tar
+scp /tmp/image.tar 192.168.1.93:/tmp/
+ssh -t 192.168.1.93 sudo k3s ctr images import /tmp/image.tar
+```
 
 unmatched-tournament is retired (the tournaments live in unmatched); nginx answers
 unmatchedtournament.machaka.net with a 301 to https://unmatched.machaka.net/tournaments.
@@ -91,7 +120,7 @@ draws it. What is collected is all in `k8s/monitoring/prometheus.yml`:
 
 | Job | What | From |
 |---|---|---|
-| node-exporter | each machine: CPU, memory, disks, network | DaemonSet, port 9110 on every node |
+| node-exporter | each machine: CPU, memory, disks, network, temperatures | DaemonSet, port 9110 on every node |
 | kubelet-cadvisor | each pod's containers | the kubelets, through the API server |
 | kube-state-metrics | pods up, restarts, requests and limits | Deployment |
 | cadvisor-docker | the Docker containers on the server | cAdvisor in `docker-compose.yml`, port 8081 |
@@ -100,7 +129,9 @@ draws it. What is collected is all in `k8s/monitoring/prometheus.yml`:
 
 Dashboards (folder Homelab, from grafana.com, in `k8s/monitoring/dashboards/`): Node Exporter Full,
 Kubernetes / Views / Global and Pods, Traefik, Docker containers. The Docker one had its Compose
-filter removed, because cAdvisor here does not keep container labels.
+filter removed, because cAdvisor here does not keep container labels. Node temperatures is made here:
+the hottest CPU core per machine and every sensor, from `node_hwmon_temp_celsius`. Its numbers are also
+on the home page's Temperatures tile.
 
 Without Cloudflare: `kubectl -n monitoring port-forward svc/grafana 3000:80` (http://localhost:3000)
 and `kubectl -n monitoring port-forward svc/prometheus 9090:80` (no login, so no Ingress).
@@ -144,4 +175,6 @@ kubectl -n monitoring get secret grafana-admin -o go-template='{{index .data "ad
 Before the move to k3s: `~/backups/pre-k3s-20261024-1641/` on the server, and a copy on the PC.
 Tools and monitoring keep their data on local-path volumes (`/var/lib/rancher/k3s/storage/`).
 k3s takes its own database snapshot every 12 hours and keeps 5, in `/var/lib/rancher/k3s/server/db/snapshots/`.
-A restore also needs `/var/lib/rancher/k3s/server/token`. Nothing is copied off the server on a schedule.
+A restore also needs `/var/lib/rancher/k3s/server/token`. Nothing is copied off the server or the Acer
+on a schedule, so the data in `/srv/apps` on the Acer has no backup except the 2026-11-02 copy on the
+server.

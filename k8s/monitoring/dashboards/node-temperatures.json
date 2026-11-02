@@ -1,0 +1,73 @@
+{
+  "uid": "node-temperatures",
+  "title": "Node temperatures",
+  "tags": ["homelab"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Hottest CPU core now",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (node) (node_hwmon_temp_celsius{chip=\"platform_coretemp_0\"})",
+          "legendFormat": "{{node}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 70 },
+              { "color": "red", "value": 85 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": { "colorMode": "background", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Hottest CPU core",
+      "gridPos": { "x": 0, "y": 5, "w": 24, "h": 10 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (node) (node_hwmon_temp_celsius{chip=\"platform_coretemp_0\"})",
+          "legendFormat": "{{node}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "celsius", "custom": { "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Every sensor",
+      "gridPos": { "x": 0, "y": 15, "w": 24, "h": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_hwmon_temp_celsius",
+          "legendFormat": "{{node}} {{chip}} {{sensor}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "celsius", "custom": { "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi" } }
+    }
+  ]
+}

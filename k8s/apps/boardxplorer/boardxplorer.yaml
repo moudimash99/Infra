@@ -17,7 +17,9 @@ spec:
     metadata:
       labels: { app: boardxplorer }
     spec:
-      nodeSelector: { kubernetes.io/hostname: moudimash99 }
+      nodeSelector: { kubernetes.io/hostname: acer-laptop }
+      tolerations:
+        - { key: dedicated, value: worker, effect: NoSchedule }
       containers:
         - name: boardxplorer
           image: docker.io/library/boardxplorer:2026-10-24
@@ -45,7 +47,7 @@ spec:
       volumes:
         - name: data
           # Copied from the Docker volume boardxplorer_sqlite_data at the move.
-          hostPath: { path: /home/moudimash99/BoardXplorer/data, type: Directory }
+          hostPath: { path: /srv/apps/boardxplorer, type: Directory }
 ---
 apiVersion: v1
 kind: Service

@@ -17,7 +17,9 @@ spec:
     metadata:
       labels: { app: unmatched }
     spec:
-      nodeSelector: { kubernetes.io/hostname: moudimash99 }
+      nodeSelector: { kubernetes.io/hostname: acer-laptop }
+      tolerations:
+        - { key: dedicated, value: worker, effect: NoSchedule }
       containers:
         - name: unmatched
           image: docker.io/library/unmatched:2026-10-29-0739
@@ -40,7 +42,7 @@ spec:
             limits: { memory: 384Mi }
       volumes:
         - name: data
-          hostPath: { path: /home/moudimash99/unmatched_matcher/data, type: Directory }
+          hostPath: { path: /srv/apps/unmatched, type: Directory }
 ---
 apiVersion: v1
 kind: Service
