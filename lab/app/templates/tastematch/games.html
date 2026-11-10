@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "_m.html" import page_head, empty, unreadable %}
+{% from "tastematch/_tm.html" import game_tile, pager with context %}
+{% block title %}Games · Taste Match{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/tastematch.css?v={{ STATIC_V }}">{% endblock %}
+{% block main %}
+{{ page_head("Games", (counts.all | comma) ~ " games at least one reviewer gave a verdict on, " ~ (counts.rated | comma) ~ " of them rated by you.") }}
+{{ unreadable(g, "the games") }}
+{% set qs = "q=" ~ (q | urlencode) %}
+<div class="tm-filters">
+  <form class="searchbar" action="{{ R }}/games" role="search">{{ icon("search") }}
+    <input class="input" name="q" value="{{ q }}" placeholder="Find a game" aria-label="Find a game" autocomplete="off">
+    <input type="hidden" name="show" value="{{ show }}"><input type="hidden" name="sort" value="{{ sort }}">
+  </form>
+  <nav class="seg" aria-label="Which games">
+    {% for key, label in [("all", "All"), ("rated", "You rated"), ("unrated", "Not rated")] %}
+    <a href="{{ R }}/games?{{ qs }}&show={{ key }}&sort={{ sort }}"{% if show == key %} class="on"{% endif %}>{{ label }}<span class="n">{{ counts[key] | comma }}</span></a>
+    {% endfor %}
+  </nav>
+  <nav class="seg" aria-label="Order">
+    {% for key, label in [("reviewed", "Most reviewed"), ("matches", "For you"), ("score", "Top scored"), ("name", "A–Z")] %}
+    <a href="{{ R }}/games?{{ qs }}&show={{ show }}&sort={{ key }}"{% if sort == key %} class="on"{% endif %}>{{ label }}</a>
+    {% endfor %}
+  </nav>
+</div>
+{% if sort == "matches" %}<p class="section-sub">Ordered by what hosts who match you score them, weighted by how closely they match.</p>{% endif %}
+
+{% if rows %}
+<div class="tiles">
+  {% for e in rows %}
+  {% set badge = ("%.1f" | format(e.say)) if (sort == "matches" and e.say is not none) else ("%.1f" | format(e.avg)) %}
+  {{ game_tile(e.gid, e.name, (e.hosts | length) ~ " reviewer" ~ ("s" if e.hosts | length != 1 else "") ~ ((" · BGG " ~ ("%.1f" | format(e.average / 2))) if e.average else ""), badge, ("You " ~ ("%.1f" | format(e.rated / 2))) if e.rated is not none else None) }}
+  {% endfor %}
+</div>
+{{ pager(pg, R ~ "/games?" ~ qs ~ "&show=" ~ show ~ "&sort=" ~ sort ~ "&") }}
+{% else %}
+<div class="card">{{ empty("No games found", "Try another name or filter." if q else "No game here yet.", "dices") }}</div>
+{% endif %}
+{% endblock %}

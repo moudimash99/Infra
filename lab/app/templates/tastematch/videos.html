@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% from "_m.html" import page_head, empty, unreadable %}
+{% from "tastematch/_tm.html" import vthumb, stage, pager with context %}
+{% block title %}Videos · Taste Match{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/tastematch.css?v={{ STATIC_V }}">{% endblock %}
+{% block main %}
+{% set total = (v.data or {}).get("total", 0) %}
+{{ page_head("Videos", "The reviews in this round. Open one to see what each host said about each game.") }}
+{{ unreadable(v, "the videos") }}
+<div class="tm-filters">
+  <form class="searchbar" action="{{ R }}/videos" role="search">{{ icon("search") }}
+    <input class="input" name="q" value="{{ q }}" placeholder="Find a title or a game" aria-label="Find a title or a game" autocomplete="off">
+    <input type="hidden" name="show" value="{{ show }}"><input type="hidden" name="channel" value="{{ channel }}">
+  </form>
+  <div class="row wrap" style="gap:10px">
+    <nav class="seg" aria-label="Which videos">
+      {% for key, label in [("rated", "Rated"), ("waiting", "Waiting"), ("all", "Whole round")] %}
+      <a href="{{ R }}/videos?show={{ key }}&channel={{ channel }}&q={{ q | urlencode }}"{% if show == key %} class="on"{% endif %}>{{ label }}</a>
+      {% endfor %}
+    </nav>
+    <form action="{{ R }}/videos"><input type="hidden" name="show" value="{{ show }}"><input type="hidden" name="q" value="{{ q }}">
+      <select class="tm-select" name="channel" aria-label="Channel" onchange="this.form.submit()">
+        <option value="">All channels</option>
+        {% for key, c in chans.items() | sort(attribute="1.name") %}<option value="{{ key }}"{% if key == channel %} selected{% endif %}>{{ c.name }}</option>{% endfor %}
+      </select><noscript><button class="btn sm">Show</button></noscript>
+    </form>
+  </div>
+</div>
+<p class="section-sub">{{ total | comma }} video{{ "s" if total != 1 }}{% if q %} matching “{{ q }}”{% endif %}{% if channel %} from {{ chans[channel].name }}{% endif %}.</p>
+
+{% if v.data and v.data.rows %}
+<div class="card flush"><div class="list">
+  {% for x in v.data.rows %}
+  <a class="item" href="{{ R }}/v/{{ x.id }}" style="align-items:flex-start">{{ vthumb(x.id, x.duration) }}
+    <span class="body"><span class="title wrap clamp-2">{{ x.title }}</span>
+      <span class="meta">{{ (chans.get(x.channel) or {}).get("name", x.channel) }}</span>
+      {{ stage(x, files) }}{% if x.last_rated %}<span class="xs muted" style="display:block;margin-top:4px">Rated {{ x.last_rated | ago }}</span>{% endif %}</span></a>
+  {% endfor %}
+</div></div>
+{{ pager(pg, R ~ "/videos?show=" ~ show ~ "&channel=" ~ channel ~ "&q=" ~ (q | urlencode) ~ "&") }}
+{% elif v.data %}
+<div class="card">{{ empty("No videos found", "Try another word, channel or filter.", "video") }}</div>
+{% endif %}
+{% endblock %}

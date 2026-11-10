@@ -1,0 +1,96 @@
+{#- Taste Match's own pieces. They use R, so import them with context:
+      {% from "tastematch/_tm.html" import signed, meter, scale, host_row, game_tile, box, vthumb, vlen, pager, stage with context %} -#}
+{% from "_m.html" import score %}
+
+{#- A host's avatar: initials, a colour from their id -#}
+{% macro who(name, key, size="") -%}
+<span class="avatar {{ size }} {{ key | tm_av }}" aria-hidden="true">{{ name | initials }}</span>
+{%- endmacro %}
+
+{#- +0.42 / −0.07, with a real minus sign -#}
+{% macro signed(x) -%}{{ ('%+.2f' | format(x)) | replace('-', '−') }}{%- endmacro %}
+
+{#- A match on the scale build_results.py uses (−0.5 .. +0.75): zero line, likely range, the match itself -#}
+{% macro meter(m, low, high, big=False) -%}
+{%- set lo, span = -0.5, 1.25 -%}
+{%- set pm = (([[m, 0.75] | min, lo] | max) - lo) / span * 100 -%}
+{%- set pl = (([[low, 0.75] | min, lo] | max) - lo) / span * 100 -%}
+{%- set ph = (([[high, 0.75] | min, lo] | max) - lo) / span * 100 -%}
+<div class="diverge{{ ' tm-big' if big }}" role="img" aria-label="Match {{ signed(m) }}, likely between {{ signed(low) }} and {{ signed(high) }}">
+  <span class="zero" style="left:40%"></span>
+  <span class="band" style="left:{{ pl | round(1) }}%;width:{{ [ph - pl, 0.8] | max | round(1) }}%"></span>
+  <span class="dot" style="left:{{ pm | round(1) }}%"></span>
+</div>
+{%- endmacro %}
+
+{% macro scale() -%}
+<div class="tm-scale" aria-hidden="true"><span>Opposite taste</span><span class="z">0</span><span>Same taste</span></div>
+{%- endmacro %}
+
+{#- One host in a list: rank, avatar, name, channel, the match and its words -#}
+{% macro host_row(r, rank=True, bar=False) -%}
+<a class="item" href="{{ R }}/reviewers/{{ r.id }}">
+  {% if rank %}<span class="rank">{{ r.rank if r.ranked else "·" }}</span>{% endif %}
+  {{ who(r.name, r.id) }}
+  <span class="body">
+    <span class="row" style="gap:6px"><span class="title truncate">{{ r.name }}</span>{% if r.ranked %}<span class="badge {{ r.badge }}">{{ r.short }}</span>{% endif %}</span>
+    <span class="meta">{{ r.channel_name }}</span>
+    {% if bar and r.ranked %}<span class="tm-rowbar">{{ meter(r.match, r.low, r.high) }}</span>{% endif %}
+  </span>
+  <span class="trail">
+    {% if r.ranked %}<span class="tm-num{{ ' accent' if r.match >= 0.05 }}">{{ signed(r.match) }}</span>{% endif %}
+    <span class="meta">{{ r.n }} game{{ "s" if r.n != 1 }}</span>
+  </span>
+  {{ icon("chevron-right", "chev") }}
+</a>
+{%- endmacro %}
+
+{#- Box art through the lab; a missing picture becomes a quiet placeholder -#}
+{% macro box(gid, size="m", cls="") -%}
+<img class="{{ cls }}" src="{{ R }}/img/{{ gid }}-{{ size }}.jpg" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='/static/tastematch-nobox.svg'">
+{%- endmacro %}
+
+{% macro game_tile(gid, name, meta=None, badge=None, corner=None) -%}
+<a class="tile" href="{{ R }}/games/{{ gid }}">
+  <div class="media">{{ box(gid, "m") }}
+    {% if badge %}<span class="on-img badge accent">{{ icon("star") }}{{ badge }}</span>{% endif %}
+    {% if corner %}<span class="on-img r badge dark">{{ corner }}</span>{% endif %}
+  </div>
+  <div class="body"><div class="title">{{ name }}</div>{% if meta %}<div class="meta">{{ meta }}</div>{% endif %}</div>
+</a>
+{%- endmacro %}
+
+{#- 12:05 or 1:02:30 -#}
+{% macro vlen(s) -%}{%- set s = s | int -%}
+{%- if s >= 3600 %}{{ s // 3600 }}:{{ '%02d' | format(s % 3600 // 60) }}:{{ '%02d' | format(s % 60) }}{% else %}{{ s // 60 }}:{{ '%02d' | format(s % 60) }}{% endif -%}
+{%- endmacro %}
+
+{#- A YouTube thumbnail with the video's length on it -#}
+{% macro vthumb(id, dur=None, small=False) -%}
+<span class="tm-vthumb"><img class="thumb video{{ ' sm' if small }}" src="https://i.ytimg.com/vi/{{ id }}/mqdefault.jpg" alt="" loading="lazy" decoding="async">{% if dur %}<span class="dur">{{ vlen(dur) }}</span>{% endif %}</span>
+{%- endmacro %}
+
+{#- How far a video got: one badge for the furthest stage, plus speakers when found -#}
+{% macro stage(v, files) -%}
+{%- set text = v.has_text or v.id in (files.captions or ()) -%}
+{%- set spk = v.has_voices or v.id in (files.diar or ()) -%}
+{%- set audio = text or spk or v.id in (files.audio or ()) -%}
+<span class="row wrap tm-stage">
+{%- if v.n %}<span class="badge accent">{{ icon("star") }}{{ v.n }} verdict{{ "s" if v.n != 1 }}</span>
+{%- elif text %}<span class="badge info">{{ icon("file-text") }}Transcribed</span>
+{%- elif audio %}<span class="badge">{{ icon("download") }}Downloaded</span>
+{%- else %}<span class="badge outline">{{ icon("clock") }}Waiting</span>{% endif %}
+{%- if spk %}<span class="badge">{{ icon("mic") }}Speakers</span>{% endif -%}
+</span>
+{%- endmacro %}
+
+{#- Previous / next. base: the page's URL with its filters, ending in ? or & -#}
+{% macro pager(pg, base) -%}
+{% if pg.pages > 1 %}
+<nav class="tm-pager" aria-label="Pages">
+  {% if pg.page > 1 %}<a class="btn sm" href="{{ base }}page={{ pg.page - 1 }}">{{ icon("chevron-left") }}Previous</a>{% else %}<span></span>{% endif %}
+  <span class="small muted">Page {{ pg.page }} of {{ pg.pages }}</span>
+  {% if pg.page < pg.pages %}<a class="btn sm" href="{{ base }}page={{ pg.page + 1 }}">Next{{ icon("chevron-right") }}</a>{% else %}<span></span>{% endif %}
+</nav>
+{% endif %}
+{%- endmacro %}

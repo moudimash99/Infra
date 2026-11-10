@@ -102,14 +102,14 @@ def _job_line(cronjob, extra=None):
 
 
 def catcam():
-    from .site_cats import flashes
     from .sources import cats
     out = {"flash": "first one tonight", "weighed": "-"}
-    f = flashes(1)
+    f = cats.flashes(1)
     if f:
         out["flash"] = f"{f[0]['day'][5:]}: {f[0].get('moments', 0)} moments, {round(f[0].get('seconds', 0))} s"
     w = cats.weights.get()
-    if w.ok and w.data:
-        out["weighed"] = ago(max(p[0] for pts in w.data.values() for p in pts))
+    if w.ok and w.data:      # a weigh-in's time of day doesn't matter: '16 days ago'
+        days = int((time.time() - max(p[0] for pts in w.data.values() for p in pts)) // 86400)
+        out["weighed"] = "today" if days < 1 else "yesterday" if days < 2 else f"{days} days ago"
     out["monitor"] = _job_line("cat-monitor")
     return out

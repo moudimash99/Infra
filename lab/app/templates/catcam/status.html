@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% from "_m.html" import page_head, section_head, kpi, empty, alert, chip, thumb, unreadable, runs_table %}
+{% block title %}Status · Cat cam{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/catcam.css?v={{ STATIC_V }}">{% endblock %}
+{% block main %}
+{{ page_head("Status", "The jobs behind this site, and whether the camera answers.") }}
+{% set flash_job, monitor_job = jobs %}
+{% set ev = events.data or [] %}
+
+<div class="kpis">
+  {{ kpi("Last flash", (last_flash.built | ago) if last_flash and last_flash.built else "None yet",
+         ("next " ~ (flash_job.next | clock)) if flash_job.next else ("paused" if flash_job.paused else ""), "film", href=R ~ "/flashes") }}
+  {{ kpi("Feeding monitor", "Paused" if monitor_job.paused else ("Running" if monitor_job.last and monitor_job.last.state == "running" else "On"),
+         ("last run " ~ (monitor_job.last.start | ago)) if monitor_job.last else "no run yet", "utensils") }}
+  {{ kpi("Camera", "Online" if frigate.ok else "Offline", ("Frigate " ~ frigate.data.version) if frigate.ok and frigate.data else "Frigate doesn't answer", "camera", href=R ~ "/camera") }}
+  {{ kpi("Cat detections", ev | length if events.ok else "-", "by Frigate in 14 days", "eye", href=R ~ "/camera") }}
+</div>
+{% if not frigate.ok %}<div class="mt-3">{{ alert("Frigate doesn't answer, so the camera, frames and clips can't load: " ~ frigate.error, "bad", "Camera offline") }}</div>{% endif %}
+
+<section class="section">
+  {{ section_head("Jobs") }}
+  <div class="grid md-2">
+    {% for j in jobs %}
+    <article class="card job">
+      <div class="card-head"><h3>{{ icon("film" if j.name == "cat-flash" else "utensils") }}{{ j.title }}</h3>
+        {% if not j.found %}{{ chip("unknown", "Not found") }}{% elif j.paused %}{{ chip("paused") }}{% elif j.last and j.last.state == "running" %}{{ chip("running") }}{% else %}{{ chip("ok", "On") }}{% endif %}</div>
+      <p class="what">{{ j.what }}</p>
+      <dl class="dl">
+        <dt>When</dt><dd>{{ j.when }}</dd>
+        <dt>Last run</dt><dd>{% if j.last %}{{ j.last.start | ago }} · {{ {"ok": "done", "failed": "failed", "running": "running"}.get(j.last.state, j.last.state) }}{% if j.last.end and j.last.start %} in {{ (j.last.end - j.last.start) | span }}{% endif %}{% else %}none yet{% endif %}</dd>
+        <dt>Next run</dt><dd>{% if j.paused %}paused{% elif j.next %}{{ j.next | clock }}{% else %}-{% endif %}</dd>
+      </dl>
+      {% if j.paused %}<div class="mt-3">{{ alert("Paused: it won't run until it's switched back on.", "warn") }}</div>{% endif %}
+      {% if j.last and j.last.state == "failed" %}<div class="mt-3">{{ alert("The last run failed" ~ (": " ~ j.last.reason if j.last.reason else "") ~ ".", "bad") }}</div>{% endif %}
+    </article>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="section">
+  {% set runs_m = monitor.data or [] %}
+  {{ section_head("Feeding monitor runs", count=runs_m | length if monitor.ok else None, sub="Without the tag on the bowl it can't measure feeding; it counts how long each cat is in view. The frame is from the middle of the run.") }}
+  {{ unreadable(monitor, "the monitor's reports") }}
+  {% if runs_m %}
+  <div class="card flush"><div class="list">
+    {% for r in runs_m[:8] %}
+    <div class="item">
+      {% if r.middle and now_ts - r.middle < keep %}
+      <a href="{{ R }}/media/clip/{{ r.middle }}-{{ r.middle + 60 }}.mp4" title="Play a minute from the middle of the run"><img class="thumb lg" src="{{ R }}/media/frame/{{ r.middle }}.jpg" alt="" loading="lazy"></a>
+      {% else %}{{ thumb(None, "thumb lg", "camera") }}{% endif %}
+      <div class="body">
+        <div class="title">{{ r.start | clock }} to {{ (r.end | local).strftime("%H:%M") if r.end else "?" }}</div>
+        <div class="meta">{% for c in ["Nala", "Simba"] %}{{ c }} {{ (r.presence.get(c) or 0) | span }}{{ " · " if not loop.last }}{% endfor %}</div>
+        {% if r.suspicious %}<span class="badge warn mt-1">{{ icon("alert") }}{{ r.suspicious | join(" and ") }} in view all along</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div></div>
+  {% elif monitor.ok %}
+  <div class="card">{{ empty("No runs yet", "The monitor's reports appear here after its first night.", "utensils") }}</div>
+  {% endif %}
+</section>
+
+<section class="section">
+  {{ section_head("Job runs", sub="The last 30 days, both jobs.") }}
+  <div class="card flush">{{ runs_table(runs, 12) }}</div>
+</section>
+{% endblock %}

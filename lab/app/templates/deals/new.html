@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "_m.html" import page_head, section_head, empty, unreadable %}
+{% import "deals/_parts.html" as p with context %}
+{% block title %}New listings · Deals{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/deals.css?v={{ STATIC_V }}">{% endblock %}
+{% block main %}
+{% set n = r.data %}
+{% call page_head("New listings", "Copies that appeared on Okkazeo in the last " ~ periods[days] ~ ". The ones under the game's usual price come first.") %}
+  <nav class="seg" aria-label="Period">{% for d, label in periods.items() %}<a href="{{ R }}/new?days={{ d }}"{% if d == days %} class="on" aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}</nav>
+{% endcall %}
+{{ unreadable(r, "the new listings") }}
+{% if n %}
+<section class="section">
+  {{ section_head("Under their usual price", count=(n.cheap | length) if n.available else none,
+                  sub="Biggest saving first, shipping included.") }}
+  <div class="card flush">
+  {% if not n.available %}
+    {{ empty("Starts with the next run", "BoardGameFinder now saves its valuation of every listing. From tomorrow's 07:00 run, new listings under their usual price show here.", "zap") }}
+  {% elif n.cheap %}
+    <div class="list">{% for l in n.cheap %}{{ p.listing_row(l, when="new " ~ (l.first_seen | ago)) }}{% endfor %}</div>
+  {% else %}
+    {{ empty("None this time", n.total ~ " new listings in the last " ~ periods[days] ~ ", none under its usual price.", "zap") }}
+  {% endif %}
+  </div>
+</section>
+
+<section class="section">
+  {{ section_head("Everything else that's new" if n.available else "Everything new", count=n.rest | length,
+                  sub="At or above the usual price, or not valued: bundles, special editions, and games with too few copies to compare." if n.available else "Newest first.") }}
+  <div class="card flush">
+  {% if n.rest %}
+    <div class="list tight">{% for l in n.rest[:100] %}{{ p.listing_row(l, when=l.first_seen | ago) }}{% endfor %}</div>
+    {% if n.rest | length > 100 %}<div class="card-foot"><span class="muted">The 100 newest of {{ n.rest | length }}</span>{% if days > 1 %}<a href="{{ R }}/new?days=1">Last 24 hours{{ icon("chevron-right") }}</a>{% endif %}</div>{% endif %}
+  {% else %}
+    {{ empty("Nothing new", "No listing appeared on Okkazeo for these games in the last " ~ periods[days] ~ ".", "zap") }}
+  {% endif %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

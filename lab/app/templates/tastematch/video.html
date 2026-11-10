@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% from "_m.html" import section_head, empty, alert, avatar, score, unreadable %}
+{% from "tastematch/_tm.html" import signed, box, vlen with context %}
+{% block title %}{{ r.data.video.title if r.data else "Video" }} · Taste Match{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/tastematch.css?v={{ STATIC_V }}">{% endblock %}
+{% set REJECTED = {"mention": "a mention, not a verdict", "someone_else": "said by someone else", "voice_conflict": "the voices disagree on who said it"} %}
+{% block main %}
+<a class="back" href="{{ R }}/videos">{{ icon("chevron-left") }}Videos</a>
+{{ unreadable(r, "this video") }}
+{% if r.data %}{% set v = r.data.video %}{% set f = r.data.flags %}
+{% set ch = chans.get(v.channel) or {"name": v.channel, "url": ""} %}
+<div class="grid md-main gap-lg">
+  <div>
+    <a class="player tm-yt" href="https://www.youtube.com/watch?v={{ v.id }}" aria-label="Watch on YouTube">
+      <img src="https://i.ytimg.com/vi/{{ v.id }}/maxresdefault.jpg" alt="" onerror="this.onerror=null;this.src='https://i.ytimg.com/vi/{{ v.id }}/hqdefault.jpg'">
+      <span class="play">{{ icon("youtube") }}</span>
+      {% if v.duration %}<span class="on">{{ vlen(v.duration) }}</span>{% endif %}
+    </a>
+    <h1 class="page-title mt-4" style="font-size:1.35rem">{{ v.title }}</h1>
+    <div class="row wrap small soft" style="gap:4px 12px">
+      <a class="yt-link" href="{{ R }}/videos?show=all&channel={{ v.channel }}">{{ ch.name }}</a>
+      {% if v.timestamp %}<span>{{ (v.timestamp | local).strftime("%b %Y") }}</span>{% endif %}
+      {% if v.view_count %}<span>{{ v.view_count | num }} views</span>{% endif %}
+    </div>
+  </div>
+  <div class="card">
+    <h3 class="mb-3">Through the pipeline</h3>
+    {% set text = f.captions or r.data.transcript %}
+    <div class="tm-stepper">
+      {% for done, ic, label in [(f.audio or text or f.diar, "download", "Downloaded"), (text, "file-text", "Transcribed"), (f.diar or f.voices, "mic", "Speakers"), (r.data.ratings, "star", "Rated")] %}
+      <div class="{{ 'done' if done }}"><span class="ic">{{ icon("check" if done else ic) }}</span>{{ label }}</div>
+      {% endfor %}
+    </div>
+    {% if r.data.errors %}<div class="mt-4">{{ alert("Download failed " ~ (r.data.errors | length) ~ "×, last: " ~ r.data.errors[0].error[:160], "bad") }}</div>{% endif %}
+    {% if r.data.transcript %}<p class="xs muted mt-4">Transcript: {{ r.data.transcript.length | comma }} characters{% if r.data.transcript.lang %} · {{ "by Whisper" if r.data.transcript.lang == "whisper" else "from YouTube (" ~ r.data.transcript.lang ~ ")" }}{% endif %}{% if f.voices %} · speakers named{% endif %}</p>{% endif %}
+  </div>
+</div>
+
+{% set counted = ratings | rejectattr("attribution", "in", REJECTED) | list %}
+{% set dropped = ratings | selectattr("attribution", "in", REJECTED) | list %}
+<section class="section">
+  {{ section_head("Verdicts", count=counted | length) }}
+  {% if counted %}
+  <div class="card flush"><div class="list">
+    {% for x in counted %}{% set gid = canon.get(x.bgg_id, x.bgg_id) if x.bgg_id else None %}
+    <div class="item" style="align-items:flex-start">
+      {% if gid %}<a href="{{ R }}/games/{{ gid }}">{{ box(gid, "s", "thumb box") }}</a>{% else %}<span class="thumb box ph">{{ icon("dices") }}</span>{% endif %}
+      <div class="body">
+        {% if gid %}<a class="strong" href="{{ R }}/games/{{ gid }}">{{ x.game }}</a>{% else %}<span class="strong">{{ x.game }}</span>{% endif %}
+        <div class="row wrap mt-1" style="gap:6px">
+          {% if x.m %}<a class="small" href="{{ R }}/reviewers/{{ x.reviewer_id }}">{{ x.m.name }}</a>{% else %}<span class="small soft">{{ x.reviewer | capitalize if x.reviewer and x.reviewer.islower() else x.reviewer }}</span>{% endif %}
+          {% if x.m and x.m.ranked %}<span class="badge {{ 'accent' if x.m.match >= 0.05 }}">match {{ signed(x.m.match) }}</span>{% endif %}
+          {% if x.confidence and x.confidence != "high" %}<span class="badge outline">{{ x.confidence }} confidence</span>{% endif %}
+        </div>
+        {% if x.quote %}<p class="quote mt-2">{{ x.quote }}</p>{% endif %}
+      </div>
+      {{ score(x.score) }}
+    </div>
+    {% endfor %}
+  </div></div>
+  {% else %}<div class="card">{{ empty("Not rated yet", "Verdicts appear once the rating stage reads this review's text." if r.data.transcript else "The review needs its text first.", "star") }}</div>{% endif %}
+  {% if dropped %}
+  <details class="more mt-2"><summary>{{ dropped | length }} not counted</summary>
+    <div class="card flush"><div class="list tight">
+      {% for x in dropped %}<div class="item"><span class="body"><span class="title">{{ x.game }} · {{ x.score }}/5</span><span class="meta">{{ REJECTED[x.attribution] }}</span></span></div>{% endfor %}
+    </div></div></details>
+  {% endif %}
+</section>
+
+{% if r.data.transcript %}
+<section class="section">
+  {{ section_head("Transcript") }}
+  <div class="card">
+    {% set t = r.data.transcript.text %}
+    <details class="more"><summary><span class="tm-transcript clamp-3" style="font-weight:400">{{ t[:500] }}</span></summary>
+      <div class="tm-transcript">{{ t }}{% if r.data.transcript.length > t | length %} …{% endif %}</div></details>
+    {% if r.data.transcript.length > t | length %}<p class="xs muted mt-2">The first {{ t | length | comma }} of {{ r.data.transcript.length | comma }} characters.</p>{% endif %}
+  </div>
+</section>
+{% endif %}
+{% endif %}
+{% endblock %}

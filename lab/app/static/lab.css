@@ -211,7 +211,8 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 18px 16px calc(96px + en
 .card.flush { padding: 0; overflow: hidden; }
 .card.pad-lg { padding: 20px; }
 .card.tint { background: var(--surface-2); box-shadow: none; }
-a.card { display: block; color: inherit; transition: border-color .15s, box-shadow .15s, transform .15s; }
+:where(a.card) { display: block; }       /* no weight: a card that is also .row or .stack keeps its flex */
+a.card { color: inherit; transition: border-color .15s, box-shadow .15s, transform .15s; }
 a.card:hover { text-decoration: none; border-color: var(--line-2); box-shadow: var(--sh-2); }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .card-head h3 { display: flex; align-items: center; gap: 8px; }
@@ -253,9 +254,9 @@ a.kpi:hover { text-decoration: none; border-color: var(--line-2); box-shadow: va
 a.item { transition: background .12s; }
 a.item:hover { background: var(--surface-2); text-decoration: none; }
 .item .body { flex: 1; min-width: 0; }
-.item .title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item .title { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .item .title.wrap { white-space: normal; }
-.item .meta { font-size: var(--fs-sm); color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item .meta { display: block; font-size: var(--fs-sm); color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .item .meta.wrap { white-space: normal; }
 .item .trail { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; flex: none; }
 .item .trail .meta { text-align: right; }

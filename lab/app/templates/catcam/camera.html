@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% from "_m.html" import page_head, section_head, empty, unreadable %}
+{% from "catcam/_parts.html" import live_frame, shot with context %}
+{% block title %}Camera · Cat cam{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/catcam.css?v={{ STATIC_V }}">{% endblock %}
+{% block scripts %}<script src="/static/catcam.js?v={{ STATIC_V }}" defer></script>{% endblock %}
+{% block main %}
+{{ page_head("Camera", "The living room live, and any moment of the last 14 days. Tap a frame to play that minute.") }}
+
+<div class="grid md-main gap-lg">
+  <section class="stack">
+    {{ live_frame(now_ts) }}
+    <div class="btns">
+      <a class="btn primary" href="{{ R }}/media/clip/{{ now_ts - 70 }}-{{ now_ts - 10 }}.mp4">{{ icon("play") }}Last minute as video</a>
+      <a class="btn" href="{{ R }}/camera{{ '?day=' ~ day if day != days[0][0] else '' }}">{{ icon("refresh") }}Refresh</a>
+    </div>
+  </section>
+
+  <section class="card" id="look">
+    <div class="card-head"><h3>{{ icon("history") }}Look back</h3></div>
+    <form class="stack tight" action="{{ R }}/camera#look">
+      <label class="small soft" for="at">A day and time in the last 14 days</label>
+      <div class="row">
+        <input class="input" type="datetime-local" id="at" name="at" value="{{ at_value }}" min="{{ at_min }}" max="{{ at_max }}" required>
+        <button class="btn primary">Show</button>
+      </div>
+    </form>
+    {% if picks %}<div class="row wrap mt-3">{% for label, value in picks %}<a class="btn sm{{ ' on' if value == at }}" href="{{ R }}/camera?at={{ value }}#look">{{ label }}</a>{% endfor %}</div>{% endif %}
+    {% if look %}
+    <p class="small soft mt-4 mb-2">Around {{ look | clock }}: a frame a minute.</p>
+    <div class="shots">{% for f in around %}{{ shot(f, cls="now" if f == look else "") }}{% endfor %}</div>
+    {% elif at %}
+    <p class="small bad-text mt-3">That time isn't in the last 14 days.</p>
+    {% endif %}
+  </section>
+</div>
+
+<section class="section">
+  {{ section_head("Hour by hour") }}
+  <nav class="seg mb-3" aria-label="Day">{% for d, label in days %}<a href="{{ R }}/camera?day={{ d }}"{% if d == day %} class="on" aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}</nav>
+  {% if frames %}
+  <div class="shots">
+    {% for f in frames %}{{ shot(f.ts, badge=(f.events ~ " detection" ~ ("s" if f.events != 1 else "")) if f.events else None, cls="" if f.recorded else "off") }}{% endfor %}
+  </div>
+  <p class="xs muted mt-2">A frame at the top of each hour, newest first. A badge counts Frigate's cat detections in that hour.</p>
+  {% else %}
+  <div class="card">{{ empty("Nothing yet", "The first frame of the day comes at the top of the hour.", "camera") }}</div>
+  {% endif %}
+  {{ unreadable(rec, "the camera's recordings") }}
+</section>
+
+<section class="section">
+  {% set ev = events.data or [] %}
+  {{ section_head("Frigate's cat detections", count=ev | length if events.ok else None, sub="Frigate's general detector misses many visits and now and then takes a cushion for a cat; the flash uses the cats' own model instead. The last 14 days.") }}
+  {{ unreadable(events, "Frigate's detections") }}
+  {% if ev %}
+  <div class="tiles">
+    {% for e in ev[:12] %}
+    <a class="tile" href="{{ R }}/media/event/{{ e.id }}/clip.mp4">
+      <div class="media wide cover"><img src="{{ R }}/media/event/{{ e.id }}/{{ 'snapshot' if e.snapshot else 'thumbnail' }}.jpg" alt="" loading="lazy"><span class="play">{{ icon("play") }}</span>
+        {% if e.length %}<span class="on-img b r badge dark">{{ e.length | span }}</span>{% endif %}</div>
+      <div class="body"><div class="title">{{ e.start | ago }}</div><div class="meta">{{ e.where }}</div></div>
+    </a>
+    {% endfor %}
+  </div>
+  {% elif events.ok %}
+  <div class="card">{{ empty("No detections", "Frigate saw no cat in the last 14 days.", "eye") }}</div>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,51 @@
+{#- Cat cam's own pieces. Import with context (they use R):
+      {% from "catcam/_parts.html" import catpair, flash_card, live_frame, shot with context %} -#}
+
+{#- The cats of a moment as small overlapping avatars, in their colours (Nala slot 1, Simba slot 2). -#}
+{% macro catpair(names, size="sm") -%}
+<span class="catpair {{ size }}" title="{{ names | join(' and ') }}">{% for c in names %}<span class="avatar cat-{{ c }}" aria-hidden="true">{{ c[:1] }}</span>{% endfor %}</span>
+{%- endmacro %}
+
+{#- A flash: the video, its title and numbers, then its moments as chips that jump the video there. -#}
+{% macro flash_card(f, link=True, chips=True) -%}
+<article class="card flush flash flash-card">
+  <div class="player"><video controls playsinline preload="metadata" poster="{{ R }}/flash/{{ f.day }}.jpg" src="{{ R }}/flash/{{ f.day }}.mp4"></video></div>
+  <div class="head">
+    <div class="grow">
+      <h2>{{ f.title }}</h2>
+      <div class="meta">{{ f.moments }} moment{{ "s" if f.moments != 1 }} · {{ f.length }}{% if f.partial and f.built %} · up to {{ f.built | clock }}{% endif %}</div>
+    </div>
+    {% if f.cats %}{{ catpair(f.cats, "md") }}{% endif %}
+  </div>
+  {% if chips and f["items"] %}
+  <div class="strip moments" aria-label="Moments">
+    {% for it in f["items"] %}<button type="button" class="moment seek" data-seek="{{ it.seek }}" title="{{ it.what_label }}, {{ it.cats | join(' and ') }}">{{ catpair(it.cats) }}{{ it.at_label }}</button>{% endfor %}
+  </div>
+  {% endif %}
+  {% if link %}<div class="card-foot"><span class="muted">Tap a time to jump there</span><a href="{{ R }}/flashes/{{ f.day }}">Every moment{{ icon("chevron-right") }}</a></div>{% endif %}
+</article>
+{%- endmacro %}
+
+{#- The camera now: refreshes itself every 30 s while the page is open (static/catcam.js). -#}
+{% macro live_frame(now_ts, tall=False) -%}
+<div class="live{{ ' tall' if tall }}" data-live-box>
+  <img data-live="{{ R }}/media/latest.jpg" src="{{ R }}/media/latest.jpg?t={{ now_ts }}" alt="The living room now">
+  <span class="tl pill-dark"><span class="rec"></span>Live</span>
+  <span class="br pill-dark" data-live-time>{{ now_ts | clock }}</span>
+</div>
+{%- endmacro %}
+
+{#- A frame from the recordings; tapping it plays that minute. -#}
+{% macro shot(ts, label=None, badge=None, cls="") -%}
+<a class="shot {{ cls }}" href="{{ R }}/media/clip/{{ ts }}-{{ ts + 60 }}.mp4" title="Play one minute from {{ ts | clock }}">
+  <img loading="lazy" decoding="async" alt="The living room at {{ ts | clock }}" src="{{ R }}/media/frame/{{ ts }}.jpg">
+  {% if badge %}<span class="tr badge solid">{{ badge }}</span>{% endif %}
+  <span class="cap">{{ icon("play") }}{{ label or (ts | clock) }}</span>
+</a>
+{%- endmacro %}
+
+{#- '16 days ago', 'yesterday', 'today' (weigh-ins: the time of day doesn't matter). -#}
+{% macro days_ago(ts) -%}
+{%- set d = ((now() - ts) / 86400) | int -%}
+{{ "today" if d < 1 else "yesterday" if d < 2 else d ~ " days ago" }}
+{%- endmacro %}

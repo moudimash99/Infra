@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% from "_m.html" import section_head, kpi, empty, alert, avatar, score, unreadable %}
+{% from "tastematch/_tm.html" import who, signed, meter, scale, game_tile, box with context %}
+{% block title %}{{ hname }} · Taste Match{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/tastematch.css?v={{ STATIC_V }}">{% endblock %}
+{% macro vs_row(g) -%}
+{%- set t = things.get(g) or {} -%}
+<a class="item" href="{{ R }}/games/{{ g }}">{{ box(g, "s", "thumb box") }}
+  <span class="body"><span class="title">{{ t.name or g }}</span>
+    <span class="tm-vs"><span>You <b>{{ "%.1f" | format(s.user[g][0] / 2) }}</b></span><span class="them">{{ hname }} <b>{{ "%.1f" | format(r.points[g][0]) }}</b></span><span>BGG <b>{{ "%.1f" | format(s.user[g][1] / 2) }}</b></span></span></span>
+  {{ icon("chevron-right", "chev") }}</a>
+{%- endmacro %}
+{% block main %}
+<header class="page-head">
+  <a class="back" href="{{ R }}/reviewers">{{ icon("chevron-left") }}Reviewers</a>
+  <div class="tm-person">
+    {{ who(hname, rid, "xl") }}
+    <div class="grow">
+      <h1 class="page-title">{{ hname }}</h1>
+      {% if channel.url %}<a class="yt-link" href="{{ channel.url }}">{{ icon("youtube") }}{{ channel.name }}</a>{% else %}<span class="soft small">{{ channel.name }}</span>{% endif %}
+    </div>
+  </div>
+</header>
+{% if not sc.ok %}{{ alert("The last matching run failed (" ~ sc.error ~ ")." ~ ((" Showing the result from " ~ (s.at | ago) ~ ".") if s else ""), "warn") }}{% endif %}
+
+{% if r %}
+<section class="section">
+  <div class="hero">
+    <div class="row between"><span class="eyebrow">Match with your taste</span><span class="badge {{ r.badge }}">{{ r.label }}</span></div>
+    {% if r.ranked %}
+    <div class="big mt-3{{ ' accent' if r.match >= 0.05 }}">{{ signed(r.match) }}</div>
+    <div class="mt-4">{{ meter(r.match, r.low, r.high, True) }}{{ scale() }}</div>
+    <p class="small soft mt-3">{% if r.match >= 0.05 %}On the {{ r.n }} games you both rated, where {{ hname }} parts from BGG's average, you tend to part the same way{% elif r.match <= -0.05 %}On the {{ r.n }} games you both rated, where {{ hname }} parts from BGG's average, you tend to go the other way{% else %}On the {{ r.n }} games you both rated, {{ hname }}'s scores don't move with yours either way{% endif %}. Likely between {{ signed(r.low) }} and {{ signed(r.high) }}.</p>
+    {% else %}
+    <p class="soft mt-3">You have rated only {{ r.n }} of the games {{ hname }} has scored: too few to say. A match needs 5.</p>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+<section class="section">
+<div class="kpis">
+  {{ kpi("In common", r.n if r else 0, "games you both rated", "link") }}
+  {{ kpi("Games scored", r.rated if r else (verdicts | map(attribute="gid") | unique | list | length), "by " ~ hname, "dices") }}
+  {{ kpi("Average score", ("%.1f" | format(mean)) if mean is not none else "-", "their usual score", "star", "/5" if mean is not none else None) }}
+  {{ kpi("Verdicts", verdicts | length, "in " ~ (verdicts | map(attribute="video_id") | unique | list | length) ~ " reviews", "quote") }}
+</div>
+</section>
+
+{% if agree %}
+<section class="section grid md-2 gap-lg">
+  <div>
+    {{ section_head("Where you agree most") }}
+    <div class="card flush"><div class="list">{% for g in agree %}{{ vs_row(g) }}{% endfor %}</div></div>
+  </div>
+  <div>
+    {{ section_head("Where you differ most") }}
+    {% if disagree %}<div class="card flush"><div class="list">{% for g in disagree %}{{ vs_row(g) }}{% endfor %}</div></div>
+    {% else %}<div class="card">{{ empty("No real disagreement", "On every shared game you lean the same way.", "check-circle") }}</div>{% endif %}
+  </div>
+</section>
+{% endif %}
+
+{% if loves %}
+<section class="section">
+  {{ section_head("Loved by " ~ hname, count=loves | length, sub="Games " ~ hname ~ " scores 4 or 5 that you haven't rated.") }}
+  <div class="tiles">
+    {% for g in loves[:8] %}{% set t = things.get(g) or {} %}
+    {{ game_tile(g, t.name or g, ("BGG " ~ ("%.1f" | format(t.average / 2)) ~ " · " ~ t.year) if t.average else None, "%.1f" | format(r.points[g][0])) }}
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section class="section">
+  {{ section_head("Every verdict", count=verdicts | length) }}
+  {{ unreadable(hv, "the verdicts") }}
+  {% if verdicts %}
+  <div class="card flush"><div class="list">
+    {% for v in (verdicts if show_all else verdicts[:30]) %}
+    <a class="item" href="{{ R }}/v/{{ v.video_id }}">{% if v.gid %}{{ box(v.gid, "s", "thumb box") }}{% else %}<span class="thumb box ph">{{ icon("dices") }}</span>{% endif %}
+      <span class="body"><span class="title">{{ v.game_name or v.game }}</span>
+        {% if v.quote %}<span class="meta wrap clamp-2">“{{ v.quote }}”</span>{% endif %}
+        <span class="meta">{{ v.title }}</span></span>
+      {{ score(v.score) }}</a>
+    {% endfor %}
+  </div>
+  {% if verdicts | length > 30 and not show_all %}<div class="card-foot"><span class="muted">{{ verdicts | length - 30 }} more</span><a href="?all=1">Show all{{ icon("chevron-right") }}</a></div>{% endif %}
+  </div>
+  {% else %}<div class="card">{{ empty("No verdicts", "None of this host's verdicts passed the checks yet.", "quote") }}</div>{% endif %}
+</section>
+{% endblock %}

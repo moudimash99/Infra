@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% from "_m.html" import page_head, section_head, kpi, empty, alert, unreadable %}
+{% import "deals/_parts.html" as p with context %}
+{% block title %}Board game deals · Deals{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/deals.css?v={{ STATIC_V }}">{% endblock %}
+{% block main %}
+{% set m = market.data %}
+{% set b = best.data.deals if best.data else [] %}
+{% set f = fresh.data %}
+{% call page_head("Board game deals",
+     "Second-hand games on Okkazeo selling for less than they usually go for, shipping included. Checked every morning at 07:00.",
+     eyebrow=("Okkazeo · checked " ~ (m.last_scrape | ago)) if m and m.last_scrape else "Okkazeo") %}{% endcall %}
+
+{% if health == "failed" %}{{ alert("The last check found no live listing at all: it probably failed part-way. These lists aren't current until the next good run.", "bad", "Last check failed") }}
+{% elif health == "stale" %}{{ alert("The last price check was " ~ (m.last_scrape | ago) ~ ", so today's run didn't check prices. Listings below may have sold since.", "warn", "Prices not checked today") }}{% endif %}
+{{ unreadable(market, "the listings") }}
+
+<div class="kpis mt-4">
+  {{ kpi("Best deals", b | length, ("Up to " ~ (b[0].net | eur) ~ " saved") if b else "None in the last run", "trophy", href="#best") }}
+  {{ kpi("New and cheap", (f.cheap | length) if f and f.available else "–",
+         (("of " ~ f.total ~ " new today") if f.available else "From the next run") if f else "", "zap", href=R ~ "/new") }}
+  {{ kpi("Price drops", m.n_drops if m else "–", "In the last 3 days", "trending-down", href=R ~ "/drops") }}
+  {{ kpi("For sale", (m.live | comma) if m else "–", ("Copies of " ~ m.live_games ~ " games") if m else "", "tag", href=R ~ "/games") }}
+</div>
+
+<section class="section" id="best">
+  {{ section_head("Best deals right now", count=b | length if b else none,
+                  sub="The live listings with the biggest saving against what the game usually sells for, after shipping. Games you own are left out." ~ ((" Ranked " ~ (best.data.file_time | ago) ~ ".") if best.data and best.data.file_time else "")) }}
+  {{ unreadable(best, "the deals") }}
+  {% if b %}
+  <div class="dgrid">{% for d in b %}{{ p.deal_card(d, loop.first) }}{% endfor %}</div>
+  {% else %}<div class="card">{{ empty("No deals in the last run", "Nothing on Okkazeo was enough under its usual price to count. The next check is tomorrow at 07:00.", "tag") }}</div>{% endif %}
+</section>
+
+<div class="grid md-2 gap-lg section">
+  <section>
+    {{ section_head("New today, under the usual price", R ~ "/new") }}
+    <div class="card flush">
+      {% if f and not f.available %}
+        {{ empty("Starts with the next run", "BoardGameFinder now saves its valuation of every listing. From tomorrow's 07:00 run, new listings under their usual price show here.", "zap") }}
+      {% elif f and f.cheap %}
+        <div class="list">{% for l in f.cheap[:4] %}{{ p.listing_row(l, when="new " ~ (l.first_seen | ago)) }}{% endfor %}</div>
+        <div class="card-foot"><span class="muted">{{ f.total }} new listings in 24 hours</span><a href="{{ R }}/new">All new{{ icon("chevron-right") }}</a></div>
+      {% else %}
+        {{ empty("Nothing new is cheap today", (f.total ~ " new listings in 24 hours, none under its usual price.") if f else "", "zap") }}
+      {% endif %}
+    </div>
+  </section>
+  <section>
+    {{ section_head("Price drops", R ~ "/drops") }}
+    <div class="card flush">
+      {% if m and m.drops %}
+        <div class="list">
+        {% for d in m.drops[:4] %}
+          <a class="item" href="{{ d.link }}" target="_blank" rel="noopener">{{ p.box(d.bg_id, d.image) }}
+            <span class="body"><span class="title">{{ d.name }}</span><span class="meta">{{ p.facts(d) }}</span></span>
+            <span class="trail"><b class="amount">{{ d.price | eur }}</b><span class="meta"><s>{{ d.before | eur }}</s> <span class="drop">−{{ d.off_pct }}%</span></span></span>
+            {{ icon("external", "chev") }}</a>
+        {% endfor %}
+        </div>
+        <div class="card-foot"><span class="muted">{{ m.n_drops }} cheaper since their last check</span><a href="{{ R }}/drops">All drops{{ icon("chevron-right") }}</a></div>
+      {% else %}{{ empty("No price drops", "No live listing got cheaper in the last 3 days.", "trending-down") }}{% endif %}
+    </div>
+  </section>
+</div>
+
+{% set bl = bundles.data["items"] if bundles.data else [] %}
+<section class="section">
+  {{ section_head("Bundles to judge", R ~ "/bundles", "See all " ~ (bl | length) if bl else "See all", count=bl | length if bl else none,
+                  sub="Lots, special editions and played legacy games have no usual price, so no rule can say if they're a good deal.") }}
+  {% if bl %}
+  <div class="tiles">
+    {% for x in bl[:4] %}
+    <a class="tile" href="{{ x.link }}" target="_blank" rel="noopener">
+      <div class="media">{{ p.box(x.bg_id, x.image, "m", "fill") }}<span class="on-img badge">{{ x.kind }}</span></div>
+      <div class="body"><div class="title">{{ x.name }}</div><div class="meta">{{ x.place or "Place not given" }}</div>
+        <div class="foot"><b class="amount">{{ x.price | eur }}</b>{% if x.rank %}<span class="badge">BGG #{{ x.rank }}</span>{% endif %}</div></div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}<div class="card">{{ empty("Nothing to judge", "Bundles and special editions show up here when a new one is listed.", "package") }}</div>{% endif %}
+</section>
+
+{% if run.data %}
+{% set detail = run.data.detail %}
+{% set failed = (detail.steps | selectattr("failed") | list) if detail and detail.steps else [] %}
+{% set last = run.data.runs | first if run.data.runs else none %}
+<section class="section">
+  <a class="card statusline" href="{{ R }}/status">
+    <span class="ic">{{ icon("gauge") }}</span>
+    <span class="body"><b>{% if last %}Last run {{ last.start | ago }}{% else %}No run in Kubernetes' history{% endif %}</b>
+      <span class="meta">{% if failed %}{{ failed | length }} step{{ "s" if failed | length > 1 }} failed: {{ failed | map(attribute="label") | join(", ") }}{% else %}Every step went through{% endif %}</span></span>
+    {{ icon("chevron-right", "chev") }}
+  </a>
+</section>
+{% endif %}
+{% endblock %}

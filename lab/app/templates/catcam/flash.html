@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from "_m.html" import page_head, section_head, empty %}
+{% from "catcam/_parts.html" import catpair with context %}
+{% block title %}{{ flash.day_long }} · Cat cam{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/catcam.css?v={{ STATIC_V }}">{% endblock %}
+{% block scripts %}<script src="/static/catcam.js?v={{ STATIC_V }}" defer></script>{% endblock %}
+{% block main %}
+{% set f = flash %}
+{{ page_head(f.day_long,
+             f.moments ~ " moment" ~ ("s" if f.moments != 1 else "") ~ " in " ~ f.length ~ (", the day up to " ~ (f.built | clock) ~ "." if f.partial and f.built else "."),
+             eyebrow=f.near or "Flash of the day", back=(R ~ "/flashes", "Flashes")) }}
+
+<div class="grid md-main gap-lg flash">
+  <div class="stack">
+    <div class="player"><video controls playsinline preload="metadata" poster="{{ R }}/flash/{{ f.day }}.jpg" src="{{ R }}/flash/{{ f.day }}.mp4"></video></div>
+    <div class="row between">
+      {% if older %}<a class="btn" href="{{ R }}/flashes/{{ older.day }}">{{ icon("chevron-left") }}{{ older.near or older.day_label }}</a>{% else %}<span></span>{% endif %}
+      {% if newer %}<a class="btn" href="{{ R }}/flashes/{{ newer.day }}">{{ newer.near or newer.day_label }}{{ icon("chevron-right") }}</a>{% endif %}
+    </div>
+    {% if f.cats %}
+    <div class="grid c2">
+      {% for c in f.cats %}
+      <div class="kpi"><div class="label"><span class="catpair">{{ catpair([c]) }}</span>{{ c }}</div>
+        <div class="value">{{ f.per_cat[c] }}<small>moment{{ "s" if f.per_cat[c] != 1 }}</small></div></div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <section>
+    {{ section_head("Moments", count=f["items"] | length, sub="Tap a moment to jump the flash there. The film icon plays that minute from the recordings.") }}
+    {% if f["items"] %}
+    <div class="card flush"><div class="list">
+      {% for it in f["items"] %}
+      <div class="item moment-row">
+        <button type="button" class="seek seek-area" data-seek="{{ it.seek }}">
+          <span class="time">{{ it.at_label }}</span>
+          {{ catpair(it.cats) }}
+          <span class="body"><span class="title">{{ it.cats | join(" and ") }}</span>
+            <span class="meta">{{ it.what_label }}{% if it.length >= 60 %} · {{ it.length | span }}{% endif %}</span></span>
+        </button>
+        {% if now_ts - it.start < keep %}
+        <a class="icon-btn" href="{{ R }}/media/clip/{{ it.start | int }}-{{ (it.start | int) + 60 }}.mp4" title="Play that minute from the recordings" aria-label="Play {{ it.at_label }} from the recordings">{{ icon("film") }}</a>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div></div>
+    {% else %}
+    <div class="card">{{ empty("No moments listed", "This flash was built without its list of moments.", "film") }}</div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

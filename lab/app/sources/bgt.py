@@ -45,14 +45,28 @@ def _ids(folder, ext=None):
     return out
 
 
-@source("bgt.channels", ttl=3600)
-def channel_names():
-    """key -> name, from the project's config.py (read as data, not run)."""
+@source("bgt.channel_info", ttl=3600)
+def channel_info():
+    """key -> {name, url (the channel on YouTube)}, from the project's config.py (read as data, not run)."""
     tree = ast.parse(open(os.path.join(BGT_DIR, "config.py"), encoding="utf-8").read())
     for node in tree.body:
         if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == "CHANNELS":
-            return {c["key"]: c["name"] for c in ast.literal_eval(node.value)}
+            return {c["key"]: {"name": c["name"], "url": c.get("url", "").removesuffix("/videos")}
+                    for c in ast.literal_eval(node.value)}
     return {}
+
+
+@source("bgt.channels", ttl=3600)
+def channel_names():
+    """key -> name."""
+    return {k: c["name"] for k, c in (channel_info.get().data or {}).items()}
+
+
+@source("bgt.files", ttl=120)
+def stage_files():
+    """Video ids with audio, Whisper captions and speaker files (for a video's stage marks)."""
+    return {"audio": set(_ids(BGT_AUDIO)), "captions": set(_ids(os.path.join(BGT_DIR, "captions"), ".json3")),
+            "diar": set(_ids(os.path.join(BGT_DIR, "diar"), ".json"))}
 
 
 @source("bgt.progress", ttl=120)
@@ -238,7 +252,8 @@ def video(vid):
         if not v:
             return None
         ratings = [dict(r) for r in conn.execute("""SELECT r.game, r.score, r.confidence, r.identified_by, r.quote,
-                       r.rated_at, r.model, COALESCE(rv.name, r.reviewer_id) AS reviewer, g.bgg_id
+                       r.rated_at, r.model, COALESCE(rv.name, r.reviewer_id) AS reviewer, g.bgg_id, r.reviewer_id,
+                       r.attribution
                        FROM ratings r LEFT JOIN reviewers rv ON rv.id = r.reviewer_id
                        LEFT JOIN games g ON g.name = r.game WHERE r.video_id = ? ORDER BY r.game""", (vid,))]
         t = conn.execute("SELECT lang, text FROM transcripts WHERE video_id = ?", (vid,)).fetchone()

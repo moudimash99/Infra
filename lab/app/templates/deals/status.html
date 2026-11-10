@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% from "_m.html" import page_head, section_head, kpi, empty, alert, chip, unreadable, runs_table %}
+{% block title %}Status · Deals{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/deals.css?v={{ STATIC_V }}">{% endblock %}
+{% block main %}
+{% set m = market.data %}
+{% call page_head("How the runs went", "Every morning at 07:00 BoardGameFinder refreshes BoardGameGeek's data, reads every listing on Okkazeo, values them, mails the best deals and packs the bundles for an LLM to judge.") %}{% endcall %}
+{% if health == "failed" %}{{ alert("The last check found no live listing at all: it probably failed part-way, so the deal lists aren't current.", "bad", "Last check failed") }}
+{% elif health == "stale" %}{{ alert("No price check since " ~ (m.last_scrape | ago) ~ ".", "warn", "Prices not checked today") }}{% endif %}
+{{ unreadable(run, "the run state") }}
+
+{% if run.data %}
+{% set d = run.data %}
+{% set last = d.runs | first if d.runs else none %}
+{% set detail = d.detail %}
+{% set failed = (detail.steps | selectattr("failed") | list) if detail and detail.steps else [] %}
+{% set llm_failed = failed | selectattr("key", "in", ["classify_postings_with_llm", "llm_review"]) | list %}
+
+<div class="kpis">
+  {{ kpi("Last run", last.start | ago if last else "–", ("took " ~ ((last.end - last.start) | span)) if last and last.end else ("running now" if last and last.state == "running" else ""), "clock") }}
+  {{ kpi("Steps", ((detail.steps | length) - (failed | length)) ~ "/" ~ (detail.steps | length) if detail and detail.steps else "–", "went through" if detail and detail.steps else "no step log saved", "check-circle") }}
+  {{ kpi("Last check", m.last_scrape | clock if m and m.last_scrape else "–", ((m.live | comma) ~ " listings live") if m else "", "refresh") }}
+  {{ kpi("Schedule", "Paused" if d.cron and d.cron.suspended else "07:00", "every day" if d.cron and not d.cron.suspended else "turned off" if d.cron else "", "calendar") }}
+</div>
+
+<section class="section">
+  {{ section_head("The last run, step by step") }}
+  {% if llm_failed %}{{ alert("The two LLM steps need fm-llm, the language model service on the server, which isn't running yet. Until it is, listings are sorted by rules only and bundles wait on the Bundles page. Nothing else is affected.", "info", "Expected") }}<div class="mt-3"></div>{% endif %}
+  <div class="card flush">
+    <div class="card-head" style="padding:14px 16px 12px;margin:0;border-bottom:1px solid var(--line)">
+      <h3>{{ icon("activity") }}{% if last %}Started {{ last.start | ago }}{% else %}No run in Kubernetes' history{% endif %}</h3>{% if last %}{{ chip(last.state) }}{% endif %}</div>
+    {% if detail and detail.steps %}
+      {% for s in detail.steps %}
+      {% set expected = s.failed and s.key in ["classify_postings_with_llm", "llm_review"] %}
+      <div class="runstep{{ ' waiting' if expected else ' failed' if s.failed }}">
+        <span class="dot">{{ icon("pause" if expected else "x" if s.failed else "check") }}</span>
+        <div><div class="what">{{ s.label }}</div>
+          {% if s.failed %}<div class="why"{% if s.errors %} title="{{ s.errors | join(' · ') }}"{% endif %}>{% if expected %}Waiting for fm-llm, which isn't answering on the server{% else %}{{ s.errors | join(" · ") or ("exit " ~ s.code) }}{% endif %}</div>{% endif %}</div>
+        <span class="at">{{ s.at[11:16] }}</span>
+      </div>
+      {% endfor %}
+    {% else %}
+      {% for s in d.steps %}
+      <div class="runstep{{ ' waiting' if s.failures and s.llm else ' failed' if s.failures }}">
+        <span class="dot">{{ icon("pause" if s.failures and s.llm else "x" if s.failures else "check") }}</span>
+        <div><div class="what">{{ s.label }}</div>{% if s.failures %}<div class="why">Failed {{ s.failures }} run{{ "s" if s.failures > 1 }} in a row</div>{% endif %}</div>
+        <span class="at"></span>
+      </div>
+      {% endfor %}
+    {% endif %}
+  </div>
+</section>
+
+<section class="section">
+  {{ section_head("Listings seen per check", sub="How many listings each day's check read, last 30 days. An empty day had no check.") }}
+  <div class="card">{{ charts.columns(per_day_points, title="Listings seen per day, last 30 days") }}
+    {% if m and m.missed_days %}<p class="small muted mt-2">{{ m.missed_days }} of the last 29 days had no check.</p>{% endif %}</div>
+</section>
+
+<section class="section">
+  {{ section_head("Runs, last 30 days") }}
+  <div class="card flush">{{ runs_table(history, 15) }}</div>
+</section>
+{% endif %}
+
+{% if files %}
+<section class="section">
+  {{ section_head("What it made") }}
+  <div class="card flush"><div class="list">
+    {% for f in files %}
+    <a class="item" href="{{ R }}/file/{{ f.name }}"><span class="body"><span class="title">{{ f.label }}</span><span class="meta">{{ f.sub }} · {{ f.at | ago }}</span></span>{{ icon("chevron-right", "chev") }}</a>
+    {% endfor %}
+  </div></div>
+</section>
+{% endif %}
+{% endblock %}

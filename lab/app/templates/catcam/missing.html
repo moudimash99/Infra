@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% from "_m.html" import empty %}
+{% block title %}Not found · Cat cam{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/catcam.css?v={{ STATIC_V }}">{% endblock %}
+{% block main %}
+<div class="card mt-6">
+  {{ empty("Nothing here", (detail ~ ".") if detail else "This page doesn't exist, or it moved.", "cat") }}
+  <div class="btns" style="justify-content:center;padding-bottom:12px">
+    <a class="btn primary" href="{{ R }}/">{{ icon("home") }}Today</a>
+    <a class="btn" href="{{ R }}/flashes">{{ icon("film") }}All flashes</a>
+  </div>
+</div>
+{% endblock %}

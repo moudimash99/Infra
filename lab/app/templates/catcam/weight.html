@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from "_m.html" import page_head, section_head, empty, unreadable %}
+{% from "catcam/_parts.html" import days_ago with context %}
+{% block title %}Weight · Cat cam{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/catcam.css?v={{ STATIC_V }}">{% endblock %}
+{% block main %}
+{% set last = cards | map(attribute="ts") | max if cards else None %}
+{% call page_head("Weight", ("Last weigh-in " ~ days_ago(last) ~ ", from the cat scale tracker.") if last else "From the cat scale tracker.") %}
+  <a class="btn primary" href="https://cat.machaka.net">{{ icon("scale") }}Add a weigh-in{{ icon("external") }}</a>
+{% endcall %}
+{{ unreadable(weights, "the weight tracker") }}
+
+{% if cards %}
+<div class="grid md-2 gap-lg">
+  {% for c in cards %}
+  <article class="card weight-card">
+    <div class="row gap-lg">
+      <span class="avatar lg cat-{{ c.cat }}" aria-hidden="true">{{ c.cat[:1] }}</span>
+      <div class="grow"><h2 style="font-size:1.15rem">{{ c.cat }}</h2><div class="small muted">weighed {{ days_ago(c.ts) }}</div></div>
+      <div class="now">{{ "%.2f" | format(c.kg) }}<small>kg</small></div>
+    </div>
+    <div class="row wrap mt-3">
+      {% if c.prev %}<span class="delta">{{ icon("trending-up" if c.d_prev > 0 else "trending-down") }}{{ "%+.2f" | format(c.d_prev) }} kg {{ c.prev_words }}</span>{% endif %}
+      {% if c.base and c.base != c.prev %}<span class="delta">{{ icon("trending-up" if c.d_base > 0 else "trending-down") }}{{ "%+.2f" | format(c.d_base) }} kg {{ c.base_words }}</span>{% endif %}
+    </div>
+    <div class="chart-box">{{ c.chart }}</div>
+    <p class="xs muted">{{ c.n }} weigh-ins · between {{ "%.2f" | format(c.low) }} and {{ "%.2f" | format(c.high) }} kg. Each cat has its own scale.</p>
+  </article>
+  {% endfor %}
+</div>
+
+<section class="section">
+  {{ section_head("Weigh-ins", count=table | length) }}
+  <div class="card flush"><div class="table-wrap"><table class="table">
+    <thead><tr><th>Day</th>{% for n in cat_names %}<th class="r">{{ n }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for r in table[:12] %}
+      <tr><td class="nowrap">{{ r.label }}</td>{% for n in cat_names %}<td class="r">{{ ("%.2f kg" | format(r[n])) if r[n] is defined else "-" }}</td>{% endfor %}</tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% if table | length > 12 %}
+  <div class="card-foot" style="display:block"><details class="more"><summary>{{ table | length - 12 }} earlier weigh-ins</summary>
+    <div class="table-wrap"><table class="table"><tbody>
+    {% for r in table[12:] %}<tr><td class="nowrap">{{ r.label }}</td>{% for n in cat_names %}<td class="r">{{ ("%.2f kg" | format(r[n])) if r[n] is defined else "-" }}</td>{% endfor %}</tr>{% endfor %}
+    </tbody></table></div></details></div>
+  {% endif %}
+  </div>
+</section>
+{% elif weights.ok %}
+<div class="card">{{ empty("No weigh-ins yet", "Add the first one at cat.machaka.net.", "scale") }}</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% from "_m.html" import section_head, kpi, empty, avatar, score, unreadable %}
+{% from "tastematch/_tm.html" import who, signed, box with context %}
+{% block title %}{{ g.name if g else "Game" }} · Taste Match{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/tastematch.css?v={{ STATIC_V }}">{% endblock %}
+{% block main %}
+<a class="back" href="{{ R }}/games">{{ icon("chevron-left") }}Games</a>
+{{ unreadable(r, "this game") }}
+{% if g %}
+<header class="tm-game-head">
+  <div class="tm-cover">{{ box(g.id, "l") }}</div>
+  <div>
+    <div class="eyebrow">{{ g.year or "" }}{% if g.designers %} · {{ g.designers[:2] | join(", ") }}{% endif %}</div>
+    <h1 class="page-title">{{ g.name }}</h1>
+    <div class="tm-facts">
+      {% if g.rank %}<span class="badge accent">{{ icon("trophy") }}BGG #{{ g.rank | comma }}</span>{% endif %}
+      {% if g.min_players %}<span class="badge">{{ icon("users") }}{{ g.min_players }}{% if g.max_players and g.max_players != g.min_players %}–{{ g.max_players }}{% endif %} players</span>{% endif %}
+      {% if g.playing_time %}<span class="badge">{{ icon("clock") }}{% if g.min_time and g.max_time and g.min_time != g.max_time %}{{ g.min_time }}–{{ g.max_time }}{% else %}{{ g.playing_time }}{% endif %} min</span>{% endif %}
+      {% if g.average_weight %}<span class="badge">{{ icon("scale") }}Weight {{ "%.1f" | format(g.average_weight) }}/5</span>{% endif %}
+      {% if g.min_age %}<span class="badge">{{ g.min_age }}+</span>{% endif %}
+    </div>
+    <div class="tm-trio mt-4">
+      {{ kpi("You", ("%.1f" | format(mine.rating / 2)) if mine.rating else "–", "your BGG rating" if mine.rating else ("in your collection" if mine.own else "not rated"), None, "/5" if mine.rating else None) }}
+      {{ kpi("Your matches", ("%.1f" | format(say)) if say is not none else "–", "weighted by match" if say is not none else "none scored it", None, "/5" if say is not none else None) }}
+      {{ kpi("BGG", ("%.1f" | format(g.average / 2)) if g.average else "–", ((g.users_rated | comma) ~ " ratings") if g.users_rated else None, None, "/5" if g.average else None) }}
+    </div>
+    <div class="btns mt-4"><a class="btn" href="https://boardgamegeek.com/boardgame/{{ g.id }}">{{ icon("external") }}On BoardGameGeek</a></div>
+  </div>
+</header>
+
+<section class="section">
+  {{ section_head("What the reviewers said", count=verdicts | length, sub=("Average " ~ ("%.1f" | format(avg)) ~ " out of 5. Hosts who match you first.") if avg is not none else None) }}
+  {% if verdicts %}
+  <div class="card flush"><div class="list">
+    {% for v in verdicts %}
+    <div class="item" style="align-items:flex-start">
+      {{ who(v.host, v.rid) }}
+      <div class="body">
+        <div class="row wrap" style="gap:6px">
+          {% if v.m %}<a class="strong" href="{{ R }}/reviewers/{{ v.rid }}">{{ v.host }}</a>{% else %}<span class="strong">{{ v.host }}</span>{% endif %}
+          {% if v.m and v.m.ranked %}<span class="badge {{ 'accent' if v.m.match >= 0.05 else '' }}">match {{ signed(v.m.match) }}</span>{% endif %}
+        </div>
+        <span class="meta">{{ (chans.get(v.channel) or {}).get("name", v.channel) }}</span>
+        {% if v.quote %}<p class="quote mt-2">{{ v.quote }}</p>{% endif %}
+        <a class="xs strong mt-1" style="display:inline-flex;align-items:center;gap:4px" href="{{ R }}/v/{{ v.video_id }}">{{ icon("video") }}<span class="clamp-2">{{ v.title }}</span></a>
+      </div>
+      {{ score(v.score) }}
+    </div>
+    {% endfor %}
+  </div></div>
+  {% else %}<div class="card">{{ empty("No verdicts yet", "No review has been rated for this game.", "quote") }}</div>{% endif %}
+</section>
+
+{% if g.description %}
+<section class="section">
+  {{ section_head("About the game") }}
+  <div class="card">
+    <details class="more"><summary><span class="tm-about clamp-3" style="font-weight:400">{{ g.description[:420] }}</span></summary>
+      <div class="tm-about">{{ g.description }}</div></details>
+    {% if g.mechanics or g.categories %}
+    <div class="tm-chips mt-3">{% for m in (g.categories + g.mechanics)[:12] %}<span class="badge">{{ m }}</span>{% endfor %}</div>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+{% endif %}
+{% endblock %}

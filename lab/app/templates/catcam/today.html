@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% from "_m.html" import page_head, section_head, kpi, empty, unreadable %}
+{% from "catcam/_parts.html" import catpair, flash_card, live_frame, shot, days_ago with context %}
+{% block title %}Cat cam · Simba and Nala{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/catcam.css?v={{ STATIC_V }}">{% endblock %}
+{% block scripts %}<script src="/static/catcam.js?v={{ STATIC_V }}" defer></script>{% endblock %}
+{% block main %}
+{% set _, today_long, _ = today_words %}
+{% if flash and flash.near == "Today" %}
+  {% set sub = flash.moments ~ " moments so far today, stitched into a " ~ flash.length ~ " flash." %}
+{% elif flash %}
+  {% set sub = (flash.near or flash.day_long) ~ ": " ~ flash.moments ~ " moments in " ~ flash.length ~ "." ~ (" Today's flash comes at " ~ (next_build | clock) ~ "." if next_build else "") %}
+{% else %}
+  {% set sub = "The first flash of the day is built tonight" ~ (" at " ~ (next_build | clock) if next_build else "") ~ "." %}
+{% endif %}
+{{ page_head("Simba and Nala", sub, eyebrow=today_long) }}
+
+<div class="grid md-main gap-lg">
+  <div class="stack">
+    {% if flash %}{{ flash_card(flash) }}
+    {% else %}
+    <div class="card">{{ empty("No flash yet", "Every evening the cats' own model looks through the day's recordings and stitches the moments with Simba or Nala into a short video.", "film") }}</div>
+    {% endif %}
+  </div>
+
+  <div class="stack loose">
+    <section>
+      {{ section_head("Right now", R ~ "/camera", "Camera") }}
+      {{ live_frame(now_ts) }}
+      <div class="btns mt-3">
+        <a class="btn" href="{{ R }}/media/clip/{{ now_ts - 70 }}-{{ now_ts - 10 }}.mp4">{{ icon("play") }}Last minute</a>
+        <a class="btn" href="{{ R }}/camera">{{ icon("history") }}Look back</a>
+      </div>
+    </section>
+
+    <section class="grid c2">
+      {% if flash %}
+        {% set word = "today" if flash.near == "Today" else ("yesterday" if flash.near == "Yesterday" else "on " ~ flash.day_label) %}
+        {% set per = [] %}{% for c in flash.cats %}{% set _ = per.append(c ~ " in " ~ flash.per_cat[c]) %}{% endfor %}
+        {{ kpi("Moments " ~ word, flash.moments, per | join(" · "), "film", href=R ~ "/flashes/" ~ flash.day) }}
+        {{ kpi("Flash", flash.length, ("up to " ~ (flash.built | clock)) if flash.partial and flash.built else ("built " ~ (flash.built | ago) if flash.built else ""), "clock", href=R ~ "/flashes/" ~ flash.day) }}
+      {% endif %}
+      {% for c in cards %}
+        {{ kpi(c.cat, "%.2f" | format(c.kg), "weighed " ~ days_ago(c.ts), "scale", " kg", href=R ~ "/weight") }}
+      {% endfor %}
+    </section>
+    {{ unreadable(weights, "the weights") }}
+  </div>
+</div>
+
+{% if frames %}
+<section class="section">
+  {{ section_head("Earlier today", R ~ "/camera", "Hour by hour", sub="One frame an hour from the recordings. Tap one to play that minute.") }}
+  <div class="strip frames">{% for f in frames %}{{ shot(f) }}{% endfor %}</div>
+</section>
+{% endif %}
+
+{% if others %}
+<section class="section">
+  {{ section_head("Earlier flashes", R ~ "/flashes", "All flashes") }}
+  <div class="tiles wide">
+    {% for f in others[:3] %}
+    <a class="tile" href="{{ R }}/flashes/{{ f.day }}">
+      <div class="media wide cover"><img src="{{ R }}/flash/{{ f.day }}.jpg" alt="" loading="lazy"><span class="play">{{ icon("play") }}</span>
+        <span class="on-img b r badge dark">{{ f.length }}</span></div>
+      <div class="body"><div class="title">{{ f.near or f.day_long }}</div>
+        <div class="catline"><span class="meta">{{ f.moments }} moments</span>{{ catpair(f.cats) }}</div></div>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

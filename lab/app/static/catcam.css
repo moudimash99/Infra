@@ -1,0 +1,74 @@
+/* Cat cam's own parts, on top of lab.css. Nala is colour slot 1 and Simba slot 2, as in the weight charts. */
+.cat-Nala { --av: var(--s1); }
+.cat-Simba { --av: var(--s2); }
+.catpair { display: inline-flex; align-items: center; flex: none; }
+.catpair .avatar { --size: 22px; font-size: 10px; box-shadow: 0 0 0 2px var(--surface); }
+.catpair.md .avatar { --size: 30px; font-size: 12.5px; }
+.catpair .avatar + .avatar { margin-left: -7px; }
+
+/* the flash: the video on top, then its moments as a sideways strip of chips */
+.flash-card .player { border-radius: 0; box-shadow: none; }
+.flash-card > .head { display: flex; align-items: center; gap: 12px; padding: 14px 16px 2px; }
+.flash-card > .head h2 { font-size: 1.125rem; font-weight: 700; letter-spacing: -.015em; }
+.flash-card > .head .meta { font-size: var(--fs-sm); color: var(--text-3); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.flash-card .card-foot { margin: 0; }
+.strip { position: relative; display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; padding: 12px 16px 14px;
+         -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+.strip::-webkit-scrollbar { display: none; }
+.strip > * { flex: none; scroll-snap-align: start; }
+.moment { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px 0 6px; border-radius: 999px;
+          border: 1px solid var(--line); background: var(--surface); color: var(--text); font: 650 var(--fs-sm)/1 var(--font);
+          font-variant-numeric: tabular-nums; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .15s, border-color .15s; }
+.moment:hover { border-color: var(--line-2); }
+.moment.on { background: var(--accent-soft); border-color: transparent; color: var(--accent-ink); }
+.moment.on .catpair .avatar { box-shadow: 0 0 0 2px var(--accent-soft); }
+
+/* the camera now */
+.live { position: relative; display: block; border-radius: var(--r-lg); overflow: hidden; background: #111; box-shadow: var(--sh-1); }
+.live img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
+.live .tl { position: absolute; top: 10px; left: 10px; }
+.live .br { position: absolute; right: 10px; bottom: 10px; }
+.pill-dark { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border-radius: 999px; background: rgba(0, 0, 0, .58);
+             color: #fff; font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums;
+             -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.pill-dark .rec { width: 7px; height: 7px; border-radius: 50%; background: #ff4b4b; animation: pulse 1.6s ease-in-out infinite; }
+
+/* frames: a sideways strip (today) or a grid (camera); the caption is the time, tap plays that minute */
+.frames { margin: 0 -16px; padding: 2px 16px 6px; gap: 10px; }
+.frames .shot { width: 158px; }
+@media (min-width: 900px) { .frames { margin: 0; padding: 2px 0 6px; } .frames .shot { width: 190px; } }
+.shot .tr { position: absolute; top: 6px; right: 6px; }
+.shot.now { box-shadow: 0 0 0 3px var(--accent); }
+.shot.off img { opacity: .35; }
+
+/* the moments of one flash, as rows that jump the video */
+button.item { width: 100%; text-align: left; border: 0; border-top: 1px solid var(--line); background: none; font: inherit; color: inherit; cursor: pointer; }
+.list > button.item:first-child { border-top: 0; }
+button.item:hover { background: var(--surface-2); }
+button.item.on { background: var(--accent-soft); }
+.item .time { font-weight: 750; font-size: 1.0625rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; width: 3.1em; flex: none; }
+.item .pos { font-size: var(--fs-xs); font-weight: 650; color: var(--text-3); display: inline-flex; align-items: center; gap: 3px; font-variant-numeric: tabular-nums; }
+.item .pos svg { width: 11px; height: 11px; }
+
+/* weight */
+.weight-card .now { font-size: 2.25rem; font-weight: 800; letter-spacing: -.035em; line-height: 1; font-variant-numeric: tabular-nums; }
+.weight-card .now small { font-size: .42em; font-weight: 650; color: var(--text-3); letter-spacing: -.01em; margin-left: 3px; }
+.weight-card .chart-box { margin: 14px -4px 0; }
+.delta { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); font-weight: 650; color: var(--text-2);
+         background: var(--bg-2); height: 24px; padding: 0 9px; border-radius: 999px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.delta svg { width: 13px; height: 13px; }
+
+/* status: a job */
+.job .what { color: var(--text-2); font-size: var(--fs-sm); margin: 6px 0 12px; }
+
+/* posters in the archive */
+.tile .media.wide .on-img.b.r { right: 8px; left: auto; }
+.tile .catline { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
+
+/* a row whose main part is a button (jump the video) and whose end is a link (the full minute) */
+.item .body > .title, .item .body > .meta { display: block; }
+.moment-row { padding-right: 8px; }
+.seek-area { all: unset; display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; cursor: pointer; }
+.seek-area:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 6px; }
+.moment-row.on { background: var(--accent-soft); }
+.moment-row.on .catpair .avatar { box-shadow: 0 0 0 2px var(--accent-soft); }

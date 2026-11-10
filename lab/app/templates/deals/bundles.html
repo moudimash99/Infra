@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% from "_m.html" import page_head, empty, alert, unreadable %}
+{% import "deals/_parts.html" as p with context %}
+{% block title %}Bundles to judge · Deals{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/deals.css?v={{ STATIC_V }}">{% endblock %}
+{% block main %}
+{% set b = r.data %}
+{% set every = b["items"] if b else [] %}
+{% set shown = every | selectattr("kind", "equalto", kind) | list if kind else every %}
+{% call page_head("Bundles to judge",
+     "Lots, special editions, played legacy games and plain-looking ads priced like a lot have no usual price: no rule can say what a box of five games is worth. They wait here to be judged by eye.") %}
+  {% if b and b.kinds %}
+  <nav class="seg" aria-label="Kind">
+    <a href="{{ R }}/bundles"{% if not kind %} class="on"{% endif %}>All<span class="n">{{ every | length }}</span></a>
+    {% for k, n in b.kinds | dictsort %}<a href="{{ R }}/bundles?kind={{ k | urlencode }}"{% if k == kind %} class="on"{% endif %}>{{ k }}<span class="n">{{ n }}</span></a>{% endfor %}
+  </nav>
+  {% endif %}
+{% endcall %}
+{{ unreadable(r, "the bundles") }}
+{{ alert("BoardGameFinder's LLM review would judge these each morning, but it needs fm-llm, the language model service on the server, which isn't running yet." ~ (" Its last review was " ~ (b.last_review | ago) ~ "." if b and b.last_review else ""), "info") }}
+
+<div class="stack mt-4">
+{% for x in shown %}
+  <article class="card">
+    <div class="bcard">
+      <a class="art" href="{{ x.link }}" target="_blank" rel="noopener" aria-label="{{ x.name }} on Okkazeo">{{ p.box(x.bg_id, x.image, "m", "fill") }}</a>
+      <div class="stack tight">
+        <div class="row wrap"><span class="badge accent">{{ x.kind }}</span>{% if x.rank %}<span class="badge">BGG #{{ x.rank }}</span>{% endif %}</div>
+        <a class="strong" href="{{ x.link }}" target="_blank" rel="noopener" style="color:var(--text)">{{ x.name }}</a>
+        <div class="xs muted">{{ p.facts(x) }}{% if x.first_seen %} · listed {{ x.first_seen | ago }}{% endif %}</div>
+        {% if x.plain_from %}<div class="xs soft">Plain copies: from {{ x.plain_from | eur }}{% if x.plain_typical and x.plain_typical != x.plain_from %}, typically {{ x.plain_typical | eur }}{% endif %}</div>{% endif %}
+        <div class="row between mt-1"><b class="amount" style="font-size:1.3rem">{{ x.price | eur }}</b>
+          <a class="btn sm" href="{{ x.link }}" target="_blank" rel="noopener">Listing{{ icon("external") }}</a></div>
+      </div>
+    </div>
+    {% if x.text %}<div class="said"><p class="clamp-4">{{ x.text }}</p></div>{% endif %}
+  </article>
+{% else %}
+  <div class="card">{{ empty("Nothing to judge", "Bundles, special editions and played legacy copies show up here when one is listed.", "package") }}</div>
+{% endfor %}
+</div>
+{% if b and b.last_review %}<p class="small muted mt-4"><a href="{{ R }}/file/bundle-review">The last LLM review</a> ({{ b.last_review | ago }}) · <a href="{{ R }}/file/review-packet">what it was asked</a></p>{% endif %}
+{% endblock %}

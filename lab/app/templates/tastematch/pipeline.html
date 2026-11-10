@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% from "_m.html" import page_head, section_head, empty, alert, chip, unreadable, runs_table %}
+{% from "tastematch/_tm.html" import vthumb with context %}
+{% block title %}Pipeline · Taste Match{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/tastematch.css?v={{ STATIC_V }}">{% endblock %}
+{% block main %}
+{{ page_head("Pipeline", "How YouTube reviews become verdicts: the audio is downloaded, Whisper writes the text, the voices are told apart, then each host's score per game is read from what they said.") }}
+
+{% set cron = pipe.data.cron if pipe.data else {} %}
+{% set running = (pipe.data.runs | selectattr("state", "equalto", "running") | list) if pipe.data else [] %}
+{{ unreadable(pipe, "the jobs") }}
+{% if pipe.data and pipe.data.youtube_blocked %}{{ alert("YouTube refused the last download pass (5 refusals in a row). It tries again every 2 hours.", "warn", "Downloads blocked") }}{% endif %}
+{% if pipe.data and pipe.data.gpu_paused %}{{ alert("Whisper and speaker separation are paused on the Acer's GPU; the other stages carry on.", "info", "GPU stages paused") }}{% endif %}
+
+{# ---- the round ---- #}
+{{ unreadable(prog, "the pipeline database") }}
+{% if prog.data %}{% set t = prog.data.totals %}{% set sp = prog.data.speed %}
+<section class="section">
+  <div class="card pad-lg">
+    <div class="card-head" style="margin-bottom:4px"><h3>{{ icon("layers") }}This round</h3></div>
+    <p class="small muted mb-4">{{ t.videos | comma }} reviews from {{ prog.data.channels | length }} channels, {{ t.hours | round | int | comma }} hours of video</p>
+    <div class="steps">
+      {% for key, label, ic, note in [("audio", "Downloaded", "download", "{:,} left · {} in the last 24 h".format(t.to_download, sp.downloads_24h)),
+                                      ("text", "Transcribed", "file-text", "{:,} h of audio left{}".format(t.hours_to_transcribe | round | int, (" · ≈ {} h on the GPU".format((t.hours_to_transcribe / whisper_speed) | round | int)) if whisper_speed else "")),
+                                      ("speakers", "Speakers found", "mic", "who speaks when"),
+                                      ("rated", "Rated", "star", ("{:,} ready for rating".format(problems.data.waiting_rating)) if problems.data else "")] %}
+      {% set paused = pipe.data and pipe.data.gpu_paused and key in ("text", "speakers") %}
+      <div class="step"><span class="ic">{{ icon(ic) }}</span>
+        <div><div class="what"><b>{{ label }}</b><span>{{ t[key] | comma }} of {{ t.videos | comma }}</span></div>
+          <span class="progress{{ ' muted' if paused }}"><span style="width:{{ pct(t[key], t.videos) }}%"></span></span>
+          {% if note or paused %}<div class="xs muted mt-1">{{ "Paused · " if paused }}{{ note }}</div>{% endif %}</div>
+        <span class="n">{{ pct(t[key], t.videos) }}%</span></div>
+      {% endfor %}
+    </div>
+    {% set sc = prog.data.scope %}
+    {% if sc.full or sc.n_limited %}
+    <p class="small soft mt-4">This round:
+      {%- if sc.full %} every review from {{ sc.full }}{% if sc.n_limited %}, and from the other {{ sc.n_limited }} channels{% endif %}
+      {%- else %} from each channel{% endif %}
+      {%- if sc.n_limited %} only the reviews that name a game you rated. Their other {{ t.later | comma }} videos wait for the next round, which adds the rest of their reviews{% endif %}.</p>
+    {% endif %}
+    <details class="more mt-2"><summary>What the bars mean</summary>
+      <ul class="tm-note">
+        <li><b>Downloaded</b>: the video's audio is here, or its text already is (a YouTube transcript needs no download).</li>
+        <li><b>Transcribed</b>: the video has text, from Whisper on the GPU or from YouTube.</li>
+        <li><b>Speakers found</b>: who speaks when is known, so each score goes to the right host.</li>
+        <li><b>Rated</b>: at least one host's score for a game came out of the text.</li>
+      </ul>
+      <p class="xs muted mt-2">Every bar counts the same {{ t.videos | comma }} videos. Left out: videos that aren't reviews (news, unboxings, playthroughs){% if t.unavailable %} and {{ t.unavailable | comma }} that YouTube no longer serves{% endif %}.</p>
+    </details>
+  </div>
+</section>
+{% endif %}
+
+{# ---- now ---- #}
+{% if pipe.data %}
+<section class="section">
+  {{ section_head("Right now") }}
+  {% for r in running %}{% set st = r.log.now %}
+  <div class="card mb-3">
+    <div class="card-head"><h3>{{ st.label if st else r.label ~ ": starting" }}</h3>{{ chip("running", "Running") }}</div>
+    {% if st and st.pos %}
+    <span class="progress"><span style="width:{{ pct(st.pos[0], st.pos[1]) }}%"></span></span>
+    <p class="small muted mt-2">{{ st.pos[0] }} of {{ st.pos[1] }} ({{ pct(st.pos[0], st.pos[1]) }}%){% if st.fail %} · {{ st.fail }} failed{% endif %} · pass started {{ r.start | ago }}</p>
+    {% endif %}
+    <details class="more"><summary>Log</summary>
+      {% set before = r.log.stages[:-1] %}
+      {% if before %}<p class="small">Earlier in this pass: {{ before | length }} channels, {{ before | sum(attribute="ok") | comma }} new{% if before | sum(attribute="fail") %}, {{ before | sum(attribute="fail") }} failed{% endif %}.</p>{% endif %}
+      <pre>{{ r.log_tail }}</pre>
+    </details>
+  </div>
+  {% else %}
+  <div class="card mb-3">{{ empty("Nothing running", "Downloads start at :05 every 2 hours, Whisper at :15 every hour, rating at :45.", "clock") }}</div>
+  {% endfor %}
+  <div class="card flush"><div class="list">
+    {% for name, label, ic, when in [("bg-taste-match-fetch", "Downloads", "download", "every 2 hours at :05"), ("bg-taste-match-gpu", "Whisper and speakers", "cpu", "every hour at :15"), ("bg-taste-match-llm", "Rating", "star", "every hour at :45")] %}
+    {% set c = cron[name] %}
+    <div class="item"><span class="thumb sm ph" style="background:var(--accent-soft);color:var(--accent-ink)">{{ icon(ic) }}</span>
+      <span class="body"><span class="title">{{ label }}</span><span class="meta">{{ when }}</span></span>
+      {% if c %}{{ chip("paused" if c.suspended else "ok", "Paused" if c.suspended else "On") }}{% else %}{{ chip("unknown", "Not found") }}{% endif %}</div>
+    {% endfor %}
+  </div></div>
+</section>
+{% endif %}
+
+{# ---- channels ---- #}
+{% if prog.data %}
+{% set order = (cron["bg-taste-match-fetch"].env.CHANNELS.split() if cron and cron["bg-taste-match-fetch"] and cron["bg-taste-match-fetch"].env.CHANNELS else []) %}
+{% set chans = prog.data.channels %}
+{% set listed = order + (chans.keys() | reject("in", order) | list) %}
+{% set active = [] %}{% set finished = [] %}{% set waiting = [] %}
+{% for k in listed if k in chans %}
+  {% if chans[k].done %}{% set _ = finished.append(chans[k]) %}
+  {% elif chans[k].started %}{% set _ = active.append(chans[k]) %}
+  {% else %}{% set _ = waiting.append(chans[k]) %}{% endif %}
+{% endfor %}
+<section class="section">
+  {{ section_head("Channels", count=chans | length, sub=(active | length) ~ " in progress, " ~ (finished | length) ~ " finished, " ~ (waiting | length) ~ " not started. Tap one for its videos.") }}
+  <div class="card flush"><div class="list">
+    {% for c in active + finished %}
+    <a class="item" href="{{ R }}/videos?show=all&channel={{ c.key }}">
+      <span class="body">
+        <span class="row between"><span class="title">{{ c.name }}</span><span class="meta nowrap">{{ c.videos | comma }} videos · {{ c.hours | round | int }} h</span></span>
+        <span class="tm-quad">
+          {% for key, label in [("audio", "Audio"), ("text", "Text"), ("speakers", "Voices"), ("rated", "Rated")] %}
+          <span><span class="progress sm{{ ' ok' if c[key] == c.videos }}"><span style="width:{{ pct(c[key], c.videos) }}%"></span></span><span class="lbl"><span>{{ label }}</span><b>{{ pct(c[key], c.videos) }}%</b></span></span>
+          {% endfor %}
+        </span>
+        {% if c.later %}<span class="meta mt-1">{{ c.later | comma }} more videos next round</span>{% endif %}
+      </span>
+      {{ icon("chevron-right", "chev") }}
+    </a>
+    {% endfor %}
+  </div></div>
+  {% if waiting %}
+  <details class="more mt-2"><summary>{{ waiting | length }} channels not started</summary>
+    <div class="card flush"><div class="list tight">
+      {% for c in waiting %}<a class="item" href="{{ R }}/videos?show=all&channel={{ c.key }}"><span class="body"><span class="title">{{ c.name }}</span></span><span class="trail small muted">{{ c.videos }} videos · {{ c.hours | round | int }} h</span></a>{% endfor %}
+    </div></div>
+  </details>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if progress_chart %}
+<section class="section">
+  {{ section_head("Over time") }}
+  <div class="card">{{ progress_chart }}<p class="xs muted mt-2">Videos that reached each stage, one point per day.</p></div>
+</section>
+{% endif %}
+
+{# ---- problems ---- #}
+<section class="section">
+  {{ section_head("Problems") }}
+  <div class="card">
+    {% if fails %}
+    <h3 class="mb-2">{{ fails | length }} failure{{ "s" if fails | length != 1 }} in the last 7 days</h3>
+    <ul class="feed">{% for f in fails[:8] %}<li><span class="ev bad">{{ icon("alert") }}</span>
+      <span class="small" style="overflow-wrap:anywhere">{% if f.vid %}<a class="strong" href="{{ R }}/v/{{ f.vid }}">{{ f.title }}</a><span class="xs muted" style="display:block">{{ f.why }}</span>{% else %}{{ f.line }}{% endif %}</span>
+      <span class="when">{{ f.at | ago }}</span></li>{% endfor %}</ul>
+    {% else %}
+    <div class="row"><span class="badge ok">{{ icon("check") }}All clear</span><span class="small soft">No failed downloads or transcriptions in the last 7 days.</span></div>
+    {% endif %}
+    {% if problems.data and problems.data.n_unmatched %}
+    <details class="more mt-3"><summary>{{ problems.data.n_unmatched }} game names with no BGG match</summary>
+      <ul class="list plain tight">{% for g in problems.data.unmatched %}<li><span class="body small">{{ g.name }}</span><span class="trail xs muted">{{ g.ratings }} verdict{{ "s" if g.ratings != 1 }}</span></li>{% endfor %}</ul>
+    </details>
+    {% endif %}
+  </div>
+</section>
+
+{% set acts = activity.data or [] %}
+{% if acts %}
+<section class="section">
+  {{ section_head("Latest activity") }}
+  <div class="card flush"><div class="list">
+    {% for e in acts[:12] %}
+    <a class="item" href="{{ R }}/v/{{ e.id }}">{{ vthumb(e.id, e.duration, True) }}
+      <span class="body"><span class="title">{{ e.title }}</span><span class="meta">{{ e.what }} · {{ e.channel }}</span></span>
+      <span class="trail xs muted">{{ e.at | ago }}</span></a>
+    {% endfor %}
+  </div></div>
+</section>
+{% endif %}
+
+<section class="section">
+  {{ section_head("Runs, last 7 days") }}
+  <div class="card flush">{{ runs_table(runs, 15) }}</div>
+  <p class="xs muted mt-3">Raw pages: {% if has_results %}<a href="{{ R }}/results">results</a> · {% endif %}<a href="{{ R }}/census">channel census</a></p>
+</section>
+{% endblock %}

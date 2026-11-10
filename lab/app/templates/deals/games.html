@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% from "_m.html" import page_head, empty, unreadable %}
+{% import "deals/_parts.html" as p with context %}
+{% block title %}Games followed · Deals{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/deals.css?v={{ STATIC_V }}">{% endblock %}
+{% block main %}
+{% call page_head("Games followed", "The " ~ n_all ~ " games BoardGameFinder watches on Okkazeo, and what's for sale right now.") %}{% endcall %}
+{{ unreadable(r, "the games") }}
+
+<div class="toolbar">
+  <form class="searchbar" action="{{ R }}/games" role="search">{{ icon("search") }}
+    <input class="input" type="search" name="q" value="{{ q }}" placeholder="Find a game" aria-label="Find a game" autocomplete="off">
+    <input type="hidden" name="sort" value="{{ sort }}"></form>
+  <nav class="seg" aria-label="Order">{% for key, label in sorts.items() %}<a href="{{ R }}/games{{ qs(sort=key) }}"{% if key == sort %} class="on"{% endif %}>{{ label }}</a>{% endfor %}</nav>
+</div>
+<p class="small soft mb-3">
+  {% if q %}{{ found | length }} game{{ "s" if found | length != 1 }} matching “{{ q }}”.{% if found %} {% endif %}<a href="{{ R }}/games?sort={{ sort }}">Clear</a>
+  {% elif show == "all" %}All {{ n_all }} games, {{ n_live }} with copies for sale. <a href="{{ R }}/games{{ qs(show='') }}">Only those for sale</a>
+  {% else %}{{ n_live }} games with copies for sale. <a href="{{ R }}/games{{ qs(show='all') }}">Show all {{ n_all }}</a>{% endif %}
+  {% if sort == "price" %}<br><span class="muted">Best price: the cheapest copy furthest under the typical ask (the median of plain copies, 3 or more).</span>{% endif %}
+</p>
+
+{% if shown %}
+<div class="tiles">
+  {% for g in shown %}
+  <a class="tile" href="{{ R }}/game/{{ g.bg_id }}">
+    <div class="media">{{ p.box(g.bg_id, g.image, "m", "fill") }}
+      {% if sort == "price" and g.under and g.under >= 10 %}<span class="on-img badge accent">−{{ g.under }}%</span>{% endif %}
+      {% if g.legacy %}<span class="on-img r badge dark">Legacy</span>{% endif %}</div>
+    <div class="body">
+      <div class="title">{{ g.name }}</div>
+      <div class="meta">{% if g.live %}{{ g.live }} for sale{% else %}Nothing for sale{% endif %}{% if g.rank %} · BGG #{{ g.rank }}{% endif %}</div>
+      <div class="foot">{% if g.cheapest %}<span><span class="xs muted">from </span><b class="amount">{{ g.cheapest | eur }}</b></span>{% else %}<span class="xs muted">–</span>{% endif %}
+        {% if g.typical and g.live > 1 %}<span class="xs muted nowrap">typ. {{ g.typical | eur }}</span>{% endif %}</div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% if pages > 1 %}
+<nav class="pager" aria-label="Pages">
+  {% if page_no > 1 %}<a class="btn sm" href="{{ R }}/games{{ qs(p=page_no - 1) }}">{{ icon("chevron-left") }}Previous</a>{% else %}<span></span>{% endif %}
+  <span>Page {{ page_no }} of {{ pages }}</span>
+  {% if page_no < pages %}<a class="btn sm" href="{{ R }}/games{{ qs(p=page_no + 1) }}">Next{{ icon("chevron-right") }}</a>{% else %}<span></span>{% endif %}
+</nav>
+{% endif %}
+{% elif r.data is not none %}
+<div class="card">{{ empty("No game found", ("Nothing BoardGameFinder follows matches “" ~ q ~ "”.") if q else "No game has a copy for sale right now.", "search") }}</div>
+{% endif %}
+{% endblock %}

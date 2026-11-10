@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% from "_m.html" import page_head, empty %}
+{% from "catcam/_parts.html" import catpair with context %}
+{% block title %}Flashes · Cat cam{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/catcam.css?v={{ STATIC_V }}">{% endblock %}
+{% block main %}
+{{ page_head("Flash of the day",
+             "Every evening the cats' own model looks through the day's recordings and stitches the moments with Simba or Nala into a short video: at 19:20 the day so far, after midnight the whole day.",
+             eyebrow=(flashes | length ~ " day" ~ ("s" if flashes | length != 1 else "") ~ " · " ~ total_moments ~ " moments") if flashes else None) }}
+
+{% if flashes %}
+<div class="tiles wide">
+  {% for f in flashes %}
+  <a class="tile" href="{{ R }}/flashes/{{ f.day }}">
+    <div class="media wide cover">
+      <img src="{{ R }}/flash/{{ f.day }}.jpg" alt="" loading="lazy">
+      <span class="play">{{ icon("play") }}</span>
+      {% if f.near %}<span class="on-img badge accent">{{ f.title }}</span>{% endif %}
+      <span class="on-img b r badge dark">{{ f.length }}</span>
+    </div>
+    <div class="body">
+      <div class="title">{{ f.day_long }}</div>
+      <div class="catline"><span class="meta">{{ f.moments }} moment{{ "s" if f.moments != 1 }}{% if f.partial and f.built %} · up to {{ f.built | clock }}{% endif %}</span>{{ catpair(f.cats) }}</div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% if next_build %}<p class="small muted mt-4">{{ icon("clock") }} Next flash at {{ next_build | clock }}.</p>{% endif %}
+{% else %}
+<div class="card">{{ empty("No flash yet", "The first one is built tonight" ~ (" at " ~ (next_build | clock) if next_build else "") ~ ".", "film") }}</div>
+{% endif %}
+{% endblock %}

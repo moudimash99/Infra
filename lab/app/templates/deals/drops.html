@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "_m.html" import page_head, empty, unreadable %}
+{% import "deals/_parts.html" as p with context %}
+{% block title %}Price drops · Deals{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/deals.css?v={{ STATIC_V }}">{% endblock %}
+{% block main %}
+{% call page_head("Price drops", "Listings still for sale that got cheaper since their previous check, the biggest drop first.", back=(R ~ "/", "Deals")) %}
+  <nav class="seg" aria-label="Period">{% for d, label in periods.items() %}<a href="{{ R }}/drops?days={{ d }}"{% if d == days %} class="on" aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}</nav>
+{% endcall %}
+{{ unreadable(r, "the price history") }}
+{% set drops = r.data or [] %}
+<div class="card flush">
+{% if drops %}
+  <div class="list">
+  {% for d in drops %}
+    <a class="item" href="{{ d.link }}" target="_blank" rel="noopener">{{ p.box(d.bg_id, d.image) }}
+      <span class="body"><span class="title">{{ d.name }}</span><span class="meta">{{ p.facts(d) }}</span>
+        <span class="row wrap mt-1"><span class="save sm">−{{ d.off | eur }} · {{ d.off_pct }}%</span>{% if d.since %}<span class="xs muted">cheaper since {{ d.since }}</span>{% endif %}</span></span>
+      <span class="trail"><b class="amount">{{ d.price | eur }}</b><span class="meta">was <s>{{ d.before | eur }}</s></span></span>
+      {{ icon("external", "chev") }}</a>
+  {% endfor %}
+  </div>
+  <div class="card-foot"><span class="muted">{{ drops | length }} listing{{ "s" if drops | length != 1 }} cheaper in the last {{ periods[days] }}</span></div>
+{% else %}
+  {{ empty("No price drops", "No listing still for sale got cheaper in the last " ~ periods[days] ~ ".", "trending-down") }}
+{% endif %}
+</div>
+{% endblock %}

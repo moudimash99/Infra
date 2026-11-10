@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% from "_m.html" import kpi, section_head, empty, unreadable %}
+{% import "deals/_parts.html" as p with context %}
+{% set g = r.data %}
+{% block title %}{{ g.name if g else "Game" }} · Deals{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/deals.css?v={{ STATIC_V }}">{% endblock %}
+{% block main %}
+<a class="back" href="{{ R }}/games">{{ icon("chevron-left") }}Games</a>
+{{ unreadable(r, "this game") }}
+{% if g %}
+{% set info = g.game or {} %}
+<header class="page-head">
+  <div class="game-hero">
+    <div class="art">{{ p.box(g.bg_id, g.image, "l", "fill") }}</div>
+    <div>
+      <div class="eyebrow">{{ ["BGG #" ~ info.Rank if info.Rank else "", info.Year or ""] | select | join(" · ") or "Board game" }}</div>
+      <h1 class="page-title">{{ g.name }}</h1>
+      {% if info.French_Name and info.French_Name != g.name %}<p class="page-sub">{{ info.French_Name }} in French</p>{% endif %}
+      <div class="row wrap mt-2">{% if info.Is_Legacy %}<span class="badge warn">Legacy: played copies can't be reused</span>{% endif %}</div>
+      <div class="page-actions">
+        {% if g.okkazeo %}<a class="btn sm" href="{{ g.okkazeo }}" target="_blank" rel="noopener">Okkazeo{{ icon("external") }}</a>{% endif %}
+        {% if info.URL %}<a class="btn sm" href="{{ info.URL }}" target="_blank" rel="noopener">BoardGameGeek{{ icon("external") }}</a>{% endif %}
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="kpis">
+  {{ kpi("Cheapest now", g.cheapest | eur if g.cheapest else "–", (g.listings | length ~ " for sale") if g.listings else "Nothing for sale", "tag") }}
+  {% if g.usual %}{{ kpi("Usual price", g.usual | eur, "What it sells for, by condition", "euro") }}
+  {% else %}{{ kpi("Typical ask", g.typical | eur if g.typical else "–", "Median of the plain copies", "euro") }}{% endif %}
+  {{ kpi("Lowest, 30 days", g.low30 | eur if g.low30 else "–", "Cheapest copy at any check", "trending-down") }}
+  {{ kpi("Gone, 60 days", g.gone | length, "Sold or taken down", "history") }}
+</div>
+
+{% if price_chart %}
+<section class="section">
+  {{ section_head("Price history", sub="The cheapest plain copy (no bundles) at each check. Steps change only when a check finds a new price.") }}
+  <div class="card">{{ price_chart }}</div>
+</section>
+{% endif %}
+
+<section class="section">
+  {{ section_head("For sale now", count=g.listings | length, sub="Cheapest first. The saving, when there is one, is after shipping.") }}
+  <div class="card flush">
+  {% if g.listings %}
+    <div class="list">{% for l in g.listings %}{{ p.listing_row(l, show_name=False, when=("listed " ~ deal_age(l.listed)) if l.listed else none) }}{% endfor %}</div>
+  {% else %}{{ empty("Nothing for sale", "No copy of this game is on Okkazeo right now. BoardGameFinder checks again tomorrow at 07:00.", "tag") }}{% endif %}
+  </div>
+</section>
+
+{% if g.gone %}
+<section class="section">
+  {{ section_head("Sold or taken down", count=g.gone | length, sub="Copies that left Okkazeo in the last 60 days, at their last price: a guide to what it really sells for.") }}
+  <div class="card flush"><div class="list tight">
+    {% for x in g.gone %}
+    <a class="item" href="{{ x.link }}" target="_blank" rel="noopener">
+      <span class="body"><span class="title">{{ deal_cond(x.condition) or "Condition not given" }}{% if x.bundle %} · bundle{% endif %}</span>
+        <span class="meta">gone {{ x.gone | ago }}{% if x.first_seen and x.gone %} · listed {{ ((x.gone - x.first_seen) / 86400) | round | int }} days{% endif %}</span></span>
+      <span class="trail"><b class="amount">{{ x.price | eur }}</b></span></a>
+    {% endfor %}
+  </div></div>
+</section>
+{% endif %}
+{% endif %}
+{% endblock %}

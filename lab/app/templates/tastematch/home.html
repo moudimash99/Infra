@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% from "_m.html" import page_head, section_head, kpi, empty, alert, avatar, chip, unreadable %}
+{% from "tastematch/_tm.html" import who, signed, meter, scale, host_row, game_tile, vthumb with context %}
+{% block title %}Taste Match{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/tastematch.css?v={{ STATIC_V }}">{% endblock %}
+{% block main %}
+{% set p = prof.data or {} %}
+{% set st = stats.data or {} %}
+{% call page_head("Your taste, matched",
+                  "Board game reviewers whose scores follow yours, found in " ~ (st.verdicts | comma if st else "their") ~ " verdicts from " ~ (st.videos | comma if st else "many") ~ " YouTube reviews.",
+                  eyebrow=(s.username if s else "Your BGG profile") ~ " · " ~ (p.rated or 0) ~ " games rated") %}
+  <a class="btn primary" href="{{ R }}/reviewers">{{ icon("users") }}All reviewers</a>
+  <a class="btn" href="{{ R }}/games?sort=matches&show=unrated">{{ icon("dices") }}Games to try</a>
+{% endcall %}
+
+{% if not sc.ok %}{{ alert("The last matching run failed (" ~ sc.error ~ ")." ~ ((" Showing the result from " ~ (s.at | ago) ~ ".") if s else ""), "warn") }}{% endif %}
+
+{% if s and s.ranked %}
+{% set top = s.ranked[0] %}
+<section class="section">
+  <a class="hero" href="{{ R }}/reviewers/{{ top.id }}">
+    <div class="row between"><span class="eyebrow">Your closest match</span><span class="badge {{ top.badge }}">{{ top.label }}</span></div>
+    <div class="tm-hero-row">
+      {{ who(top.name, top.id, "xl") }}
+      <div class="grow"><h2 class="tm-hero-name">{{ top.name }}</h2>
+        <div class="soft small">{{ top.channel_name }} · {{ top.n }} games you both rated</div></div>
+      <div class="big accent">{{ signed(top.match) }}</div>
+    </div>
+    {{ meter(top.match, top.low, top.high, True) }}
+    {{ scale() }}
+    <p class="small soft mt-3">Where {{ top.name }}'s scores stray from BGG's average, they stray the way yours do. Likely between {{ signed(top.low) }} and {{ signed(top.high) }}.</p>
+  </a>
+</section>
+{% elif s %}
+<section class="section"><div class="card">{{ empty("No match yet", "No reviewer has rated 5 of your games yet. Matches appear as more reviews are rated.", "users") }}</div></section>
+{% endif %}
+
+<section class="section">
+<div class="kpis">
+  {{ kpi("Games you rated", p.rated if p else "-", "on BoardGameGeek", "star") }}
+  {{ kpi("Reviewers", (s.reviewers | length) if s else "-", ((s.ranked | length) ~ " share 5+ of your games") if s else None, "users", href=R ~ "/reviewers") }}
+  {{ kpi("Verdicts", st.verdicts | comma if st else "-", ("+" ~ (st.week | comma) ~ " this week") if st else None, "quote") }}
+  {{ kpi("Reviews read", st.videos | comma if st else "-", ("from " ~ st.channels ~ " channels") if st else None, "video", href=R ~ "/videos") }}
+</div>
+</section>
+
+{% if s and s.ranked | length > 1 %}
+<section class="section">
+  {{ section_head("Top matches", R ~ "/reviewers", count=s.ranked | length) }}
+  <div class="card flush"><div class="list">
+    {% for r in s.ranked[:5] %}{{ host_row(r) }}{% endfor %}
+  </div>
+  <div class="card-foot"><span class="muted">Computed {{ s.at | ago }}</span><a href="{{ R }}/reviewers#how">How matching works{{ icon("chevron-right") }}</a></div></div>
+</section>
+{% endif %}
+
+{% if recs %}
+<section class="section">
+  {{ section_head("Games your matches love", R ~ "/games?sort=matches&show=unrated", sub="Games you haven't rated or owned that reviewers who match you score 4 or 5.") }}
+  <div class="tiles">
+    {% for e in recs %}{% set t = things.get(e.gid) or {} %}
+      {{ game_tile(e.gid, t.name or e.gid, (e.fans[:2] | map(attribute="0.name") | join(", ")) ~ ((" +" ~ (e.fans | length - 2)) if e.fans | length > 2 else ""), "%.1f" | format(e.score), "Wishlist" if e.gid in (p.wishlist or ()) else None) }}
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section class="section grid md-main gap-lg">
+  {% set pr = prog.data %}
+  <div class="card">
+    <div class="card-head"><h3>{{ icon("activity") }}This round</h3>
+      {% set running = (pipe.data.runs | selectattr("state", "equalto", "running") | list) if pipe.data else [] %}
+      {% if running %}{{ chip("running", "Running") }}{% elif pipe.data and pipe.data.gpu_paused %}{{ chip("paused", "GPU paused") }}{% else %}{{ chip("pending", "Idle") }}{% endif %}
+    </div>
+    {{ unreadable(prog, "the pipeline database") }}
+    {% if pr %}{% set t = pr.totals %}
+    <div class="steps">
+      {% for key, label, ic in [("audio", "Downloaded", "download"), ("text", "Transcribed", "file-text"), ("speakers", "Speakers found", "mic"), ("rated", "Rated", "star")] %}
+      {% set paused = pipe.data and pipe.data.gpu_paused and key in ("text", "speakers") %}
+      <div class="step"><span class="ic">{{ icon(ic) }}</span>
+        <div><div class="what"><b>{{ label }}</b><span>{{ "paused" if paused else (t[key] | comma ~ " of " ~ t.videos | comma) }}</span></div>
+          <span class="progress{{ ' muted' if paused }}"><span style="width:{{ pct(t[key], t.videos) }}%"></span></span></div>
+        <span class="n">{{ pct(t[key], t.videos) }}%</span></div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <div class="card-foot">
+      <span class="muted truncate">{% if running %}{% set rn = running[0] %}{% set now_st = rn.log.now %}Now: {{ now_st.label if now_st else rn.label }}{% if now_st and now_st.pos %} {{ now_st.pos[0] }}/{{ now_st.pos[1] }}{% endif %}{% elif pr %}{{ pr.totals.videos | comma }} reviews from {{ pr.channels | length }} channels{% endif %}</span>
+      <a href="{{ R }}/pipeline">Pipeline{{ icon("chevron-right") }}</a></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>{{ icon("clock") }}Rated lately</h3><a class="small strong" href="{{ R }}/videos">All</a></div>
+    {% if recent.data %}
+    <div class="list plain tight">
+      {% for v in recent.data[:5] %}
+      <a class="item" href="{{ R }}/v/{{ v.id }}">{{ vthumb(v.id, None, True) }}
+        <span class="body"><span class="title wrap clamp-2">{{ v.title }}</span>
+          <span class="meta">{{ v.channel_name }} · {{ v.n }} verdict{{ "s" if v.n != 1 }}</span></span></a>
+      {% endfor %}
+    </div>
+    {% else %}{{ empty("Nothing rated yet", None, "star") }}{% endif %}
+  </div>
+</section>
+{% endblock %}

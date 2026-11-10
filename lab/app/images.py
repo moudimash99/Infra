@@ -28,17 +28,20 @@ CACHE = os.path.join(os.path.dirname(LAB_DB) or ".", "img")
 SIZES = {"s": 200, "m": 480, "l": 960}          # longest side, px
 HOSTS = ("cf.geekdo-images.com", "okkazeo.com", "www.okkazeo.com", "i.ytimg.com")
 MAX_BYTES = 20 * 2**20
-RETRY_AFTER = 6 * 3600                          # a failed picture is tried again after this
+RETRY_AFTER = 6 * 3600                          # no picture in the data, or the host has none: try again after this
+RETRY_SOON = 600                                # a network hiccup or a server error: after this
 
 _http = httpx.AsyncClient(timeout=httpx.Timeout(20), follow_redirects=True,
                           headers={"User-Agent": "machaka-lab/1.0 (+https://lab.machaka.net)"})
 _locks: dict[str, asyncio.Lock] = {}
-_failed: dict[str, float] = {}
+_failed: dict[str, float] = {}                  # picture -> when to try it again
+_work = asyncio.Semaphore(2)                    # a page of 24 new tiles fetches and shrinks two at a time (memory)
 
 
 def _shrink(data, px):
     from PIL import Image, ImageOps
     img = Image.open(io.BytesIO(data))
+    img.draft("RGB", (px * 2, px * 2))          # a big JPEG decodes at a fraction of its size: less memory
     img = ImageOps.exif_transpose(img)
     img.thumbnail((px, px), Image.Resampling.LANCZOS)
     if img.mode not in ("RGB", "L"):
@@ -60,7 +63,7 @@ async def serve(kind, key, size, url_of):
     headers = {"Cache-Control": "public, max-age=2592000, immutable"}
     if os.path.exists(path):
         return FileResponse(path, media_type="image/jpeg", headers=headers)
-    if time.time() - _failed.get(name, 0) < RETRY_AFTER:
+    if time.time() < _failed.get(name, 0):
         raise HTTPException(404)
     lock = _locks.setdefault(name, asyncio.Lock())
     async with lock:
@@ -72,19 +75,22 @@ async def serve(kind, key, size, url_of):
                 raise ValueError("no picture in the data")
             if urlparse(url).hostname not in HOSTS:
                 raise ValueError(f"not a known picture host: {urlparse(url).hostname}")
-            r = await _http.get(url)
-            r.raise_for_status()
-            if urlparse(str(r.url)).hostname not in HOSTS or len(r.content) > MAX_BYTES:
-                raise ValueError("redirected elsewhere or too big")
-            data = await asyncio.to_thread(_shrink, r.content, SIZES[size])
+            async with _work:
+                r = await _http.get(url)
+                r.raise_for_status()
+                if urlparse(str(r.url)).hostname not in HOSTS or len(r.content) > MAX_BYTES:
+                    raise ValueError("redirected elsewhere or too big")
+                data = await asyncio.to_thread(_shrink, r.content, SIZES[size])
             os.makedirs(CACHE, exist_ok=True)
             tmp = f"{path}.{os.getpid()}.part"
             with open(tmp, "wb") as f:
                 f.write(data)
             os.replace(tmp, path)
         except Exception as e:      # noqa: BLE001 - any failure: no picture for a while, the page shows its placeholder
-            _failed[name] = time.time()
-            log.info("picture %s unavailable: %s", name, e)
+            passing = isinstance(e, (httpx.TransportError, OSError)) or (
+                isinstance(e, httpx.HTTPStatusError) and e.response.status_code >= 500)
+            _failed[name] = time.time() + (RETRY_SOON if passing else RETRY_AFTER)
+            log.info("picture %s unavailable: %r", name, e)
             raise HTTPException(404)
         finally:
             _locks.pop(name, None)

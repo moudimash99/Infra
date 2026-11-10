@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% from "_m.html" import page_head, empty, alert %}
+{% from "tastematch/_tm.html" import signed, meter, scale, host_row with context %}
+{% block title %}Reviewers · Taste Match{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/tastematch.css?v={{ STATIC_V }}">{% endblock %}
+{% block main %}
+{{ page_head("Reviewers", "How closely each host's scores follow yours on the games you both rated, beyond what BGG's average already says.") }}
+{% if not sc.ok %}{{ alert("The last matching run failed (" ~ sc.error ~ ")." ~ ((" Showing the result from " ~ (s.at | ago) ~ ".") if s else ""), "warn") }}{% endif %}
+
+<div class="tm-filters">
+  <nav class="seg" aria-label="Which reviewers">
+    {% for key, label in [("ranked", "Ranked"), ("thin", "Too few games"), ("all", "All")] %}
+    <a href="{{ R }}/reviewers?show={{ key }}{{ '&channel=' ~ channel if channel }}"{% if show == key %} class="on"{% endif %}>{{ label }}<span class="n">{{ counts[key] }}</span></a>
+    {% endfor %}
+  </nav>
+  {% if channels | length > 1 %}
+  <nav class="seg" aria-label="Channel">
+    <a href="{{ R }}/reviewers?show={{ show }}"{% if not channel %} class="on"{% endif %}>All channels</a>
+    {% for key, name in channels %}<a href="{{ R }}/reviewers?show={{ show }}&channel={{ key }}"{% if channel == key %} class="on"{% endif %}>{{ name }}</a>{% endfor %}
+  </nav>
+  {% endif %}
+</div>
+
+{% if rows %}
+<div class="card flush"><div class="list">
+  {% for r in rows %}{{ host_row(r, show != "thin", True) }}{% endfor %}
+</div>
+{% if show != "thin" %}<div class="card-foot"><span class="muted">Bar: the likely range; dot: the match</span><span class="muted xs">−0.5 … +0.75</span></div>{% endif %}
+</div>
+{% elif s %}
+<div class="card">{{ empty("Nobody here", "No reviewer fits this filter yet.", "users") }}</div>
+{% endif %}
+
+<section class="section" id="how">
+  <div class="card">
+    <h3 class="mb-3">How the match works</h3>
+    <ul class="tm-note">
+      <li>For each game, the taste signal is how far a score sits from what BGG's average predicts for that person: everyone loving Brass says little, loving a game BGG shrugs at says a lot.</li>
+      <li>The match is how well your signals and a host's line up on the games you both rated, from −1 (opposite) to +1 (the same). It is pulled toward 0 when you share few games, so a perfect fit on 3 games doesn't beat a good fit on 40.</li>
+      <li>The bar shows the likely range: where 8 in 10 reshuffles of your shared games put the match.</li>
+      <li>Hosts with fewer than 5 games in common with you are listed under “Too few games”, not ranked.</li>
+    </ul>
+    {% if s %}<p class="xs muted mt-3">{{ s.reviewers | length }} hosts from {{ s.reviewers | map(attribute="channel") | unique | list | length }} channels, against your {{ s.user | length }} rated games. Computed {{ s.at | ago }}.</p>{% endif %}
+  </div>
+</section>
+{% endblock %}

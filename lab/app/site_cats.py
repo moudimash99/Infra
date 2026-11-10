@@ -1,8 +1,18 @@
-"""catcam.machaka.net: the day's flash (a short video of the cats' moments), the camera now and at any time in the
-last 14 days, their weights, and what the feeding monitor saw."""
+"""catcam.machaka.net: Simba and Nala. Pages:
+
+  /                 today: the flash of the day, the camera now, today's numbers and frames
+  /flashes          every flash so far; /flashes/<day> one of them with its moments
+  /camera           the camera now, any moment of the last 14 days, an hour-by-hour day, Frigate's detections
+  /weight           each cat's weight, trend and weigh-ins
+  /status           the jobs behind the site (flash, feeding monitor), Frigate, the monitor's runs
+
+Media (Frigate is home-network only, so the lab fetches and serves it): /flash/<day>.mp4|jpg, /media/latest.jpg,
+/media/frame/<ts>.jpg, /media/clip/<start>-<end>.mp4, /media/event/<id>/thumbnail.jpg and clip.mp4.
+"""
 import asyncio
 import datetime as dt
 import json
+import math
 import os
 import re
 import time
@@ -10,84 +20,242 @@ import uuid
 
 import httpx
 from fastapi import HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.exception_handlers import http_exception_handler
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, StreamingResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import charts, store
-from .config import CATS_DIR, TZ
+from .config import TZ
 from .sources import cats, k8s
 from .web import page, site
 
 app = site("catcam", [("/", "Today", "home"), ("/flashes", "Flashes", "film"), ("/camera", "Camera", "camera"),
-                     ("/weight", "Weight", "scale"), ("/status", "Status", "gauge")])
-FLASH = os.path.join(CATS_DIR, "flash")
-DAY = re.compile(r"\d{4}-\d\d-\d\d")
+                      ("/weight", "Weight", "scale"), ("/status", "Status", "gauge")])
+FLASH = cats.FLASH
+DAY = cats.DAY
+JOBS = {"cat-flash": ("Flash of the day", "Looks through the day's recordings with the cats' own model and stitches "
+                                          "the moments with Simba or Nala into a short video."),
+        "cat-monitor": ("Feeding monitor", "Watches the bowl overnight and counts which cat is in view. Without the "
+                                           "tag on the bowl it can't measure feeding time.")}
 
 
 def flashes(limit=14):
-    """Built flash videos, newest first: [{day, seconds, moments, cats, built}] from each video's JSON."""
-    out = []
-    try:
-        names = sorted((n for n in os.listdir(FLASH) if n.endswith(".json")), reverse=True)
-    except FileNotFoundError:
-        return out
-    for n in names[:limit]:
-        try:
-            meta = json.load(open(os.path.join(FLASH, n), encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        day = n[:-5]
-        if not os.path.exists(os.path.join(FLASH, day + ".mp4")):
-            continue
-        d = dt.date.fromisoformat(day)
-        first, each = meta.get("title_seconds", 1.8), meta.get("clip_seconds", 4.0)
-        items = [{**it, "seek": first + i * each,
-                  "at_label": dt.datetime.fromtimestamp(it.get("at") or it["start"], TZ).strftime("%H:%M")}
-                 for i, it in enumerate(it for it in meta.get("items", []) if it.get("start"))]
-        out.append({**meta, "day": day, "day_label": f"{d:%a} {d.day} {d:%b}", "items": items,
-                    "moments": meta.get("moments", len(items)), "seconds": meta.get("seconds", 0)})
-    return out
+    """Kept for the Homepage tile (summary.catcam): built flashes, newest first."""
+    return cats.flashes(limit)
+
+
+def _weights():
+    w = cats.weights.get()
+    return w, (cats.weight_cards(w.data) if w.ok and w.data else [])
+
+
+def _cron(name):
+    j = k8s.jobs.get()
+    return ((j.data or {}).get("cronjobs") or {}).get(name)
+
+
+def schedule_words(schedule, now=None):
+    """'20 0,19 * * *' -> ('Every day at 00:20 and 19:20', next run as epoch). Other schedules: (schedule, None)."""
+    m = re.fullmatch(r"(\d+) ([\d,]+) \* \* \*", (schedule or "").strip())
+    if not m:
+        return schedule or "-", None
+    minute, hours = int(m.group(1)), sorted(int(h) for h in m.group(2).split(","))
+    times = [f"{h:02d}:{minute:02d}" for h in hours]
+    words = "Every day at " + (" and ".join(times) if len(times) <= 2 else ", ".join(times[:-1]) + " and " + times[-1])
+    now_dt = dt.datetime.fromtimestamp(now or time.time(), TZ)
+    for add in (0, 1):
+        d = now_dt.date() + dt.timedelta(days=add)
+        for h in hours:
+            t = dt.datetime(d.year, d.month, d.day, h, minute, tzinfo=TZ)
+            if t > now_dt:
+                return words, t.timestamp()
+    return words, None
+
+
+def job_card(name):
+    """A CronJob for the status page: what it does, when, paused or not, its last runs (Kubernetes keeps a few;
+    the lab remembers them for 30 days)."""
+    c = _cron(name)
+    title, what = JOBS[name]
+    words, nxt = schedule_words(c["schedule"] if c else "")
+    live = [j for j in ((k8s.jobs.get().data or {}).get("jobs") or [])
+            if j.get("cronjob") == name or j["name"].startswith(name + "-")]
+    runs = {r["name"]: r for r in store.job_history(name, days=30)}
+    for j in live:       # what Kubernetes still has is the freshest
+        runs[j["name"]] = {**runs.get(j["name"], {}), **j}
+    runs = sorted(runs.values(), key=lambda r: r.get("start") or 0, reverse=True)
+    return {"name": name, "title": title, "what": what, "found": bool(c), "paused": bool(c and c["suspended"]),
+            "when": words, "next": None if (c and c["suspended"]) else nxt, "last": runs[0] if runs else None,
+            "runs": runs, "last_success": c.get("last_success") if c else None}
+
+
+# ---- pages -----------------------------------------------------------------------------------------------------
+
+@app.exception_handler(StarletteHTTPException)
+async def missing(request: Request, exc: StarletteHTTPException):
+    """A page that isn't there gets the site's own page; pictures and videos keep their plain answer."""
+    root = request.scope.get("root_path", "").rstrip("/")
+    rel = request.url.path[len(root):] if root and request.url.path.startswith(root) else request.url.path
+    if exc.status_code != 404 or rel.startswith(("/media/", "/flash/", "/static/")):
+        return await http_exception_handler(request, exc)
+    resp = page(request, "catcam/missing.html", detail=exc.detail if exc.detail != "Not Found" else "")
+    resp.status_code = 404
+    return resp
 
 
 @app.get("/", response_class=HTMLResponse)
-def home(request: Request, at: str = "", day: str = ""):
+def today(request: Request, day: str = "", at: str = ""):
+    root = request.scope.get("root_path", "").rstrip("/")
+    if DAY.fullmatch(day):              # links from the old one-page site
+        return RedirectResponse(f"{root}/flashes/{day}", 302)
+    if at:
+        return RedirectResponse(f"{root}/camera?at={at}", 302)
     now_ts = int(time.time())
-    # "Look back": frames around a chosen moment (default: the last hours, one frame each).
+    all_flash = cats.flashes(8)
+    hour = now_ts - now_ts % 3600
+    frames = [hour - 3600 * i for i in range(12) if now_ts - (hour - 3600 * i) > 60]
+    w, cards = _weights()
+    return page(request, "catcam/today.html", flash=all_flash[0] if all_flash else None, others=all_flash[1:],
+                now_ts=now_ts, frames=frames, weights=w, cards=cards,
+                today_words=cats.day_words(dt.datetime.now(TZ).date().isoformat()),
+                next_build=schedule_words((_cron("cat-flash") or {}).get("schedule", ""))[1])
+
+
+@app.get("/flashes", response_class=HTMLResponse)
+def flash_list(request: Request):
+    every = cats.flashes(120)
+    return page(request, "catcam/flashes.html", flashes=every,
+                next_build=schedule_words((_cron("cat-flash") or {}).get("schedule", ""))[1],
+                total_moments=sum(f["moments"] for f in every))
+
+
+@app.get("/flashes/{day}", response_class=HTMLResponse)
+def flash_day(request: Request, day: str):
+    f = cats.flash(day)
+    if not f:
+        raise HTTPException(404, "No flash for that day")
+    days = cats.flash_days()
+    i = days.index(day)
+    newer = days[i - 1] if i > 0 else None
+    older = days[i + 1] if i + 1 < len(days) else None
+    return page(request, "catcam/flash.html", active="/flashes", flash=f,
+                newer=cats.flash(newer) if newer else None, older=cats.flash(older) if older else None,
+                now_ts=int(time.time()), keep=cats.KEEP_DAYS * 86400)
+
+
+@app.get("/camera", response_class=HTMLResponse)
+def camera(request: Request, day: str = "", at: str = ""):
+    now_ts = int(time.time())
     look = None
     if at:
         try:
             t = int(dt.datetime.fromisoformat(at).replace(tzinfo=TZ).timestamp())
-            if 0 < now_ts - t < 14 * 86400:
+            if 0 < now_ts - t < cats.KEEP_DAYS * 86400:
                 look = t
         except ValueError:
             pass
-    if look:
-        frames = [look + o for o in (-120, -60, 0, 60, 120, 180, 240, 300)]
-    else:
-        hour = now_ts - now_ts % 3600
-        frames = [hour - 3600 * i for i in range(7, -1, -1)]
-    frames = [f for f in frames if f < now_ts - 30]
-    w = cats.weights.get()
-    weight_chart = None
-    if w.ok and w.data:
-        series = [{"name": c, "slot": i + 1, "points": pts} for i, (c, pts) in enumerate(sorted(w.data.items()))]
-        xs = [p[0] for s in series for p in s["points"]]
-        lo = dt.datetime.fromtimestamp(min(xs), TZ)
-        months, m = [], lo.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        while m.timestamp() <= max(xs):
-            months.append(m)
-            m = (m + dt.timedelta(days=32)).replace(day=1)
-        step = max(1, -(-len(months) // 6))
-        weight_chart = charts.lines(series, title="Weight, kg", unit=" kg",
-                                    x_labels=[(m.timestamp(), f"{m:%b %y}") for m in months[::step]])
-    all_flash = flashes()
-    shown = next((f for f in all_flash if f["day"] == day), all_flash[0] if all_flash else None)
-    ev = cats.events.get()
-    return page(request, "cats.html", flash=shown, flashes=all_flash, today=dt.datetime.now(TZ).date().isoformat(),
-                frames=frames, look=look, at=at, now_ts=now_ts,
-                weights=w, weight_chart=weight_chart, monitor=cats.monitor.get(), events=ev,
-                runs=store.job_history("cat-monitor", days=30) + store.job_history("cat-flash", days=30),
-                cron=((k8s.jobs.get().data or {}).get("cronjobs") or {}))
+    around = [f for f in ((look + o) for o in (-120, -60, 0, 60, 120, 180, 240, 300)) if f < now_ts - 30] if look else []
+    days = cats.recent_days(7, now_ts)
+    if day not in {d for d, _ in days}:
+        day = days[0][0]
+    rec = cats.recordings.get()
+    hours = (rec.data or {}).get(day, {}) if rec.ok else {}
+    frames = []
+    for t in cats.hour_frames(day, now_ts):
+        h = dt.datetime.fromtimestamp(t, TZ).hour
+        frames.append({"ts": t, "hour": h, "events": hours.get(h, {}).get("events", 0),
+                       "recorded": not hours or h in hours})
+    today_d = dt.datetime.fromtimestamp(now_ts, TZ).date()
+    at_of = lambda d, h: dt.datetime(d.year, d.month, d.day, h, tzinfo=TZ)
+    picks = [(label, t.strftime("%Y-%m-%dT%H:%M")) for label, t in [
+        ("An hour ago", dt.datetime.fromtimestamp(now_ts - 3600, TZ)),
+        ("This morning, 8:00", at_of(today_d, 8)),
+        ("Last night, 3:00", at_of(today_d, 3)),
+        ("Yesterday, 20:00", at_of(today_d - dt.timedelta(days=1), 20))] if t.timestamp() < now_ts - 60]
+    return page(request, "catcam/camera.html", now_ts=now_ts, at=at, look=look, around=around, day=day, days=days,
+                picks=picks,
+                frames=list(reversed(frames)), rec=rec, events=cats.events.get(),
+                at_value=dt.datetime.fromtimestamp(look or now_ts - 3600, TZ).strftime("%Y-%m-%dT%H:%M"),
+                at_min=dt.datetime.fromtimestamp(now_ts - (cats.KEEP_DAYS - 1) * 86400, TZ).strftime("%Y-%m-%dT00:00"),
+                at_max=dt.datetime.fromtimestamp(now_ts, TZ).strftime("%Y-%m-%dT%H:%M"))
 
+
+@app.get("/weight", response_class=HTMLResponse)
+def weight(request: Request):
+    w, cards = _weights()
+    if cards:
+        xmin = min(c["points"][0][0] for c in cards)
+        xmax = max(c["points"][-1][0] for c in cards)
+        for c in cards:
+            c["chart"] = weight_chart(c, xmin, xmax)
+    return page(request, "catcam/weight.html", weights=w, cards=cards,
+                table=cats.weight_table(w.data) if w.ok and w.data else [], cat_names=[c["cat"] for c in cards])
+
+
+@app.get("/status", response_class=HTMLResponse)
+def status(request: Request):
+    last = cats.flashes(1)
+    jobs = [job_card("cat-flash"), job_card("cat-monitor")]
+    runs = sorted((r for j in jobs for r in j["runs"]), key=lambda r: r.get("start") or 0, reverse=True)
+    return page(request, "catcam/status.html", jobs=jobs, runs=runs, last_flash=last[0] if last else None,
+                frigate=cats.frigate.get(), events=cats.events.get(), monitor=cats.monitor.get(),
+                now_ts=int(time.time()), keep=cats.KEEP_DAYS * 86400)
+
+
+# ---- the weight chart: one cat, its own scale ---------------------------------------------------------------------
+
+def range_ticks(lo, hi, count=4):
+    """Round ticks around lo..hi, not from zero: a cat's weight moves within a few hundred grams."""
+    if hi - lo < 0.2:
+        mid = (hi + lo) / 2
+        lo, hi = mid - 0.1, mid + 0.1
+    raw = (hi - lo) / count
+    mag = 10 ** math.floor(math.log10(raw))
+    step = next(m * mag for m in (1, 2, 2.5, 5, 10) if m * mag >= raw)
+    start = math.floor(lo / step + 1e-9) * step
+    n = int(math.ceil((hi - start) / step - 1e-9))
+    return [round(start + i * step, 6) for i in range(n + 1)]
+
+
+def weight_chart(card, xmin, xmax, height=150):
+    """One cat's weigh-ins on its own kg scale over the same span as the other cat's (small multiples), with the
+    classes and data of charts.lines, so lab.js gives it the same crosshair and tooltip."""
+    pts = card["points"]
+    if xmax <= xmin:
+        xmax = xmin + 1
+    ticks = range_ticks(card["low"], card["high"])
+    x0, x1, y0, y1 = charts.PAD_L, charts.W - charts.PAD_R, charts.PAD_T, height - charts.PAD_B
+    x_of = lambda x: x0 + (x1 - x0) * (x - xmin) / (xmax - xmin)
+    y_of = lambda v: y1 - (y1 - y0) * (v - ticks[0]) / ((ticks[-1] - ticks[0]) or 1)
+    parts = []
+    for t in ticks:
+        y = y_of(t)
+        parts.append(f'<line class="grid" x1="{x0}" x2="{x1}" y1="{y:.1f}" y2="{y:.1f}"/>')
+        parts.append(f'<text class="tick" x="{x0 - 5}" y="{y + 3.5:.1f}" text-anchor="end">{t:g}</text>')
+    first = dt.datetime.fromtimestamp(xmin, TZ)
+    months, m = [], first.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    while m.timestamp() <= xmax:
+        if m.timestamp() >= xmin:
+            months.append(m)
+        m = (m + dt.timedelta(days=32)).replace(day=1)
+    for mo in months[::max(1, -(-len(months) // 4))]:
+        parts.append(f'<text class="tick" x="{x_of(mo.timestamp()):.1f}" y="{height - 6}" text-anchor="middle">'
+                     f'{mo:%b} ’{mo:%y}</text>')
+    xy = [(x_of(x), y_of(v)) for x, v in pts]
+    path = "M" + "L".join(f"{px:.1f},{py:.1f}" for px, py in xy)
+    slot = card["slot"]
+    parts.append(f'<path class="wash s{slot}" d="{path}V{y1}H{xy[0][0]:.1f}Z"/>')
+    parts.append(f'<path class="line s{slot}" d="{path}"/>')
+    ex, ey = xy[-1]
+    parts.append(f'<circle class="dot s{slot}" cx="{ex:.1f}" cy="{ey:.1f}" r="4"/>')
+    data = {"x0": x0, "x1": x1, "xmin": xmin, "xmax": xmax, "unit": " kg",
+            "series": [{"name": card["cat"], "slot": slot, "points": pts}]}
+    parts.append(f'<line class="cross" x1="0" x2="0" y1="{y0}" y2="{y1}" visibility="hidden"/>')
+    parts.append(f'<rect class="hit-area" x="{x0}" y="{y0}" width="{x1 - x0}" height="{y1 - y0}"/>')
+    return charts._svg(parts, height, f"{card['cat']}'s weight in kg", data=json.dumps(data))
+
+
+# ---- the flash files ---------------------------------------------------------------------------------------------
 
 @app.get("/flash/{name}")
 def flash_file(name: str):
@@ -179,6 +347,14 @@ async def event_thumbnail(eid: str):
     return await _proxy(f"{cats.FRIGATE}/api/events/{eid}/thumbnail.jpg", cache=86400)
 
 
+@app.get("/media/event/{eid}/snapshot.jpg")
+async def event_snapshot(eid: str):
+    """The frame Frigate kept of an event (640x360 JPEG); its thumbnail is a 3 KB crop, in WebP."""
+    if not EVENT_ID.fullmatch(eid):
+        raise HTTPException(404)
+    return await _proxy(cats.event_snapshot_url(eid), cache=86400)
+
+
 @app.get("/media/event/{eid}/clip.mp4")
 async def event_clip(eid: str):
     if not EVENT_ID.fullmatch(eid):
@@ -195,7 +371,7 @@ async def frame(ts: int):
 
 @app.get("/media/latest.jpg")
 async def latest():
-    return await _proxy(cats.latest_url(), {"height": 480}, cache=5)
+    return await _proxy(cats.latest_url(), {"height": 540}, cache=5)
 
 
 @app.get("/media/clip/{start}-{end}.mp4")

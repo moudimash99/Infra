@@ -1,0 +1,80 @@
+/* Deals' own pieces, on top of lab.css: the deal card, the saving badge, prices, the status line. */
+
+/* lists: a row's title, details and price on their own lines (spans) */
+.item .body > .title, .item .body > .meta, .item .trail > .meta { display: block; }
+.item .body > .row { display: flex; }
+
+/* box art: the dice icon behind the picture, shown when there's none or it fails */
+.pic { position: relative; display: grid; place-items: center; overflow: hidden; color: var(--text-3); background: var(--box); flex: none; }
+.pic > svg { width: 38%; height: 38%; max-width: 30px; max-height: 30px; opacity: .55; }
+.pic > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: var(--box); display: block; }
+.thumb.pic > img { padding: 3px; border-radius: inherit; }
+.pic.fill { width: 100%; height: 100%; }
+.dcard .art .pic > img, .game-hero .art .pic > img, .bcard .art .pic > img { padding: 6px; }
+.tile .media .pic > img { padding: 12px; }
+
+.dgrid { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 760px) { .dgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1100px) { .dgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+.dcard { position: relative; display: grid; grid-template-columns: 108px minmax(0, 1fr); gap: 14px; padding: 14px;
+         background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--sh-1); min-width: 0; }
+.dcard.first { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent), var(--sh-1); }
+.dcard .art { width: 108px; height: 108px; border-radius: 12px; background: var(--box); display: grid; place-items: center; overflow: hidden; }
+.dcard .art img { width: 100%; height: 100%; object-fit: contain; padding: 6px; display: block; }
+.dcard .art .ph { width: 100%; height: 100%; }
+.dcard .info { min-width: 0; display: flex; flex-direction: column; }
+.dcard .top { align-self: flex-start; margin-bottom: 6px; }
+.dcard .name { font-weight: 650; line-height: 1.3; color: var(--text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.dcard .name:hover { color: var(--accent-ink); text-decoration: none; }
+.dcard .facts { font-size: var(--fs-xs); color: var(--text-3); margin-top: 3px; }
+.dcard .price { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; margin-top: auto; padding-top: 8px; }
+.dcard .price b { font-size: 1.45rem; font-weight: 750; letter-spacing: -.025em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.dcard .price span { color: var(--text-3); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.dcard .foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+
+.save { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; white-space: nowrap;
+        background: var(--accent-soft); color: var(--accent-ink); font-weight: 700; font-size: 12px; font-variant-numeric: tabular-nums; }
+.save.sm { height: 21px; padding: 0 7px; font-size: 11.5px; }
+.amount { font-weight: 700; font-size: 1.05rem; letter-spacing: -.015em; font-variant-numeric: tabular-nums; }
+.drop { color: var(--accent-ink); font-weight: 650; }
+.item .trail .meta s { color: var(--text-3); }
+.item > svg.chev { width: 15px; height: 15px; }
+
+/* a link line to the status page */
+a.card.statusline { display: flex; align-items: center; gap: 12px; }
+.statusline .ic { width: 38px; height: 38px; border-radius: 11px; flex: none; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-ink); }
+.statusline .ic svg { width: 19px; height: 19px; }
+.statusline .body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.statusline .meta { font-size: var(--fs-sm); color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.statusline .chev { width: 18px; height: 18px; color: var(--text-3); }
+
+/* a game's page: the box beside its name and numbers */
+.game-hero { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 16px; align-items: start; }
+.game-hero .art { width: 128px; height: 128px; border-radius: 16px; background: var(--box); display: grid; place-items: center; overflow: hidden; border: 1px solid var(--line); }
+.game-hero .art img { width: 100%; height: 100%; object-fit: contain; padding: 8px; display: block; }
+.game-hero .art .ph { width: 100%; height: 100%; }
+@media (min-width: 900px) { .game-hero { grid-template-columns: 180px minmax(0, 1fr); gap: 24px; } .game-hero .art { width: 180px; height: 180px; } }
+
+/* bundles: what the seller wrote */
+.said { font-size: var(--fs-sm); color: var(--text-2); line-height: 1.5; background: var(--surface-2); border: 1px solid var(--line);
+        border-radius: var(--r); padding: 10px 12px; margin-top: 10px; overflow-wrap: anywhere; }
+.said p { margin: 0; }
+.clamp-4 { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.bcard { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 14px; }
+.bcard .art { width: 88px; height: 88px; border-radius: 12px; background: var(--box); display: grid; place-items: center; overflow: hidden; }
+.bcard .art img { width: 100%; height: 100%; object-fit: contain; padding: 5px; display: block; }
+.bcard .art .ph { width: 100%; height: 100%; }
+
+/* steps of a run */
+.runstep { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 11px 16px; border-top: 1px solid var(--line); }
+.runstep:first-child { border-top: 0; }
+.runstep .dot { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--ok-soft); color: var(--ok); }
+.runstep .dot svg { width: 15px; height: 15px; }
+.runstep.failed .dot { background: var(--bad-soft); color: var(--bad); }
+.runstep.waiting .dot { background: var(--warn-soft); color: var(--warn); }
+.runstep .what { font-weight: 600; font-size: var(--fs-sm); }
+.runstep .why { font-size: var(--fs-xs); color: var(--text-3); margin-top: 2px; overflow-wrap: anywhere; }
+.runstep .at { font-size: var(--fs-xs); color: var(--text-3); font-variant-numeric: tabular-nums; padding-top: 2px; }
+
+.pager { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; font-size: var(--fs-sm); color: var(--text-3); }

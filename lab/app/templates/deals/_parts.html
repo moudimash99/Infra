@@ -1,0 +1,52 @@
+{#- Deals' own pieces. Import with context (they use R): {% import "deals/_parts.html" as p with context %} -#}
+
+{#- Box art through the lab (/img/<id>-<s|m|l>.jpg), or a placeholder when the game has none. -#}
+{#- The placeholder icon sits behind the picture: a picture that fails to load is removed and the icon shows. -#}
+{% macro box(bg_id, has_image, size="s", cls="thumb box") -%}
+<span class="{{ cls }} pic" aria-hidden="true">{{ icon("dices") }}{% if has_image and bg_id %}<img src="{{ R }}/img/{{ bg_id }}-{{ size }}.jpg" alt="" loading="lazy" decoding="async" onerror="this.remove()">{% endif %}</span>
+{%- endmacro %}
+
+{#- 'Excellent · French · Paris (75013) · ships' -#}
+{% macro facts(l, place=True) -%}
+{{ [deal_cond(l.condition) if l.condition else "", deal_edition(l.language), l.place if place else "",
+    ("ships" if l.ships else "pickup only")] | select | join(" · ") }}
+{%- endmacro %}
+
+{% macro saving(net, pct=None, cls="") -%}
+{% if net %}<span class="save {{ cls }}">Save {{ net | eur }}{% if pct %} · {{ pct }}%{% endif %}</span>{% endif %}
+{%- endmacro %}
+
+{#- The best deals: big box art, the price against the usual price, the saving, a button to the listing. -#}
+{% macro deal_card(d, first=False) -%}
+<article class="dcard{{ ' first' if first }}">
+  <a class="art" href="{{ R }}/game/{{ d.bg_id }}" aria-label="{{ d.name }}: price history">{{ box(d.bg_id, d.image, "m", "fill") }}</a>
+  <div class="info">
+    {% if first %}<span class="badge solid top">{{ icon("trophy") }}Best deal</span>{% endif %}
+    <a class="name" href="{{ R }}/game/{{ d.bg_id }}">{{ d.name }}</a>
+    <div class="facts">{{ facts(d) }}</div>
+    <div class="price"><b>{{ d.price | eur }}</b>{% if d.baseline %}<span>usually {{ d.baseline | eur }}</span>{% endif %}</div>
+    <div class="foot">{{ saving(d.net, d.saving_pct) }}
+      <a class="btn sm" href="{{ d.link }}" target="_blank" rel="noopener">Listing{{ icon("external") }}</a></div>
+  </div>
+</article>
+{%- endmacro %}
+
+{#- One listing as a row: it opens the ad on Okkazeo. show_name=False on a game's own page. -#}
+{% macro listing_row(l, show_name=True, when=None) -%}
+<a class="item" href="{{ l.link }}" target="_blank" rel="noopener">
+  {% if show_name %}{{ box(l.bg_id, l.image, "s", "thumb box") }}{% endif %}
+  <span class="body">
+    <span class="title">{% if show_name %}{{ l.name }}{% else %}{{ deal_cond(l.condition) or "Condition not given" }}{% endif %}</span>
+    <span class="meta">{% if show_name %}{{ facts(l) }}{% else %}{{ [deal_edition(l.language), l.place, ("ships" if l.ships else "pickup only")] | select | join(" · ") }}{% endif %}</span>
+    {% if l.net or l.bundle or l.special or l.extension or when %}<span class="row wrap mt-1">
+      {{ saving(l.net, l.saving_pct, "sm") }}
+      {% if l.bundle %}<span class="badge">{{ icon("package") }}Bundle</span>{% endif %}
+      {% if l.extension %}<span class="badge warn">Expansion or parts only</span>{% endif %}
+      {% if l.special %}<span class="badge">Special edition</span>{% endif %}
+      {% if when %}<span class="xs muted">{{ when }}</span>{% endif %}
+    </span>{% endif %}
+  </span>
+  <span class="trail"><b class="amount">{{ l.price | eur }}</b>{% if l.baseline %}<span class="meta">usually {{ l.baseline | eur }}</span>{% endif %}</span>
+  {{ icon("external", "chev") }}
+</a>
+{%- endmacro %}
