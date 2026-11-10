@@ -22,7 +22,7 @@ case "${1:-controller}" in
     ;;
   browser)
     node /usr/local/lib/fm/camoufox-config.mjs --in /fm/fm-data/config/playwright-mcp-camoufox.json --out /tmp/camoufox.json
-    exec npx -y "@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}" --config /tmp/camoufox.json --port 8931 --host 0.0.0.0 \
+    exec playwright-mcp --config /tmp/camoufox.json --port 8931 --host 0.0.0.0 \
       --allowed-hosts "${FM_ALLOWED_HOSTS:-*}" --user-data-dir /profile
     ;;
   *)

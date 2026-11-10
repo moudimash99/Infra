@@ -91,6 +91,23 @@ The Free Motion hub (dashboard) moved from Docker on 2026-11-10. Its image is al
 loaded only by fm-orchestrator's `freemotion-hub/test/deploy.mjs` after its tests; applying the manifest never changes the
 code. Going back to an earlier build, or to Docker, is at the top of `k8s/apps/freemotion-hub/freemotion-hub.yaml`.
 
+**Free Motion itself (being moved from the PC, plan on moudimash99/fm-orchestrator#1).** Not live yet: both start at
+0 replicas, and the PC still runs every round until the cut-over (never both: two writers of the never-apply-twice ledger).
+- `fm-controller` (server): every script and every driver CLI in one container, run by fm-orchestrator's
+  `scheduled.mjs daemon` (Task Scheduler's stand-in). One container keeps the code's process-id locks working. Code:
+  the fm-* repos checked out in `/srv/apps/freemotion/ws` (pushed there from the PC into bare repos in
+  `/srv/apps/freemotion/git` until the server can reach GitHub). Data: `/srv/apps/freemotion/fm-data`. Drivers' logins
+  and transcripts: `/srv/apps/freemotion/home`. At most 3 GiB.
+- `fm-browser-acer` (Acer, priority batch-high): one pod per lane, Camoufox behind `@playwright/mcp` on :8931, only the
+  controller may connect. fm-data reaches them by NFS at the controller's own path (`/fm/fm-data`), so file names and
+  uploads mean the same file on both sides. The server exports it to the Acer only (`/etc/exports`). Each pod's
+  browser profile stays on its node, `/srv/apps/freemotion-browser/<pod>`.
+- The image (`images/fm`, both roles): Node 24, Python 3.13 with RenderCV 2.8 and Camoufox (browser 152.0.4-beta.31,
+  the one its disguise names), Chromium, claude, codex, copilot, agy, gh. Built on the server, about 6 GB; loaded into
+  each node with `docker save fm:<tag> | ssh <node> sudo k3s ctr images import -` until the registry is in use.
+- The registry (`k8s/cluster/registry.yaml`) runs but the nodes don't use it yet: each needs `registries.yaml` and a
+  restart of k3s (server) or k3s-agent (Acer).
+
 Scheduled jobs (CronJobs, no web page), moved from the Windows PC on 2026-11-10. The PC stays as a backup: its copies
 of the code and data stopped updating that day.
 

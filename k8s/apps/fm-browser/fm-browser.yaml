@@ -35,6 +35,8 @@ spec:
       nodeSelector: { kubernetes.io/hostname: acer-laptop }
       tolerations:
         - { key: dedicated, value: worker, effect: NoSchedule }
+      # A full Acer stops a lane before Frigate or a site (k8s/cluster/priority.yaml): the job in hand is lost, never sent twice.
+      priorityClassName: batch-high
       automountServiceAccountToken: false
       securityContext: { runAsUser: 1000, runAsGroup: 1000, fsGroup: 1000 }
       containers:
