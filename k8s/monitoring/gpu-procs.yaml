@@ -22,7 +22,8 @@ data:
         return subprocess.run(["nvidia-smi", *args], capture_output=True, text=True, timeout=10).stdout
 
     def label(v):
-        return str(v).replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")[:100]
+        # cut first, then escape: a cut after escaping can leave a lone backslash that breaks the scrape
+        return str(v)[:100].replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
 
     def owner(pid):
         try:
@@ -47,7 +48,11 @@ data:
         for row in smi("--query-compute-apps=pid,used_memory,process_name", "--format=csv,noheader,nounits").splitlines():
             parts = [p.strip() for p in row.split(",")]
             if len(parts) >= 3 and parts[0].isdigit():
-                apps.append((parts[0], float(parts[1] or 0), parts[2]))
+                try:
+                    mib = float(parts[1])
+                except ValueError:          # "[N/A]" on some drivers: count the process, memory unknown
+                    mib = 0.0
+                apps.append((parts[0], mib, parts[2]))
         sm = {}
         head = None
         for row in smi("pmon", "-c", "1", "-s", "u").splitlines():
@@ -55,8 +60,11 @@ data:
                 head = row[1:].split()
             elif head and not row.startswith("#"):
                 cols = dict(zip(head, row.split()))
-                if cols.get("pid", "-").isdigit() and cols.get("sm", "-") not in ("-", ""):
-                    sm[cols["pid"]] = float(cols["sm"])
+                if cols.get("pid", "-").isdigit():
+                    try:
+                        sm[cols["pid"]] = float(cols.get("sm", "-"))
+                    except ValueError:
+                        pass
         for pid, mib, name in apps:
             uid, ctr = owner(pid)
             lab = f'pid="{pid}",pod_uid="{uid}",container_id="{ctr}",command="{label(command(pid, name))}"'
@@ -104,7 +112,7 @@ spec:
         - { key: dedicated, value: worker, effect: NoSchedule }
       containers:
         - name: gpu-procs
-          image: python:3.13-slim
+          image: docker.io/library/python@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90   # 3.13-slim
           command: ["python", "/app/gpu_procs.py"]
           env:
             - { name: NVIDIA_VISIBLE_DEVICES, value: all }
@@ -113,7 +121,16 @@ spec:
             - { name: metrics, containerPort: 9837 }
           volumeMounts:
             - { name: script, mountPath: /app, readOnly: true }
-          securityContext: { readOnlyRootFilesystem: true, allowPrivilegeEscalation: false }
+          # Not root, no capabilities: with hostPID it still reads every process's cgroup and command line
+          # (world-readable), but not other containers' environment or files.
+          securityContext:
+            runAsUser: 65534
+            runAsGroup: 65534
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+            seccompProfile: { type: RuntimeDefault }
           resources:
             requests: { cpu: 5m, memory: 24Mi }
             limits: { memory: 64Mi }

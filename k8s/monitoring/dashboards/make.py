@@ -315,7 +315,9 @@ OWNER = 'max by (job_name, owner_name) (max_over_time(kube_job_owner{namespace="
 START = 'max by (job_name) (max_over_time(kube_job_status_start_time{namespace="apps"}[7d])) * 1000'
 TOOK = ('max by (job_name) (max_over_time(kube_job_status_completion_time{namespace="apps"}[7d]))'
         ' - max by (job_name) (max_over_time(kube_job_status_start_time{namespace="apps"}[7d]))')
-FAILED = 'max by (job_name) (max_over_time(kube_job_status_failed{namespace="apps"}[7d]))'
+# 2 failed, 1 done, 0 still running (kube-state-metrics only has a failed series for Jobs that have the condition)
+RESULT = ('(2 * (max by (job_name) (max_over_time(kube_job_failed{namespace="apps", condition="true"}[7d])) > 0))'
+          ' or max by (job_name) (max_over_time(kube_job_complete{namespace="apps", condition="true"}[7d]))')
 BY_CRON = ' * on (job_name) group_left (owner_name) max by (job_name, owner_name) (kube_job_owner{namespace="apps", owner_kind="CronJob"})'
 
 jobs = dashboard("jobs", "Scheduled jobs", time="now-7d", refresh="5m",
@@ -331,7 +333,7 @@ jobs = dashboard("jobs", "Scheduled jobs", time="now-7d", refresh="5m",
          smalltext=True),
     table("Runs, last 7 days",
           [target(OWNER, instant=True, fmt="table", ref="A"), target(START, instant=True, fmt="table", ref="B"),
-           target(TOOK, instant=True, fmt="table", ref="C"), target(FAILED, instant=True, fmt="table", ref="D")],
+           target(TOOK, instant=True, fmt="table", ref="C"), target(RESULT, instant=True, fmt="table", ref="D")],
           [{"id": "joinByField", "options": {"byField": "job_name", "mode": "outer"}},
            {"id": "organize", "options": {
                "excludeByName": {"Time": True, "Time 1": True, "Time 2": True, "Time 3": True, "Time 4": True,
@@ -343,17 +345,21 @@ jobs = dashboard("jobs", "Scheduled jobs", time="now-7d", refresh="5m",
            field("Took", [{"id": "unit", "value": "dtdurations"}, {"id": "noValue", "value": "-"}]),
            field("Result", [{"id": "custom.cellOptions", "value": {"type": "color-text"}},
                             {"id": "mappings", "value": [
-                                {"type": "value", "options": {"0": {"text": "OK", "color": GREEN}}},
-                                {"type": "range", "options": {"from": 1, "to": 1e9, "result": {"text": "Failed", "color": RED}}},
+                                {"type": "value", "options": {"0": {"text": "running", "color": BLUE},
+                                                              "1": {"text": "OK", "color": GREEN}}},
+                                {"type": "range", "options": {"from": 2, "to": 3, "result": {"text": "Failed", "color": RED}}},
                                 {"type": "special", "options": {"match": "null", "result": {"text": "running", "color": BLUE}}}]}]),
            field("Run", [{"id": "custom.hidden", "value": True}]),
            field("Started", [{"id": "custom.width", "value": 104}]), field("Took", [{"id": "custom.width", "value": 74}]),
            field("Result", [{"id": "custom.width", "value": 64}])],
           w=24, h=12, sort=[{"displayName": "Started", "desc": True}],
           desc="Kubernetes keeps only the last few runs; this table reads them back from Prometheus (15 days)."),
-    series("How long each run took", [('max by (owner_name) ((kube_job_status_completion_time{namespace="apps"}'
-                                        ' - kube_job_status_start_time{namespace="apps"})' + BY_CRON + ')', "{{owner_name}}")],
-           w=24, h=9, unit="s", points=True, legend="list"),
+    series("How long each run took", [('max by (owner_name) (((kube_job_status_completion_time{namespace="apps"}'
+                                        ' - kube_job_status_start_time{namespace="apps"})'
+                                        ' and on (job_name) (time() - kube_job_status_completion_time{namespace="apps"} < 1800))'
+                                        + BY_CRON + ')', "{{owner_name}}")],
+           w=24, h=9, unit="s", points=True, legend="list",
+           desc="One mark per finished run, placed just after it ended (scheduled jobs only)."),
     series("Memory against the limit", [
         (f'max by (cronjob) (label_replace(container_memory_working_set_bytes{{namespace="apps", container!="", pod=~".+-[0-9]{{6,}}-[a-z0-9]{{5}}"}}'
          f' / on (namespace, pod, container) kube_pod_container_resource_limits{{resource="memory"}}, {CRON})) * 100',
@@ -376,7 +382,7 @@ pc = dashboard("pc-jobs", "PC jobs", time="now-24h", refresh="5m",
          desc="Over 20 minutes: the PC is off or asleep, so the rest is its last known state."),
     stat("Tasks failing", [('count(pc_task_ok == 0) or vector(0)', "")], w=8, h=4, text="value",
          thr=steps(GREEN, 1, RED), mappings=[{"type": "value", "options": {"0": {"text": "None"}}}]),
-    stat("Archived today", [('pc_job_value{job="archiver", name="Archived today"}', "")], w=8, h=4, text="value",
+    stat("Archived today", [('pc_job_value{pc_job="archiver", name="Archived today"}', "")], w=8, h=4, text="value",
          color_mode="value", decimals=0),
     table("Scheduled tasks",
           [target("pc_task_ok", instant=True, fmt="table", ref="A"),
@@ -395,13 +401,13 @@ pc = dashboard("pc-jobs", "PC jobs", time="now-24h", refresh="5m",
                                "1": {"text": "OK", "color": GREEN}, "0": {"text": "Failed", "color": RED}}}]}]),
            field("Last run", [{"id": "unit", "value": "dateTimeFromNow"}])],
           w=24, h=10, no_value="No report yet"),
-    stat("Gmail archiver", [('pc_job_value{job="archiver"}', "{{name}}")], w=12, h=6, color_mode="none", decimals=0),
-    stat("FreeMotion", [('pc_job_value{job="freemotion"}', "{{name}}")], w=12, h=6, color_mode="none", decimals=0),
-    stat("Upwork scan", [('pc_job_ok{job="upwork"}', "")], w=12, h=4, text="value",
+    stat("Gmail archiver", [('pc_job_value{pc_job="archiver"}', "{{name}}")], w=12, h=6, color_mode="none", decimals=0),
+    stat("FreeMotion", [('pc_job_value{pc_job="freemotion"}', "{{name}}")], w=12, h=6, color_mode="none", decimals=0),
+    stat("Upwork scan", [('pc_job_ok{pc_job="upwork"}', "")], w=12, h=4, text="value",
          thr=steps(RED, 1, GREEN), mappings=[{"type": "value", "options": {"1": {"text": "Running"},
                                                                           "0": {"text": "Stopped (login page)"}}}]),
-    stat("Daily review", [('pc_job_value{job="review"}', "{{name}}")], w=12, h=4, color_mode="none", decimals=0),
-    series("Archived emails", [('pc_job_value{job="archiver", name="Archived today"}', "archived today")],
+    stat("Daily review", [('pc_job_value{pc_job="review"}', "{{name}}")], w=12, h=4, color_mode="none", decimals=0),
+    series("Archived emails", [('pc_job_value{pc_job="archiver", name="Archived today"}', "archived today")],
            w=24, h=7, unit="none"),
 ])
 

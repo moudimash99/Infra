@@ -87,7 +87,8 @@ async def report(name: str, request: Request):
 
 
 def _label(v):
-    return str(v).replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")[:120]
+    """Cut first, then escape: a cut after escaping can leave a lone backslash that breaks the whole scrape."""
+    return str(v)[:120].replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
 
 
 def _num(v):
@@ -127,9 +128,9 @@ def pc_metrics():
         for name, value in (info.get("numbers") or {}).items():
             n = _num(value)
             if n is not None and not re.search(r"\d{1,2}:\d\d", str(value)):   # times aren't numbers
-                lines.append(f'pc_job_value{{job="{_label(job)}",title="{_label(info.get("title", job))}",'
+                lines.append(f'pc_job_value{{pc_job="{_label(job)}",title="{_label(info.get("title", job))}",'
                              f'name="{_label(name.strip())}"}} {n:g}')
-        lines.append(f'pc_job_ok{{job="{_label(job)}",title="{_label(info.get("title", job))}"}} '
+        lines.append(f'pc_job_ok{{pc_job="{_label(job)}",title="{_label(info.get("title", job))}"}} '
                      f'{0 if info.get("status") == "failed" else 1}')
     return "\n".join(lines) + "\n"
 

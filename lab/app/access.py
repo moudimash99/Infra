@@ -11,9 +11,12 @@ team, every public name answers 403. In-cluster names (lab.tools.svc, used by Ho
 no route for them, so they can't be reached from outside.
 """
 import asyncio
+import json
 import logging
 import os
+import threading
 import time
+import urllib.request
 
 import jwt
 
@@ -23,19 +26,40 @@ AUDS = [a.strip() for a in os.environ.get("ACCESS_AUD", "").split(",") if a.stri
 PUBLIC_HOSTS = {h.strip().lower() for h in os.environ.get(
     "PUBLIC_HOSTS", "tastematch.machaka.net,deals.machaka.net,catcam.machaka.net").split(",") if h.strip()}
 
-_jwks = jwt.PyJWKClient(f"https://{TEAM}/cdn-cgi/access/certs", cache_keys=True, lifespan=3600) if TEAM else None
 _good = {}          # token -> expiry: a page's images and clips don't each re-check the signature
+_keys, _keys_at, _keys_lock = {}, 0.0, threading.Lock()
+KEYS_EVERY = 300    # Cloudflare's signing keys are fetched at most every 5 minutes, so made-up key ids can't make
+                    # every request refetch them
+
+
+def _key(kid):
+    global _keys, _keys_at
+    with _keys_lock:
+        if kid not in _keys and time.time() - _keys_at > KEYS_EVERY:
+            _keys_at = time.time()      # also after a failed fetch: no retry storm, the old keys stay
+            try:
+                with urllib.request.urlopen(f"https://{TEAM}/cdn-cgi/access/certs", timeout=5) as r:
+                    data = json.load(r)
+                _keys = {k["kid"]: jwt.PyJWK(k).key for k in data.get("keys", []) if k.get("kid")}
+            except Exception as e:
+                log.warning("Access keys unreadable: %s", e)
+        return _keys.get(kid)
+
+
+def cached(token):
+    return bool(token) and _good.get(token, 0) > time.time()
 
 
 def check(token):
     """True when the token is a valid Access token for us; logs why not otherwise."""
-    if not token or not _jwks or not AUDS:
+    if not token or not TEAM or not AUDS:
         return False
-    now = time.time()
-    if _good.get(token, 0) > now:
+    if cached(token):
         return True
     try:
-        key = _jwks.get_signing_key_from_jwt(token).key
+        key = _key(jwt.get_unverified_header(token).get("kid"))
+        if key is None:
+            return False
         claims = jwt.decode(token, key, algorithms=["RS256"], audience=AUDS, issuer=f"https://{TEAM}",
                             options={"require": ["exp", "iss", "aud"]})
     except Exception as e:
@@ -92,7 +116,7 @@ class AccessGate:
         if scope["type"] == "http":
             if needs_token(_header(scope, b"host"), scope.get("path", "")):
                 token = _header(scope, b"cf-access-jwt-assertion") or _cookie(scope, "CF_Authorization")
-                if not await asyncio.to_thread(check, token):
+                if not cached(token) and not await asyncio.to_thread(check, token):
                     await send({"type": "http.response.start", "status": 403,
                                 "headers": [(b"content-type", b"text/html; charset=utf-8"),
                                             (b"cache-control", b"no-store")]})

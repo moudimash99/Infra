@@ -303,7 +303,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "max by (job_name) (max_over_time(kube_job_status_failed{namespace=\"apps\"}[7d]))",
+     "expr": "(2 * (max by (job_name) (max_over_time(kube_job_failed{namespace=\"apps\", condition=\"true\"}[7d])) > 0)) or max by (job_name) (max_over_time(kube_job_complete{namespace=\"apps\", condition=\"true\"}[7d]))",
      "legendFormat": "__auto",
      "range": false,
      "instant": true,
@@ -405,6 +405,10 @@
           "type": "value",
           "options": {
            "0": {
+            "text": "running",
+            "color": "#2a78d6"
+           },
+           "1": {
             "text": "OK",
             "color": "#0ca30c"
            }
@@ -413,8 +417,8 @@
          {
           "type": "range",
           "options": {
-           "from": 1,
-           "to": 1000000000.0,
+           "from": 2,
+           "to": 3,
            "result": {
             "text": "Failed",
             "color": "#d03b3b"
@@ -509,7 +513,7 @@
   {
    "type": "timeseries",
    "title": "How long each run took",
-   "description": "",
+   "description": "One mark per finished run, placed just after it ended (scheduled jobs only).",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
@@ -521,7 +525,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "max by (owner_name) ((kube_job_status_completion_time{namespace=\"apps\"} - kube_job_status_start_time{namespace=\"apps\"}) * on (job_name) group_left (owner_name) max by (job_name, owner_name) (kube_job_owner{namespace=\"apps\", owner_kind=\"CronJob\"}))",
+     "expr": "max by (owner_name) (((kube_job_status_completion_time{namespace=\"apps\"} - kube_job_status_start_time{namespace=\"apps\"}) and on (job_name) (time() - kube_job_status_completion_time{namespace=\"apps\"} < 1800)) * on (job_name) group_left (owner_name) max by (job_name, owner_name) (kube_job_owner{namespace=\"apps\", owner_kind=\"CronJob\"}))",
      "legendFormat": "{{owner_name}}",
      "range": true,
      "instant": false

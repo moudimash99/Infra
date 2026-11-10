@@ -207,7 +207,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "pc_job_value{job=\"archiver\", name=\"Archived today\"}",
+     "expr": "pc_job_value{pc_job=\"archiver\", name=\"Archived today\"}",
      "legendFormat": "__auto",
      "range": false,
      "instant": true
@@ -435,7 +435,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "pc_job_value{job=\"archiver\"}",
+     "expr": "pc_job_value{pc_job=\"archiver\"}",
      "legendFormat": "{{name}}",
      "range": false,
      "instant": true
@@ -504,7 +504,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "pc_job_value{job=\"freemotion\"}",
+     "expr": "pc_job_value{pc_job=\"freemotion\"}",
      "legendFormat": "{{name}}",
      "range": false,
      "instant": true
@@ -573,7 +573,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "pc_job_ok{job=\"upwork\"}",
+     "expr": "pc_job_ok{pc_job=\"upwork\"}",
      "legendFormat": "__auto",
      "range": false,
      "instant": true
@@ -657,7 +657,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "pc_job_value{job=\"review\"}",
+     "expr": "pc_job_value{pc_job=\"review\"}",
      "legendFormat": "{{name}}",
      "range": false,
      "instant": true
@@ -726,7 +726,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "pc_job_value{job=\"archiver\", name=\"Archived today\"}",
+     "expr": "pc_job_value{pc_job=\"archiver\", name=\"Archived today\"}",
      "legendFormat": "archived today",
      "range": true,
      "instant": false
