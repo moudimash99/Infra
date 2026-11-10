@@ -76,9 +76,30 @@ def test_access_fails_closed():
     access.DEV = False
     for host, path in [("catcam.machaka.net", "/"), ("CATCAM.machaka.net.", "/media/latest.jpg"),
                        ("catcam.machaka.net:443", "/"), ("10.42.1.50:8080", "/"), ("lab.tools.svc", "/"),
-                       ("evil.example", "/api/summary/catcam"), ("", "/catcam/")]:
+                       ("evil.example", "/api/summary/catcam"), ("", "/catcam/"), ("lab.machaka.net", "/catcam/"),
+                       ("lab.tools.svc", "/catcam/media/latest.jpg")]:
         assert access.needs_token(host, path), (host, path)
     for host, path in [("10.42.1.50:8080", "/healthz"), ("lab.tools.svc", "/api/summary/catcam"),
                        ("lab.tools.svc.cluster.local", "/api/summary/deals")]:
         assert not access.needs_token(host, path), (host, path)
     assert not access.check("") and not access.check("not-a-jwt")
+
+
+def test_sites_under_lab_paths():
+    """lab.machaka.net/deals/... reaches the deals site, and its nav links stay on that name."""
+    from starlette.testclient import TestClient
+    from app import main, web
+    inner = TestClient(main.app.app, base_url="https://lab.machaka.net")     # past the login check
+    assert inner.get("/deals/static/lab.css").status_code == 200
+    assert inner.get("/tastematch/static/lab.js").status_code == 200
+    assert inner.get("/nothing/").status_code == 404
+    base = web.templates.get_template("base.html")
+    under = base.render(R="/catcam", me="catcam")
+    assert 'href="/tastematch/"' in under and 'href="/deals/"' in under and 'href="/catcam/"' in under
+    own = base.render(R="", me="deals")
+    assert 'href="https://tastematch.machaka.net"' in own and 'href="/"' in own
+
+
+def test_scope_names():
+    from app.sources.bgt import _and
+    assert [_and([]), _and(["a"]), _and(["a", "b"]), _and(["a", "b", "c"])] == ["", "a", "a and b", "a, b and c"]

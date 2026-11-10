@@ -3,7 +3,8 @@
 #   catcam.machaka.net      the cats: flash of the day, camera, weights
 # lab.machaka.net itself is Homepage (homepage.yaml); its tiles read /api/summary/* here, inside the cluster.
 # Each site checks the Cloudflare Access token itself (ACCESS_TEAM, ACCESS_AUD below), so a name answers nothing
-# until it is in the Access application, and the home network can't skip the login through Traefik.
+# until it is in the Access application, and the home network can't skip the login through Traefik. Until then the
+# sites are also at lab.machaka.net/tastematch/, /deals/ and /catcam/ (Ingress below; that name already has the login).
 # Runs on the Acer: it reads the jobs' folders there (read-only); its own data (job runs, log summaries, daily
 # progress, clip cache) is /srv/apps/lab.
 # The PC posts its jobs' status to port 8081 (NodePort 30881, home network only), token in Secret lab-intake;
@@ -82,7 +83,7 @@ spec:
       securityContext: { runAsUser: 10001, runAsGroup: 10001, runAsNonRoot: true }
       containers:
         - name: lab
-          image: docker.io/library/lab:2026-11-10g
+          image: docker.io/library/lab:2026-11-10h
           imagePullPolicy: Never
           ports:
             - { name: http, containerPort: 8080 }
@@ -178,6 +179,24 @@ spec:
       http:
         paths:
           - path: /
+            pathType: Prefix
+            backend:
+              service: { name: lab, port: { name: http } }
+    # The same sites under lab.machaka.net, which is already in the Access application: they work before their own
+    # names are added to it. Everything else on lab.machaka.net stays Homepage (homepage.yaml); Traefik gives the
+    # longer path priority.
+    - host: lab.machaka.net
+      http:
+        paths:
+          - path: /tastematch
+            pathType: Prefix
+            backend:
+              service: { name: lab, port: { name: http } }
+          - path: /deals
+            pathType: Prefix
+            backend:
+              service: { name: lab, port: { name: http } }
+          - path: /catcam
             pathType: Prefix
             backend:
               service: { name: lab, port: { name: http } }

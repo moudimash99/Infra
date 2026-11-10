@@ -68,9 +68,11 @@ data:
         text_size: md
         format: { dateStyle: long, timeStyle: short, hour12: false }
   services.yaml: |
+    # The tiles open the lab's pages under lab.machaka.net until tastematch., deals. and catcam.machaka.net are in
+    # the Cloudflare Access application; then they can go back to their own names.
     - Pipelines:
         - Taste Match:
-            href: https://tastematch.machaka.net
+            href: https://lab.machaka.net/tastematch/
             description: Reviews from YouTube to each host's scores
             icon: mdi-youtube
             widget:
@@ -84,7 +86,7 @@ data:
                 - { field: transcribed, label: Transcribed }
                 - { field: rated, label: Rated }
         - Deals:
-            href: https://deals.machaka.net
+            href: https://lab.machaka.net/deals/
             description: Okkazeo, checked every morning
             icon: mdi-tag-heart
             widget:
@@ -97,7 +99,7 @@ data:
                 - { field: new, label: New and cheap }
                 - { field: bundles, label: Bundles to judge }
         - Cat cam:
-            href: https://catcam.machaka.net
+            href: https://lab.machaka.net/catcam/
             description: Flash of the day, camera, weights
             icon: mdi-cat
             widget:

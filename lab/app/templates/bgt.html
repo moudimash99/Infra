@@ -20,6 +20,22 @@
     {% if note %}<div class="stage-note">{{ "{:,}".format(t[key]) }} of {{ "{:,}".format(t.videos) }} · {{ note }}</div>{% endif %}
     {% endfor %}
   </div>
+  {% set sc = prog.data.scope %}
+  {% if sc.full or sc.n_limited %}
+  <p class="small muted">This round:
+    {%- if sc.full %} every review from {{ sc.full }}{% if sc.n_limited %}, and from the other {{ sc.n_limited }} channels{% endif %}
+    {%- else %} from each channel{% endif %}
+    {%- if sc.n_limited %} only the reviews that name a game you rated. Their other {{ "{:,}".format(t.later) }} videos wait for the next round, which adds the rest of their reviews{% endif %}.</p>
+  {% endif %}
+  <details class="fold"><summary>What the bars mean</summary>
+    <ul class="small">
+      <li><b>Downloaded</b>: the video's audio is here, or its text already is (a YouTube transcript needs no download).</li>
+      <li><b>Transcribed</b>: the video has text, from Whisper on the GPU or from YouTube.</li>
+      <li><b>Speakers found</b>: who speaks when is known, so each score goes to the right host.</li>
+      <li><b>Rated</b>: at least one host's score for a game came out of the text.</li>
+    </ul>
+    <p class="small muted">Every bar counts the same {{ "{:,}".format(t.videos) }} videos. Left out: videos that aren't reviews (news, unboxings, playthroughs){% if t.unavailable %} and {{ "{:,}".format(t.unavailable) }} that YouTube no longer serves{% endif %}.</p>
+  </details>
 </div>
 {% endif %}
 
@@ -73,7 +89,7 @@
 <div class="card"><ul class="rows">
 {% for c in active %}
   <li style="display:block">
-    <div class="head"><b>{{ c.name }}</b><span class="muted small">{{ c.videos }} videos · {{ c.hours | round | int }} h</span></div>
+    <div class="head"><b>{{ c.name }}</b><span class="muted small">{{ c.videos }} videos · {{ c.hours | round | int }} h{% if c.later %} · {{ "{:,}".format(c.later) }} next round{% endif %}</span></div>
     <div class="stage-rows">
       {% for key, label in STAGES[:4] %}
       <div class="stage-row"><span>{{ "Downloaded" if key == "audio" else label }}</span>{{ charts.meter(c[key], c.videos, label=label ~ ": " ~ c[key] ~ " of " ~ c.videos) }}<span class="n">{{ pct(c[key], c.videos) }}</span></div>
@@ -84,11 +100,11 @@
 </ul></div>
 {% if waiting %}
 <details class="fold"><summary>{{ waiting | length }} channels not started</summary>
-  <div class="card"><ul class="rows">{% for c in waiting %}<li><span class="grow">{{ c.name }}</span><span class="right small muted">{{ c.videos }} videos · {{ c.hours | round | int }} h</span></li>{% endfor %}</ul></div>
+  <div class="card"><ul class="rows">{% for c in waiting %}<li><span class="grow">{{ c.name }}</span><span class="right small muted">{{ c.videos }} videos · {{ c.hours | round | int }} h{% if c.later %} · {{ "{:,}".format(c.later) }} next round{% endif %}</span></li>{% endfor %}</ul></div>
 </details>{% endif %}
 {% if finished %}
 <details class="fold"><summary>{{ finished | length }} channels finished</summary>
-  <div class="card"><ul class="rows">{% for c in finished %}<li><span class="grow">{{ c.name }}</span><span class="right small muted">{{ c.videos }} videos</span></li>{% endfor %}</ul></div>
+  <div class="card"><ul class="rows">{% for c in finished %}<li><span class="grow">{{ c.name }}</span><span class="right small muted">{{ c.videos }} videos{% if c.later %} · {{ "{:,}".format(c.later) }} next round{% endif %}</span></li>{% endfor %}</ul></div>
 </details>{% endif %}
 {% endif %}
 

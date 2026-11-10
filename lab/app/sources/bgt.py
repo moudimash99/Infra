@@ -67,6 +67,10 @@ def progress():
         text = {r[0] for r in conn.execute("SELECT video_id FROM transcripts")}
         rated = {r[0] for r in conn.execute("SELECT video_id FROM ratings UNION SELECT video_id FROM rated_parts")}
         voices = {r[0] for r in conn.execute("SELECT video_id FROM speaker_transcripts")}
+        # Held back for the next round (select_videos.py): a big channel's first round is only the videos whose
+        # titles name a game the user rated; the rest of it waits with category_override 'later'.
+        later = {r[0]: r[1] for r in conn.execute(
+            "SELECT channel, COUNT(*) FROM videos WHERE category_override = 'later' GROUP BY channel")}
     finally:
         conn.close()
     audio = _ids(BGT_AUDIO)
@@ -110,6 +114,11 @@ def progress():
     for c in channels.values():
         c["done"] = c["voices"] == c["videos"]           # nothing left for the pipeline in this channel
         c["started"] = c["audio"] > 0
+        c["later"] = later.get(c["key"], 0)
+    # What this round is: every review of the channels with nothing held back, the rated games' reviews of the rest.
+    order = list(names)
+    full = sorted((k for k in channels if not later.get(k)), key=lambda k: order.index(k) if k in order else len(order))
+    scope = {"full": _and([channels[k]["name"] for k in full]), "n_full": len(full), "n_limited": len(later)}
     # Speed over the last 24 hours, from file times: downloads (audio files) and Whisper (captions).
     day = now - 86400
     dur = {v["id"]: (v["duration"] or 0) for v in videos}
@@ -120,12 +129,17 @@ def progress():
                   hours_to_transcribe=sum(c["hours_to_transcribe"] for c in channels.values()),
                   hours_to_download=sum(c.get("hours_to_download", 0) for c in channels.values()),
                   to_download=sum(c["to_download"] for c in channels.values()),
-                  unavailable=sum(unavailable.values()))
+                  unavailable=sum(unavailable.values()), later=sum(later.values()))
     speed = {"downloads_24h": len(recent_audio),
              "audio_hours_downloaded_24h": sum(dur.get(i, 0) for i in recent_audio) / 3600,
              "transcribed_24h": len(recent_caps),
              "audio_hours_transcribed_24h": sum(dur.get(i, 0) for i in recent_caps) / 3600}
-    return {"channels": channels, "totals": totals, "speed": speed, "audio_files": len(audio)}
+    return {"channels": channels, "totals": totals, "speed": speed, "audio_files": len(audio), "scope": scope}
+
+
+def _and(words):
+    """['a', 'b', 'c'] -> 'a, b and c'."""
+    return " and ".join(filter(None, [", ".join(words[:-1]), words[-1]])) if words else ""
 
 
 def _mtime(path):

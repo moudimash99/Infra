@@ -90,7 +90,11 @@ DENIED = ("<!DOCTYPE html><meta name=viewport content='width=device-width'><titl
           "<body style='font:16px system-ui;max-width:34rem;margin:3rem auto;padding:0 1rem'>"
           "<h1>Login needed</h1><p>This page only opens through the Cloudflare login.</p>"
           "<p>If you just set this address up: in Cloudflare Zero Trust → Access → Applications, add it to the "
-          "homelab's self-hosted application, then reload.</p>").encode()
+          "homelab's self-hosted application, then reload.</p>"
+          "<p>Until then the same pages are under the lab's address, behind the same login: "
+          "<a href='https://lab.machaka.net/tastematch/'>Taste Match</a>, "
+          "<a href='https://lab.machaka.net/deals/'>Deals</a>, "
+          "<a href='https://lab.machaka.net/catcam/'>Cat cam</a>.</p>").encode()
 
 
 INTERNAL_HOSTS = {"lab.tools.svc", "lab.tools.svc.cluster.local"}   # Homepage's tiles, inside the cluster
