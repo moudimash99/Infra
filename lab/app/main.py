@@ -56,12 +56,12 @@ async def dev_index(request):
     return HTMLResponse(f"<!DOCTYPE html><title>Lab (development)</title><ul>{links}</ul>")
 
 
+DEV = os.environ.get("LAB_DEV") == "1"     # development machine: the sites also under /tastematch, /deals, /catcam
 app = AccessGate(Starlette(routes=[
     *[Host(host, app=sub) for _, host, sub, _ in SITES],
     Route("/healthz", healthz),
     Mount("/api", app=api),
-    *[Mount(f"/{key}", app=sub) for key, _, sub, _ in SITES],
-    Route("/", dev_index),
+    *([Mount(f"/{key}", app=sub) for key, _, sub, _ in SITES] + [Route("/", dev_index)] if DEV else []),
 ]))
 
 # ---- the PC's reports (port 8081 only) -----------------------------------------------------------------------

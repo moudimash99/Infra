@@ -69,14 +69,28 @@ DENIED = ("<!DOCTYPE html><meta name=viewport content='width=device-width'><titl
           "homelab's self-hosted application, then reload.</p>").encode()
 
 
+INTERNAL_HOSTS = {"lab.tools.svc", "lab.tools.svc.cluster.local"}   # Homepage's tiles, inside the cluster
+DEV = os.environ.get("LAB_DEV") == "1"                               # a development machine: no login anywhere
+
+
+def needs_token(host, path):
+    """Fail closed: every request needs the login except the health check (kubelet probes) and the in-cluster
+    summary API. A public name spelled another way (case, trailing dot, port) is still a public name."""
+    if DEV:
+        return False
+    if path == "/healthz":
+        return False
+    h = host.split(":")[0].lower().rstrip(".")
+    return not (h in INTERNAL_HOSTS and path.startswith("/api/"))
+
+
 class AccessGate:
     def __init__(self, app):
         self.app = app
 
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http":
-            host = _header(scope, b"host").split(":")[0].lower()
-            if host in PUBLIC_HOSTS:
+            if needs_token(_header(scope, b"host"), scope.get("path", "")):
                 token = _header(scope, b"cf-access-jwt-assertion") or _cookie(scope, "CF_Authorization")
                 if not await asyncio.to_thread(check, token):
                     await send({"type": "http.response.start", "status": 403,

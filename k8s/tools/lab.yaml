@@ -82,7 +82,7 @@ spec:
       securityContext: { runAsUser: 10001, runAsGroup: 10001, runAsNonRoot: true }
       containers:
         - name: lab
-          image: docker.io/library/lab:2026-11-10e
+          image: docker.io/library/lab:2026-11-10f
           imagePullPolicy: Never
           ports:
             - { name: http, containerPort: 8080 }

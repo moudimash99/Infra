@@ -69,3 +69,16 @@ def test_charts_render():
     out = charts.lines([{"name": "A", "slot": 1, "points": [(0, 1), (10, 2)]},
                         {"name": "B", "slot": 2, "points": [(0, 2), (10, 5)]}])
     assert "legend" in out and "data-lines" in out
+
+
+def test_access_fails_closed():
+    from app import access
+    access.DEV = False
+    for host, path in [("catcam.machaka.net", "/"), ("CATCAM.machaka.net.", "/media/latest.jpg"),
+                       ("catcam.machaka.net:443", "/"), ("10.42.1.50:8080", "/"), ("lab.tools.svc", "/"),
+                       ("evil.example", "/api/summary/catcam"), ("", "/catcam/")]:
+        assert access.needs_token(host, path), (host, path)
+    for host, path in [("10.42.1.50:8080", "/healthz"), ("lab.tools.svc", "/api/summary/catcam"),
+                       ("lab.tools.svc.cluster.local", "/api/summary/deals")]:
+        assert not access.needs_token(host, path), (host, path)
+    assert not access.check("") and not access.check("not-a-jwt")
