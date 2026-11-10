@@ -1,0 +1,61 @@
+# Free Motion's controller (2026-11-10): every script and every driver CLI in one container, as they ran on one
+# Windows PC, so its process-id locks, /tmp tracker lock, process kills and driver HOME readers keep working.
+# `scheduled.mjs daemon` (fm-orchestrator) is the main process, in place of Task Scheduler. The browsers are the
+# fm-browser pods; the drivers reach them over HTTP, and fm-data is the same path in both (NFS for the workers).
+#
+# Image: docker.io/library/fm:<date>, built on the server from images/fm and loaded by hand (no registry pull yet).
+# Code: the fm-* repos checked out at /srv/apps/freemotion/ws (deploy: git pull there, between rounds).
+# Data: /srv/apps/freemotion/fm-data (exported to the Acer by NFS). Drivers' logins and transcripts: /srv/apps/freemotion/home.
+# Settings come from fm-data/.env as on the PC; HUB_URL is set here to the hub's Service, HUB_MACHINE stays "pc" so
+# the dashboard's records carry on as one machine.
+#
+# replicas: 0 until the cut-over (plan: the PC must never run Free Motion at the same time: two writers of the
+# never-apply-twice ledger). Memory: at most 3 GiB, leaving the server room for k3s and the sites (2 lanes).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fm-controller
+  namespace: apps
+  labels: { app: fm-controller }
+spec:
+  replicas: 0
+  strategy: { type: Recreate }   # one ledger, one set of locks: never two controllers
+  selector:
+    matchLabels: { app: fm-controller }
+  template:
+    metadata:
+      labels: { app: fm-controller }
+    spec:
+      nodeSelector: { kubernetes.io/hostname: moudimash99 }
+      automountServiceAccountToken: false   # its drivers have a shell and read untrusted pages
+      securityContext: { runAsUser: 1000, runAsGroup: 1000, fsGroup: 1000 }
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: controller
+          image: docker.io/library/fm:2026-11-10a
+          imagePullPolicy: Never
+          args: ["controller"]
+          env:
+            - { name: FM_WS, value: /fm/ws }
+            - { name: FM_DATA_DIR, value: /fm/fm-data }
+            - { name: HOME, value: /fm/home }
+            - { name: HUB_URL, value: "http://freemotion-hub.apps.svc.cluster.local:8791" }
+            - { name: HUB_MACHINE, value: pc }
+          securityContext: { allowPrivilegeEscalation: false, privileged: false }
+          volumeMounts:
+            - { name: ws, mountPath: /fm/ws }
+            - { name: data, mountPath: /fm/fm-data }
+            - { name: home, mountPath: /fm/home }
+            - { name: shm, mountPath: /dev/shm }
+          resources:
+            requests: { cpu: 500m, memory: 1Gi }
+            limits: { memory: 3Gi }
+      volumes:
+        - name: ws
+          hostPath: { path: /srv/apps/freemotion/ws, type: Directory }
+        - name: data
+          hostPath: { path: /srv/apps/freemotion/fm-data, type: Directory }
+        - name: home
+          hostPath: { path: /srv/apps/freemotion/home, type: Directory }
+        - name: shm
+          emptyDir: { medium: Memory, sizeLimit: 512Mi }

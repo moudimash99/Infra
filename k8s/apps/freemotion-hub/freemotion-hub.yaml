@@ -72,6 +72,7 @@ spec:
   selector: { app: freemotion-hub }
   ports:
     - { name: page, port: 8790, targetPort: page }
+    - { name: agent, port: 8791, targetPort: agent }   # fm-controller's agent, inside the cluster
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress

@@ -1,0 +1,45 @@
+# The cluster's own image registry (2026-11-10), so images built on the server reach every node without
+# `docker save | ssh … k3s ctr images import`. Plain HTTP on the home network, no login: images hold no secrets
+# (logins and data live in volumes).
+#   push (on the server):  docker tag <img> localhost:5000/<name>:<tag> && docker push localhost:5000/<name>:<tag>
+#   use (in a pod):        image: 192.168.1.116:5000/<name>:<tag>
+# Each node needs /etc/rancher/k3s/registries.yaml (k3s, then restart k3s or k3s-agent):
+#   mirrors:
+#     "192.168.1.116:5000":
+#       endpoint: ["http://192.168.1.116:5000"]
+# Storage: /srv/apps/registry on the server. Delete old tags with the registry API, then run
+# `kubectl -n kube-system exec deploy/registry -- registry garbage-collect /etc/docker/registry/config.yml`.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: registry
+  namespace: kube-system
+  labels: { app: registry }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: registry }
+  template:
+    metadata:
+      labels: { app: registry }
+    spec:
+      nodeSelector: { kubernetes.io/hostname: moudimash99 }
+      containers:
+        - name: registry
+          image: registry:2.8.3
+          env:
+            - { name: REGISTRY_STORAGE_DELETE_ENABLED, value: "true" }
+          ports:
+            - { name: http, containerPort: 5000, hostPort: 5000 }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/registry }
+          readinessProbe:
+            httpGet: { path: /v2/, port: http }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { memory: 256Mi }
+      volumes:
+        - name: data
+          hostPath: { path: /srv/apps/registry, type: DirectoryOrCreate }

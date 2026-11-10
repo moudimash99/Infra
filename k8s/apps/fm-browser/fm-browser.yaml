@@ -1,0 +1,85 @@
+# Free Motion's browsers (2026-11-10): one pod per lane, Camoufox behind @playwright/mcp on :8931. The drivers run in
+# fm-controller and reach their lane's browser at http://<pod>.fm-browser.apps.svc.cluster.local:8931/mcp.
+# The working folder is /fm/fm-data, the controller's data path, mounted from the server by NFS: file names a driver
+# gives (form inventories, screenshots) and files it uploads (CV, letter) mean the same file on both sides.
+# Each pod keeps its browser profile (site sessions) on its node: /srv/apps/freemotion-browser/<pod>.
+# Only the controller may connect (NetworkPolicy below). Same image as the controller (images/fm), role "browser".
+# replicas: 0 until the cut-over. The PC joins later as another node with its own StatefulSet (fm-browser-pc).
+apiVersion: v1
+kind: Service
+metadata:
+  name: fm-browser
+  namespace: apps
+spec:
+  clusterIP: None   # one DNS name per pod
+  selector: { app: fm-browser }
+  ports:
+    - { name: mcp, port: 8931, targetPort: mcp }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: fm-browser-acer
+  namespace: apps
+  labels: { app: fm-browser }
+spec:
+  serviceName: fm-browser
+  replicas: 0
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels: { app: fm-browser, node: acer }
+  template:
+    metadata:
+      labels: { app: fm-browser, node: acer }
+    spec:
+      nodeSelector: { kubernetes.io/hostname: acer-laptop }
+      tolerations:
+        - { key: dedicated, value: worker, effect: NoSchedule }
+      automountServiceAccountToken: false
+      securityContext: { runAsUser: 1000, runAsGroup: 1000, fsGroup: 1000 }
+      containers:
+        - name: browser
+          image: docker.io/library/fm:2026-11-10a
+          imagePullPolicy: Never
+          args: ["browser"]
+          env:
+            - name: POD_NAME
+              valueFrom: { fieldRef: { fieldPath: metadata.name } }
+            - { name: HOME, value: /tmp }
+            - { name: FM_ALLOWED_HOSTS, value: "*" }   # who may connect is the NetworkPolicy's job
+          securityContext: { allowPrivilegeEscalation: false, privileged: false }
+          ports:
+            - { name: mcp, containerPort: 8931 }
+          readinessProbe:
+            tcpSocket: { port: mcp }
+            periodSeconds: 10
+          volumeMounts:
+            - { name: data, mountPath: /fm/fm-data }
+            - { name: profile, mountPath: /profile, subPathExpr: $(POD_NAME) }
+            - { name: shm, mountPath: /dev/shm }
+          resources:
+            requests: { cpu: 300m, memory: 1Gi }
+            limits: { memory: 1536Mi }
+      volumes:
+        - name: data
+          nfs: { server: 192.168.1.116, path: /srv/apps/freemotion/fm-data }
+        - name: profile
+          hostPath: { path: /srv/apps/freemotion-browser, type: DirectoryOrCreate }
+        - name: shm
+          emptyDir: { medium: Memory, sizeLimit: 1Gi }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: fm-browser
+  namespace: apps
+spec:
+  podSelector:
+    matchLabels: { app: fm-browser }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: fm-controller }
+      ports:
+        - { port: 8931 }
