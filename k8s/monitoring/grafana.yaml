@@ -35,7 +35,7 @@ spec:
             - { name: GF_ANALYTICS_REPORTING_ENABLED, value: "false" }
             - { name: GF_ANALYTICS_CHECK_FOR_UPDATES, value: "false" }
             - { name: GF_USERS_ALLOW_SIGN_UP, value: "false" }
-            - { name: GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH, value: /var/lib/grafana-dashboards/home.json }
+            - { name: GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH, value: /var/lib/grafana-dashboards/homelab/home.json }
             # Memory: Grafana 13 holds ~400Mi once dashboards are open, more without these. No extra
             # apps (Drilldown, ...) installed at start, and Go frees memory sooner.
             - { name: GF_PLUGINS_PREINSTALL_DISABLED, value: "true" }
@@ -50,7 +50,8 @@ spec:
             - { name: data, mountPath: /var/lib/grafana }
             - { name: datasources, mountPath: /etc/grafana/provisioning/datasources }
             - { name: providers, mountPath: /etc/grafana/provisioning/dashboards }
-            - { name: dashboards, mountPath: /var/lib/grafana-dashboards }
+            - { name: dashboards-homelab, mountPath: /var/lib/grafana-dashboards/homelab }
+            - { name: dashboards-more, mountPath: /var/lib/grafana-dashboards/more }
           readinessProbe:
             httpGet: { path: /api/health, port: http }
             periodSeconds: 10
@@ -68,7 +69,14 @@ spec:
           configMap: { name: grafana-datasources }
         - name: providers
           configMap: { name: grafana-dashboard-providers }
-        - name: dashboards
+        - name: dashboards-homelab
+          projected:
+            sources:
+              - configMap: { name: dashboard-home }
+              - configMap: { name: dashboard-usage }
+              - configMap: { name: dashboard-jobs }
+              - configMap: { name: dashboard-pc }
+        - name: dashboards-more
           projected:
             sources:
               - configMap: { name: dashboard-node-exporter-full }
@@ -77,8 +85,6 @@ spec:
               - configMap: { name: dashboard-traefik }
               - configMap: { name: dashboard-docker-containers }
               - configMap: { name: dashboard-node-temperatures }
-              - configMap: { name: dashboard-home }
-              - configMap: { name: dashboard-gpu-jobs }
 ---
 apiVersion: v1
 kind: Service

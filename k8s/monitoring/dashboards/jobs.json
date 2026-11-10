@@ -1,0 +1,724 @@
+{
+ "uid": "jobs",
+ "title": "Scheduled jobs",
+ "description": "Every scheduled job's runs over the last week: when, how long, how it ended, memory.",
+ "tags": [
+  "homelab"
+ ],
+ "timezone": "browser",
+ "editable": true,
+ "graphTooltip": 1,
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "5m",
+ "time": {
+  "from": "now-7d",
+  "to": "now"
+ },
+ "fiscalYearStartMonth": 0,
+ "liveNow": false,
+ "links": [
+  {
+   "title": "Homelab",
+   "type": "dashboards",
+   "tags": [
+    "homelab"
+   ],
+   "asDropdown": false,
+   "includeVars": false,
+   "keepTime": false,
+   "targetBlank": false
+  }
+ ],
+ "templating": {
+  "list": []
+ },
+ "annotations": {
+  "list": []
+ },
+ "panels": [
+  {
+   "type": "stat",
+   "title": "Since the last good run",
+   "description": "Per scheduled job. Daily jobs turn orange after 26 h without a good run.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "time() - kube_cronjob_status_last_successful_time{namespace=\"apps\"}",
+     "legendFormat": "{{cronjob}}",
+     "range": false,
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#0ca30c",
+        "value": null
+       },
+       {
+        "color": "#fab219",
+        "value": 93600
+       },
+       {
+        "color": "#d03b3b",
+        "value": 172800
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "orientation": "auto",
+    "textMode": "value_and_name",
+    "colorMode": "value",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 14,
+     "valueSize": 30
+    }
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 6
+   },
+   "id": 1
+  },
+  {
+   "type": "stat",
+   "title": "Paused",
+   "description": "Suspended CronJobs: they don't run until resumed.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "kube_cronjob_spec_suspend{namespace=\"apps\"} == 1",
+     "legendFormat": "{{cronjob}}",
+     "range": false,
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#2a78d6",
+        "value": null
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "noValue": "Nothing paused"
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "orientation": "auto",
+    "textMode": "name",
+    "colorMode": "none",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 14,
+     "valueSize": 18
+    }
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 6,
+    "w": 12,
+    "h": 3
+   },
+   "id": 2
+  },
+  {
+   "type": "stat",
+   "title": "Running now",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max by (owner_name) ((kube_job_status_active{namespace=\"apps\"} > 0) * on (job_name) group_left (owner_name) max by (job_name, owner_name) (kube_job_owner{namespace=\"apps\", owner_kind=\"CronJob\"}))",
+     "legendFormat": "{{owner_name}}",
+     "range": false,
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#2a78d6",
+        "value": null
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "noValue": "Nothing running"
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "orientation": "auto",
+    "textMode": "name",
+    "colorMode": "none",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 14,
+     "valueSize": 18
+    }
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 6,
+    "w": 12,
+    "h": 3
+   },
+   "id": 3
+  },
+  {
+   "type": "table",
+   "title": "Runs, last 7 days",
+   "description": "Kubernetes keeps only the last few runs; this table reads them back from Prometheus (15 days).",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max by (job_name, owner_name) (max_over_time(kube_job_owner{namespace=\"apps\", owner_kind=\"CronJob\"}[7d]))",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true,
+     "format": "table"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max by (job_name) (max_over_time(kube_job_status_start_time{namespace=\"apps\"}[7d])) * 1000",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true,
+     "format": "table"
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max by (job_name) (max_over_time(kube_job_status_completion_time{namespace=\"apps\"}[7d])) - max by (job_name) (max_over_time(kube_job_status_start_time{namespace=\"apps\"}[7d]))",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true,
+     "format": "table"
+    },
+    {
+     "refId": "D",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max by (job_name) (max_over_time(kube_job_status_failed{namespace=\"apps\"}[7d]))",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true,
+     "format": "table"
+    }
+   ],
+   "transformations": [
+    {
+     "id": "joinByField",
+     "options": {
+      "byField": "job_name",
+      "mode": "outer"
+     }
+    },
+    {
+     "id": "organize",
+     "options": {
+      "excludeByName": {
+       "Time": true,
+       "Time 1": true,
+       "Time 2": true,
+       "Time 3": true,
+       "Time 4": true,
+       "Value #A": true,
+       "job_name": false
+      },
+      "indexByName": {
+       "owner_name": 0,
+       "Value #B": 1,
+       "Value #C": 2,
+       "Value #D": 3,
+       "job_name": 4
+      },
+      "renameByName": {
+       "owner_name": "Job",
+       "Value #B": "Started",
+       "Value #C": "Took",
+       "Value #D": "Result",
+       "job_name": "Run"
+      }
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": false
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Started"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "dateTimeFromNow"
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Took"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "dtdurations"
+       },
+       {
+        "id": "noValue",
+        "value": "-"
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Result"
+      },
+      "properties": [
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "color-text"
+        }
+       },
+       {
+        "id": "mappings",
+        "value": [
+         {
+          "type": "value",
+          "options": {
+           "0": {
+            "text": "OK",
+            "color": "#0ca30c"
+           }
+          }
+         },
+         {
+          "type": "range",
+          "options": {
+           "from": 1,
+           "to": 1000000000.0,
+           "result": {
+            "text": "Failed",
+            "color": "#d03b3b"
+           }
+          }
+         },
+         {
+          "type": "special",
+          "options": {
+           "match": "null",
+           "result": {
+            "text": "running",
+            "color": "#2a78d6"
+           }
+          }
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Run"
+      },
+      "properties": [
+       {
+        "id": "custom.hidden",
+        "value": true
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Started"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 104
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Took"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 74
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Result"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 64
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm",
+    "footer": {
+     "show": false
+    },
+    "sortBy": [
+     {
+      "displayName": "Started",
+      "desc": true
+     }
+    ]
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 9,
+    "w": 24,
+    "h": 12
+   },
+   "id": 4
+  },
+  {
+   "type": "timeseries",
+   "title": "How long each run took",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max by (owner_name) ((kube_job_status_completion_time{namespace=\"apps\"} - kube_job_status_start_time{namespace=\"apps\"}) * on (job_name) group_left (owner_name) max by (job_name, owner_name) (kube_job_owner{namespace=\"apps\", owner_kind=\"CronJob\"}))",
+     "legendFormat": "{{owner_name}}",
+     "range": true,
+     "instant": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "showPoints": "always",
+      "pointSize": 6,
+      "drawStyle": "points",
+      "spanNulls": false,
+      "stacking": {
+       "mode": "none",
+       "group": "A"
+      },
+      "axisSoftMin": 0,
+      "gradientMode": "none",
+      "lineInterpolation": "smooth"
+     },
+     "color": {
+      "mode": "palette-classic"
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 21,
+    "w": 24,
+    "h": 9
+   },
+   "id": 5
+  },
+  {
+   "type": "timeseries",
+   "title": "Memory against the limit",
+   "description": "Each job's memory as a share of its limit. Past 100% the kernel kills it (OOMKilled).",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max by (cronjob) (label_replace(container_memory_working_set_bytes{namespace=\"apps\", container!=\"\", pod=~\".+-[0-9]{6,}-[a-z0-9]{5}\"} / on (namespace, pod, container) kube_pod_container_resource_limits{resource=\"memory\"}, \"cronjob\", \"$1\", \"pod\", \"^(.+)-[0-9]{6,}-[a-z0-9]{5}$\")) * 100",
+     "legendFormat": "{{cronjob}}",
+     "range": true,
+     "instant": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "pointSize": 6,
+      "drawStyle": "line",
+      "spanNulls": false,
+      "stacking": {
+       "mode": "none",
+       "group": "A"
+      },
+      "axisSoftMin": 0,
+      "gradientMode": "none",
+      "lineInterpolation": "smooth",
+      "thresholdsStyle": {
+       "mode": "line"
+      }
+     },
+     "color": {
+      "mode": "palette-classic"
+     },
+     "min": 0,
+     "max": 110,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "transparent",
+        "value": null
+       },
+       {
+        "color": "#d03b3b",
+        "value": 90
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 30,
+    "w": 24,
+    "h": 8
+   },
+   "id": 6
+  },
+  {
+   "type": "table",
+   "title": "Killed for memory, last 7 days",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "(max by (namespace, pod, container) (max_over_time(kube_pod_container_status_terminated_reason{reason=\"OOMKilled\"}[7d])) or max by (namespace, pod, container) (max_over_time(kube_pod_container_status_last_terminated_reason{reason=\"OOMKilled\"}[7d]))) > 0",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true,
+     "format": "table"
+    }
+   ],
+   "transformations": [
+    {
+     "id": "organize",
+     "options": {
+      "excludeByName": {
+       "Time": true,
+       "Value": true,
+       "namespace": true
+      },
+      "renameByName": {
+       "pod": "Pod",
+       "container": "Container"
+      }
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": false
+     },
+     "noValue": "None"
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm",
+    "footer": {
+     "show": false
+    },
+    "sortBy": []
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 38,
+    "w": 24,
+    "h": 5
+   },
+   "id": 7
+  }
+ ]
+}

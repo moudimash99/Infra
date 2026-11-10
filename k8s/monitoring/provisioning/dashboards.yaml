@@ -1,8 +1,14 @@
 apiVersion: 1
+# Two folders, one mounted ConfigMap volume each (Grafana doesn't follow the directory links of one projected
+# volume with subfolders, so subfolders in a single volume load nothing).
 providers:
   - name: homelab
-    folder: Homelab
+    folder: Homelab           # made here by dashboards/make.py
     type: file
-    allowUiUpdates: true  # can be changed in the browser, but a restart puts the file's version back
-    options:
-      path: /var/lib/grafana-dashboards
+    allowUiUpdates: true      # can be changed in the browser, but a restart puts the file's version back
+    options: { path: /var/lib/grafana-dashboards/homelab }
+  - name: more
+    folder: More detail       # from grafana.com
+    type: file
+    allowUiUpdates: true
+    options: { path: /var/lib/grafana-dashboards/more }

@@ -102,8 +102,8 @@ if (Test-Path (Join-Path $dir 'upwork-run.log')) {
     $scored = $lines | Where-Object { $_ -match '^\d+ scored' } | Select-Object -Last 1
     $stopped = Join-Path $dir 'upwork-stopped.txt'
     $numbers = [ordered]@{}
-    if ($round) { $numbers['Last round'] = $round }
-    if ($scored) { $numbers['Scored'] = ($scored -split ',')[0] }
+    if ($round -match '^(\d+) pages, (\d+) new jobs') { $numbers['Pages, last round'] = [int]$Matches[1]; $numbers['New jobs, last round'] = [int]$Matches[2] }
+    if ($scored -match '^(\d+) scored') { $numbers['Scored, last round'] = [int]$Matches[1] }
     $job = [ordered]@{ title = 'Upwork scan'; summary = '4 rounds a day; new jobs scoring 3.5+ are emailed'; numbers = $numbers;
                        status = 'ok' }
     if (Test-Path $stopped) {
@@ -112,7 +112,7 @@ if (Test-Path (Join-Path $dir 'upwork-run.log')) {
         $job.note = 'Stopped since {0:d MMM HH:mm}: Upwork sent the scraper to its login page. Rounds stay off until upwork-stopped.txt is cleared.' -f $since
         $headline['Upwork'] = 'stopped (login page)'
         foreach ($t in $tasks) { if ($t.name -eq 'job-scrapers upwork round') { $t.status = 'failed'; $t.note = 'stopped: Upwork asked for a login' } }
-    } elseif ($round) { $headline['Upwork'] = $round }
+    } elseif ($round) { $headline['Upwork'] = ($round -split ',')[0..1] -join ',' }
     $jobs['upwork'] = $job
 }
 

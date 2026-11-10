@@ -10,6 +10,7 @@ resources:
   - node-exporter.yaml
   - process-exporter.yaml
   - gpu-exporter.yaml
+  - gpu-procs.yaml
   - grafana.yaml
 configMapGenerator:
   - name: prometheus-config
@@ -32,7 +33,12 @@ configMapGenerator:
   # Made here, not from grafana.com.
   - name: dashboard-node-temperatures
     files: [dashboards/node-temperatures.json]
-  - name: dashboard-home                 # The simple one; Grafana opens on it
+  # Made here by dashboards/make.py (folder Homelab); Grafana opens on home.
+  - name: dashboard-home                 # Is anything wrong?
     files: [dashboards/home.json]
-  - name: dashboard-gpu-jobs             # Made here: the Acer GPU, the scheduled jobs, alerts firing
-    files: [dashboards/gpu-jobs.json]
+  - name: dashboard-usage                # What is using the machines (memory, CPU, GPU per app and program)
+    files: [dashboards/usage.json]
+  - name: dashboard-jobs                 # Scheduled jobs: every run of the week
+    files: [dashboards/jobs.json]
+  - name: dashboard-pc                   # The PC's jobs, from its reports to the lab
+    files: [dashboards/pc.json]
