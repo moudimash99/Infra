@@ -1,0 +1,55 @@
+{% macro chip(state, label=None) -%}
+{%- set words = {"ok": "OK", "running": "Running", "failed": "Failed", "paused": "Paused", "unknown": "Unknown",
+                 "pending": "Waiting", "stopped": "Stopped", "critical": "Critical", "warning": "Warning"} -%}
+<span class="chip {{ state }}">{{ label or words.get(state, state) }}</span>
+{%- endmacro %}
+
+{% macro unreadable(r, what) -%}
+{% if not r.ok %}<p class="err">Couldn't read {{ what }}: {{ r.error }}{% if r.data %} (showing the last good read){% endif %}</p>{% endif %}
+{%- endmacro %}
+
+{% macro attention_list(items) -%}
+{% set urgent = items | rejectattr("level", "equalto", "info") | list %}
+{% set notes = items | selectattr("level", "equalto", "info") | list %}
+{% if urgent %}
+<div class="attention">
+  {% for i in urgent %}
+  <{{ 'a' if i.href else 'div' }} class="item {{ i.level }}" {% if i.href %}href="{{ i.href }}"{% endif %}>
+    <span class="dot" aria-hidden="true"></span>
+    <span><b>{{ i.title }}</b>{% if i.since %} <span class="muted small">· {{ i.since | ago }}</span>{% endif %}
+      <span class="muted small">({{ i.level }})</span></span>
+    {% if i.detail %}<span class="d">{{ i.detail }}</span>{% endif %}
+  </{{ 'a' if i.href else 'div' }}>
+  {% endfor %}
+</div>
+{% else %}
+<p class="allgood">Nothing needs you</p>
+{% endif %}
+{% if notes %}
+<details class="notes"{% if not urgent %} open{% endif %}>
+  <summary>{{ notes | length }} note{{ 's' if notes | length > 1 }}</summary>
+  <div class="attention">
+  {% for i in notes %}
+    <{{ 'a' if i.href else 'div' }} class="item info" {% if i.href %}href="{{ i.href }}"{% endif %}>
+      <span class="dot" aria-hidden="true"></span>
+      <span><b>{{ i.title }}</b></span>
+      {% if i.detail %}<span class="d">{{ i.detail }}</span>{% endif %}
+    </{{ 'a' if i.href else 'div' }}>
+  {% endfor %}
+  </div>
+</details>
+{% endif %}
+{%- endmacro %}
+
+{% macro runs_table(runs, limit=10) -%}
+{% if runs %}
+<div class="scroll-x"><table class="t">
+  <tr><th>Run</th><th>Started</th><th class="r">Took</th><th>Result</th></tr>
+  {% for r in runs[:limit] %}
+  <tr><td class="small">{{ r.name | replace("bg-taste-match-", "") | replace("boardgamefinder-", "#") | replace("cat-monitor-", "#") }}</td><td>{{ r.start | ago }}</td>
+      <td class="r">{{ ((r.end or now()) - r.start) | span if r.start else "-" }}</td>
+      <td>{{ chip(r.state) }}{% if r.reason %} <span class="muted small">{{ r.reason }}</span>{% endif %}</td></tr>
+  {% endfor %}
+</table></div>
+{% else %}<p class="muted">No runs recorded yet (the lab remembers runs from the day it started).</p>{% endif %}
+{%- endmacro %}

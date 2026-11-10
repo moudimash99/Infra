@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "_m.html" import chip, unreadable %}
+{% block title %}PC · Lab{% endblock %}
+{% block main %}
+<h1>Jobs on the PC</h1>
+<p class="muted small">The Windows PC reports its scheduled jobs every 10 minutes: counts and results only, never email content.</p>
+{{ unreadable(r, "the PC's report") }}
+{% if not r.data %}
+<div class="card"><p>No report from the PC yet.</p>
+  <p class="small muted">The reporter is a scheduled task on the PC (lab-report); it starts reporting once it is installed.</p></div>
+{% else %}{% set b = r.data.body %}
+<p>{% if r.data.stale %}{{ chip("unknown", "Offline") }} Last report {{ r.data.received | ago }}: the PC is off or asleep, so these are its last known results.
+   {% else %}{{ chip("ok", "Reporting") }} Last report {{ r.data.received | ago }}.{% endif %}</p>
+
+{% for name, job in (b.jobs or {}).items() %}
+<h2>{{ job.title or name }}</h2>
+<div class="card">
+  <div class="head"><span class="status" style="margin:0">{{ job.summary or "" }}</span>{% if job.status %}{{ chip(job.status) }}{% endif %}</div>
+  {% if job.numbers %}<dl class="kv">{% for k, v in job.numbers.items() %}<dt>{{ k }}</dt><dd>{{ v }}</dd>{% endfor %}</dl>{% endif %}
+  {% if job.note %}<p class="note"><span aria-hidden="true">ⓘ</span>{{ job.note }}</p>{% endif %}
+</div>
+{% endfor %}
+
+<h2>Scheduled tasks</h2>
+<div class="card"><ul class="rows">
+{% for t in b.tasks or [] %}
+  <li><span class="grow">{{ t.name }}<div class="sub">{% if t.last_run %}last {{ t.last_run | ago }}{% endif %}{% if t.next_run %} · next {{ t.next_run | clock }}{% endif %}{% if t.note %} · {{ t.note }}{% endif %}</div></span>
+    {{ chip({"ok": "ok", "failed": "failed", "running": "running", "disabled": "paused"}.get(t.status, "unknown"),
+            {"ok": "OK", "failed": "Failed", "running": "Running", "disabled": "Disabled"}.get(t.status, "Unknown")) }}</li>
+{% endfor %}
+</ul></div>
+{% endif %}
+{% endblock %}

@@ -1,4 +1,6 @@
-# lab.machaka.net: one page with every site and tool, each with its live numbers (Homepage).
+# Homepage: one page with every site and tool, each with its live numbers. Since 2026-11-10 lab.machaka.net is the
+# lab (lab.yaml) and Homepage has no Ingress (removed at the end of this file); it still runs:
+#   kubectl -n tools port-forward svc/homepage 3000:80   -> http://localhost:3000
 # Its Portainer API key is in the Secret homepage-env (HOMEPAGE_VAR_PORTAINER_KEY). The Uptime Kuma widget
 # reads Kuma's status page "homelab". Beszel's and Grafana's widgets would need admin logins (a Beszel
 # superuser, a Grafana server admin), so those two tiles only check that the tool answers.
@@ -253,19 +255,5 @@ spec:
   selector: { app: homepage }
   ports:
     - { name: http, port: 80, targetPort: http }
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: homepage
-  namespace: tools
-spec:
-  ingressClassName: traefik
-  rules:
-    - host: lab.machaka.net
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service: { name: homepage, port: { name: http } }
+# No Ingress: lab.machaka.net goes to the lab (lab.yaml). To bring Homepage back there, restore the Ingress from
+# git history and remove the lab's.

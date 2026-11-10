@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f9f9f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)">
+<meta name="robots" content="noindex">
+<title>{% block title %}Lab{% endblock %}</title>
+<link rel="stylesheet" href="/static/lab.css?v=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='4' fill='%232a78d6'/%3E%3Cpath d='M4 11V5h1.6v4.6H9V11z' fill='white'/%3E%3C/svg%3E">
+</head>
+<body>
+<header class="top"><div class="bar">
+  <a class="brand" href="/">Lab</a>
+  <nav class="tabs">
+    {% for href, label in [("/", "Home"), ("/bg-taste-match", "Taste Match"), ("/deals", "Deals"), ("/cats", "Cats"), ("/gpu", "GPU"), ("/pc", "PC")] %}
+    <a href="{{ href }}" class="{{ 'on' if (path == href or (href != '/' and path.startswith(href))) }}">{{ label }}</a>
+    {% endfor %}
+  </nav>
+</div></header>
+<main>
+{% block main %}{% endblock %}
+<footer class="foot">Read {{ now() | ago }} · lab.machaka.net</footer>
+</main>
+<script src="/static/lab.js?v=1" defer></script>
+</body>
+</html>

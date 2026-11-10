@@ -141,7 +141,7 @@ Never `docker compose up` an app that runs in the cluster: two copies would writ
 | Portainer | portainer.machaka.net | `admin` | Containers and pods: the cluster (`homelab`) and Docker on the server (`server-docker`, through `~/portainer-agent` on the server) |
 | Beszel | beszel.machaka.net | owner's email | CPU, memory, disk, network and Docker containers per machine, with history. One agent per node |
 | Uptime Kuma | status.machaka.net | `admin` | Checks each site and tool every minute; its status page `homelab` feeds the home page |
-| Home page | lab.machaka.net | (Cloudflare only) | One page with every site and tool and their live numbers (Homepage, `k8s/tools/homepage.yaml`) |
+| Lab | lab.machaka.net | (Cloudflare only) | The homelab's status site: what needs you, each job's own page (bg-taste-match's pipeline, today's deals, the cats with Frigate frames and clips, the GPU, the PC's jobs), machines and sites (`lab/`, `k8s/tools/lab.yaml`; design in `lab/DESIGN.md`). Homepage still runs without an Ingress |
 | Alertmanager | `kubectl -n tools port-forward svc/alertmanager 9093:9093` | none | Emails Prometheus's alerts (`k8s/tools/alertmanager.yaml`); silence an alert in its page |
 
 **Alerts** go by email to the owner's Gmail (the `to` key of the Secret below), sent through Gmail SMTP with the same Gmail sender
@@ -217,7 +217,7 @@ Memory (2026-10-25): tools ~250 MB, Prometheus ~120 MB, Grafana ~300-450 MB.
 1. An Ingress in the cluster (host name, class `traefik`).
 2. Cloudflare DNS: a CNAME to the tunnel, proxied (or one wildcard `*` record for all).
 3. Cloudflare Zero Trust → Access: add the name to the self-hosted app, so it asks for the login first.
-4. Optional: a tile in `k8s/tools/homepage.yaml`, and a check in Uptime Kuma.
+4. Optional: a site in `lab/app/config.py` (SITES), a card or page in the lab for a job, and a check in Uptime Kuma.
 
 ### Secrets
 
@@ -234,6 +234,7 @@ Not in this repo. Made on the server with `sudo k3s kubectl create secret ...`:
 | monitoring/grafana-admin | admin-user, admin-password |
 | tools/alert-smtp | user, password (Gmail app password), to |
 | tools/homepage-env | HOMEPAGE_VAR_PORTAINER_KEY: a Portainer API key named "homepage" |
+| tools/lab-intake | token: the PC's reports to the lab (the PC keeps it in %USERPROFILE%\.lab-token; `lab/pc-report/install.ps1` makes both) |
 
 Read a password in your own terminal:
 

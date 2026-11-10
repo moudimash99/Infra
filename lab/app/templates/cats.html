@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% from "_m.html" import chip, unreadable, runs_table %}
+{% block title %}Cats · Lab{% endblock %}
+{% block main %}
+<h1>Simba and Nala</h1>
+<div class="card" style="margin-bottom:.8rem">
+  <p><b>Feeding time can't be measured right now.</b> The monitor finds the bowls from a tag on the feeder, and the tag is gone; it still counts which cat is in view. Frigate below records everything.</p>
+</div>
+
+{# ---- Live + look back ---- #}
+<div class="grid two">
+  <div>
+    <h2 style="margin-top:.4rem">Right now</h2>
+    <img class="frame" alt="Living room camera, latest frame" src="/cats/media/latest.jpg?t={{ now_ts }}">
+    <div class="btns"><a class="btn" href="/cats">Refresh</a>
+      <a class="btn" href="/cats/media/clip/{{ now_ts - 70 }}-{{ now_ts - 10 }}.mp4">Last minute as video</a></div>
+  </div>
+  <div>
+    <h2 style="margin-top:.4rem">{% if look %}Around {{ look | clock }}{% else %}The last 8 hours, one frame an hour{% endif %}</h2>
+    <form class="search" action="/cats">
+      <input type="datetime-local" name="at" value="{{ at }}" aria-label="Look at a moment">
+      <button class="btn">Look</button>
+    </form>
+    <div class="shots">
+      {% for f in frames %}
+      <a class="shot" href="/cats/media/clip/{{ f }}-{{ f + 60 }}.mp4" title="Play one minute from here">
+        <img loading="lazy" alt="Frame at {{ f | clock }}" src="/cats/media/frame/{{ f }}.jpg">
+        <div class="cap">{{ f | clock }} ▸</div></a>
+      {% endfor %}
+    </div>
+    <p class="small muted">Tap a frame to play one minute from it. Frigate keeps 14 days.</p>
+  </div>
+</div>
+
+{# ---- Frigate visits ---- #}
+<h2>Seen by Frigate</h2>
+{{ unreadable(events, "Frigate's events") }}
+{% if events.data is not none %}
+{% set evs = events.data %}
+<div class="grid two">
+  <div class="card">
+    <h3>Visits per day</h3>
+    {{ charts.columns(day_points, title="Cat visits per day, last 14 days") }}
+    <p class="small muted">{{ evs | length }} visits in 14 days{% if evs %}, the last {{ evs[0].start | ago }}{% endif %}. Frigate's general detector misses most of them: use the frames above to check.</p>
+  </div>
+  <div class="card">
+    <h3>Time of day</h3>
+    {{ charts.columns(hour_points, title="Cat visits by hour of day, last 14 days", slot=2) }}
+    <p class="small muted">When the visits happened, local time.</p>
+  </div>
+</div>
+{% if evs %}
+<div class="shots" style="margin-top:.7rem">
+  {% for e in evs[:16] %}
+  <a class="shot" href="/cats/media/event/{{ e.id }}/clip.mp4">
+    <img loading="lazy" alt="Cat at {{ e.start | clock }}" src="/cats/media/event/{{ e.id }}/thumbnail.jpg">
+    <div class="cap">{{ e.start | ago }} · {{ ((e.end or e.start) - e.start) | span }}{% if e.zones %} · {{ e.zones | join(", ") | replace("_", " ") }}{% endif %} ▸</div></a>
+  {% endfor %}
+</div>
+{% endif %}
+{% endif %}
+
+{# ---- Monitor runs ---- #}
+<h2>Feeding monitor</h2>
+<p class="small muted">{% if cron %}{% if cron.suspended %}Paused.{% else %}Runs daily at 03:16 on the hour before.{% endif %}{% endif %} It looks for each cat (its own model, Simba and Nala) on Frigate's recordings, on the GPU.</p>
+{{ unreadable(monitor, "the monitor's reports") }}
+<div class="grid two">
+{% for r in (monitor.data or [])[:6] %}
+  {% set mid = ((r.start + r.end) / 2) | int if r.start and r.end else none %}
+  <div class="card">
+    <div class="head"><h3>{{ r.start | clock }} to {{ r.end | clock }}</h3>
+      {% if r.suspicious %}{{ chip("warning", "Check") }}{% endif %}</div>
+    <dl class="kv">
+      {% for cat in ["Simba", "Nala"] %}
+      <dt>{{ cat }} in view</dt><dd>{{ (r.presence.get(cat) or 0) | span }}</dd>
+      {% endfor %}
+      <dt>Feeding</dt><dd>{% if r.feeding.values() | sum > 0 %}{% for c, s in r.feeding.items() %}{{ c }} {{ s | span }}{{ ", " if not loop.last }}{% endfor %}{% else %}not measured{% endif %}</dd>
+    </dl>
+    {% if r.suspicious %}<p class="note"><span aria-hidden="true">ⓘ</span>{{ r.suspicious | join(" and ") }} in view the whole window: often a false detection or a cat asleep in front of the camera. Look at the frame.</p>{% endif %}
+    {% if mid and now_ts - mid < 14 * 86400 %}
+      <a class="shot" href="/cats/media/clip/{{ mid }}-{{ mid + 60 }}.mp4" style="display:block;margin-top:.5rem">
+        <img loading="lazy" alt="Frame from the middle of the window" src="/cats/media/frame/{{ mid }}.jpg">
+        <div class="cap">The middle of the window, {{ mid | clock }} ▸</div></a>
+    {% endif %}
+  </div>
+{% else %}<p class="muted">No monitor run yet.</p>{% endfor %}
+</div>
+
+{# ---- Weight ---- #}
+<h2>Weight</h2>
+{{ unreadable(weights, "the cat weight tracker") }}
+{% if weights.data %}
+<div class="grid two">
+  <div class="card">
+    {% for cat, pts in weights.data | dictsort %}
+    <div class="head"><h3>{{ cat }}</h3><span class="num"><b>{{ "%.2f" | format(pts[-1][1]) }} kg</b>{% if pts | length > 1 %} <span class="muted small">({{ "%+.2f" | format(pts[-1][1] - pts[-2][1]) }} since the weigh-in before)</span>{% endif %}</span></div>
+    {% endfor %}
+    {% set latest = weights.data.values() | map("last") | map("first") | max %}
+    <p class="small muted">Last weigh-in {{ latest | ago }} ({{ ((now_ts - latest) / 86400) | int }} days). Add one at <a href="https://cat.machaka.net">cat.machaka.net</a>.</p>
+  </div>
+  <div class="card">{{ weight_chart }}</div>
+</div>
+{% endif %}
+
+<h2>Monitor runs, last 30 days</h2>
+<div class="card">{{ runs_table(runs) }}</div>
+{% endblock %}

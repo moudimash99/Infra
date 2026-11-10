@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% from "_m.html" import unreadable %}
+{% set COND = {"neuf_cello": "New, sealed", "juste_deballe": "Opened, unplayed", "etat_excellent": "Excellent",
+               "tres_bon_etat": "Very good", "bon_etat": "Good", "etat_moyen": "Fair", "mauvais_etat": "Poor"} %}
+{% block title %}{{ r.data.name if r.data else "Game" }} · Deals · Lab{% endblock %}
+{% block main %}
+<p class="small"><a href="/deals">← Deals</a></p>
+{{ unreadable(r, "this game") }}
+{% if r.data %}{% set g = r.data %}
+<div class="deal" style="grid-template-columns:96px 1fr">
+  {% if g.image %}<img alt="" src="{{ g.image }}" style="width:96px;height:96px">{% else %}<span></span>{% endif %}
+  <div><h1>{{ g.name }}</h1>
+    <p class="muted">{% if g.game %}BGG rank {{ g.game.Rank or "-" }}{% if g.game.Year %} · {{ g.game.Year }}{% endif %} · {% endif %}<a href="https://boardgamegeek.com/boardgame/{{ g.bg_id }}">BoardGameGeek</a></p></div>
+</div>
+
+<h2>Price over time</h2>
+<div class="card">
+  {{ price_chart }}
+  <p class="small muted">Cheapest live ask per scrape day (bundles left out).</p>
+</div>
+
+<h2>Live listings ({{ g.listings | length }})</h2>
+<div class="card"><ul class="rows">
+{% for l in g.listings %}
+  <li><span class="grow"><a class="t" style="display:block" href="{{ l.Link }}">{{ COND.get(l.Condition, l.Condition or "Condition unknown") }}</a>
+    <span class="sub">{{ (l.Location or "").split("\n")[0] }}{% if l.Can_Ship %} · ships{% endif %}{% if l.Is_Bundle %} · bundle{% endif %}{% if l.Is_Extension %} · expansion{% endif %}{% if l.Post_Date %} · {{ l.Post_Date[:10] }}{% endif %}</span></span>
+    <span class="right"><b>{{ "%.0f" | format(l.Price or 0) }} €</b></span></li>
+{% else %}<li class="muted">No live listing.</li>{% endfor %}
+</ul></div>
+{% endif %}
+{% endblock %}

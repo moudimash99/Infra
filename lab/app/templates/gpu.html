@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% from "_m.html" import chip, unreadable, runs_table %}
+{% block title %}GPU · Lab{% endblock %}
+{% block main %}
+<h1>Acer GPU</h1>
+{{ unreadable(gpu, "the GPU metrics") }}
+{% if gpu.data %}{% set g = gpu.data %}
+<p class="muted small">{{ g.name }} · used by Whisper, speaker separation and the cat monitor, one job at a time (a lock file).</p>
+<div class="stats">
+  <div class="stat"><div class="l">In use</div><div class="v">{{ g.util | round | int }}%</div></div>
+  <div class="stat"><div class="l">Temperature</div><div class="v">{{ g.temp | round | int }} °C</div><div class="s">slows itself near 95 °C</div></div>
+  <div class="stat"><div class="l">Memory</div><div class="v">{{ (g.mem_used / 1e9) | round(1) }} GB</div><div class="s">of {{ (g.mem_total / 1e9) | round(1) }} GB</div></div>
+  <div class="stat"><div class="l">Clock</div><div class="v">{{ ((g.clock or 0) / 1e6) | round | int }} MHz</div></div>
+</div>
+{% endif %}
+
+<h2>Using it now</h2>
+<div class="card"><ul class="rows">
+{% for p in users %}
+  <li><span class="grow">{{ p.job or p.name }}<div class="sub">{{ p.namespace }} · running since {{ p.start | ago }}</div></span>{{ chip("running") }}</li>
+{% else %}<li class="muted">Nothing is using the GPU.</li>{% endfor %}
+</ul></div>
+
+<h2>Last 24 hours</h2>
+{{ unreadable(hist, "the GPU history") }}
+{% if hist.data %}
+<div class="grid three">
+  <div class="card"><h3>In use, %</h3>{{ charts.lines([{"name": "In use", "slot": 1, "points": hist.data.util}], y_max=100, unit="%", x_labels=hour_labels) }}</div>
+  <div class="card"><h3>Temperature, °C</h3>{{ charts.lines([{"name": "Temperature", "slot": 2, "points": hist.data.temp}], unit=" °C", x_labels=hour_labels) }}</div>
+  <div class="card"><h3>Memory, GB</h3>{{ charts.lines([{"name": "Memory", "slot": 3, "points": hist.data.mem}], unit=" GB", x_labels=hour_labels) }}</div>
+</div>
+{% endif %}
+
+<h2>GPU jobs</h2>
+{% set cj = (jobs.data.cronjobs if jobs.data else {}) %}
+<div class="card"><ul class="rows">
+{% for name, label, when in [("bg-taste-match-gpu", "Whisper and speaker separation", "every hour at :15"), ("cat-monitor", "Cat feeding monitor", "daily at 03:16")] %}
+  {% set c = cj.get(name) %}
+  <li><span class="grow">{{ label }}<div class="sub">{{ when }}{% if c and c.last_schedule %} · last started {{ c.last_schedule | ago }}{% endif %}</div></span>
+    {% if c %}{{ chip("paused" if c.suspended else "ok", "Paused" if c.suspended else "Scheduled") }}{% endif %}</li>
+{% endfor %}
+</ul></div>
+
+<h2>Runs, last 7 days</h2>
+<div class="card">{{ runs_table(runs | sort(attribute="start", reverse=True), 20) }}</div>
+{% endblock %}

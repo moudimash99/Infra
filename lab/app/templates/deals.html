@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% from "_m.html" import chip, unreadable, runs_table %}
+{% set COND = {"neuf_cello": "New, sealed", "juste_deballe": "Opened, unplayed", "etat_excellent": "Excellent",
+               "tres_bon_etat": "Very good", "bon_etat": "Good", "etat_moyen": "Fair", "mauvais_etat": "Poor"} %}
+{% block title %}Deals · Lab{% endblock %}
+{% block main %}
+<h1>Board game deals</h1>
+<p class="muted small">BoardGameFinder scrapes Okkazeo every morning at 07:00 and emails the new deals.</p>
+
+{# ---- Last run ---- #}
+<h2>Last run</h2>
+{{ unreadable(run, "the run state") }}
+{% if run.data %}
+{% set last = (run.data.runs | first) if run.data.runs else none %}
+<div class="card">
+  <div class="head"><h3>{% if last %}Started {{ last.start | ago }}{% else %}No run in Kubernetes' history{% endif %}</h3>
+    {% if last %}{{ chip(last.state) }}{% endif %}</div>
+  {% if last and last.end %}<div class="status">Took {{ (last.end - last.start) | span }}{% if run.data.cron %} · next {{ "07:00" if not run.data.cron.suspended else "paused" }}{% endif %}</div>{% endif %}
+  {% set detail = run.data.detail %}
+  {% if detail and detail.steps %}
+  <ul class="rows">
+    {% for s in detail.steps %}
+    <li><span class="grow">{{ s.label }}<div class="sub">{{ s.at[11:16] }}{% if s.errors %} · {{ s.errors[0] }}{% endif %}</div></span>
+      {{ chip("failed" if s.failed else "ok", "Failed" if s.failed else "Done") }}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <ul class="rows">{% for s in run.data.steps %}<li><span class="grow">{{ s.label }}</span>{{ chip("failed" if s.failures else "ok", ("Failed " ~ s.failures ~ "× in a row") if s.failures else "OK") }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% if run.data.steps | selectattr("failures") | list %}
+  <p class="note"><span aria-hidden="true">ⓘ</span>The LLM steps fail until fm-llm runs on the server; deals are then checked by rules only, and bundles wait for review.</p>
+  {% endif %}
+  {% if run.data.deal_log %}<details class="fold"><summary>Deal finder's log</summary><pre>{% for l in run.data.deal_log %}{{ l.at[11:] }}  {{ l.text }}
+{% endfor %}</pre></details>{% endif %}
+</div>
+{% endif %}
+
+{# ---- Numbers ---- #}
+{% if market.data %}{% set m = market.data %}
+<div class="stats" style="margin-top:.8rem">
+  <div class="stat"><div class="l">Deals today</div><div class="v">{{ (deals.data.deals | length) if deals.data else "-" }}</div><div class="s">after removing games you own</div></div>
+  <div class="stat"><div class="l">New listings, 24 h</div><div class="v">{{ m.new | length }}{{ "+" if m.new | length == 60 }}</div><div class="s">across tracked games</div></div>
+  <div class="stat"><div class="l">Price drops</div><div class="v">{{ m.drops | length }}</div><div class="s">since the previous scrape</div></div>
+  <div class="stat"><div class="l">Live listings</div><div class="v">{{ "{:,}".format(m.live) }}</div><div class="s">{{ m.tracked }} games tracked</div></div>
+</div>
+{% if m.review_pending %}<p class="small" style="margin-top:.5rem">{{ m.review_pending }} bundles and special editions wait for the LLM review · <a href="/deals/review-packet">read the packet</a></p>{% endif %}
+{% endif %}
+{{ unreadable(market, "the market") }}
+
+{# ---- Deals ---- #}
+<h2>Today's deals</h2>
+{{ unreadable(deals, "the deals") }}
+{% if deals.data %}
+<div class="grid two">
+{% for d in deals.data.deals %}
+  <div class="card deal">
+    {% if d.image %}<img loading="lazy" alt="" src="{{ d.image }}">{% else %}<span></span>{% endif %}
+    <div>
+      <h3><a href="/deals/game/{{ d.bg_id }}">{{ d.name }}</a></h3>
+      <div><span class="price">{{ "%.0f" | format(d.price) }} €</span>
+        {% if d.baseline %}<span class="worth"> · usually {{ "%.0f" | format(d.baseline) }} € · saves {{ "%.0f" | format(d.edge) }} €</span>{% endif %}</div>
+      <div>
+        {% if d.first_seen and (now() - (d.first_seen | local).timestamp()) < 86400 %}<span class="tag new">New</span>{% endif %}
+        <span class="tag">{{ COND.get(d.condition, d.condition) }}</span>
+        {% if d.language %}<span class="tag">{{ d.language }}</span>{% endif %}
+        <span class="tag">{{ "Ships" if d.ships == "yes" else "Pickup only" if d.ships == "pickup" else d.ships }}</span>
+        {% if d.comps %}<span class="tag">{{ d.comps }} sales seen</span>{% else %}<span class="tag">value from asks</span>{% endif %}
+      </div>
+      <p class="small" style="margin-top:.35rem"><a href="{{ d.link }}">Open the listing</a>{% if d.posted %} · posted {{ d.posted }}{% endif %}</p>
+    </div>
+  </div>
+{% else %}<p class="muted">No deals in the last run.</p>{% endfor %}
+</div>
+<div class="btns"><a class="btn" href="/deals/digest">The emailed digest</a></div>
+{% endif %}
+
+{% if market.data %}{% set m = market.data %}
+<div class="grid two">
+<div>
+<h2>New in the last 24 hours</h2>
+<div class="card"><ul class="rows">
+{% for p in m.new[:20] %}
+  <li>{% if p.image %}<img class="thumb" loading="lazy" alt="" src="{{ p.image }}" style="object-fit:contain;background:#fff">{% endif %}
+    <span class="grow"><a class="t" style="display:block" href="{{ p.Link }}">{{ p.name or "Unknown game" }}</a>
+      <span class="sub">{{ COND.get(p.Condition, p.Condition or "") }}{% if p.Location %} · {{ p.Location.split("\n")[0] }}{% endif %}</span></span>
+    <span class="right"><b>{{ "%.0f" | format(p.Price or 0) }} €</b></span></li>
+{% else %}<li class="muted">Nothing new.</li>{% endfor %}
+</ul>{% if m.new | length > 20 %}<p class="small muted">and {{ m.new | length - 20 }}{{ "+" if m.new | length == 60 }} more</p>{% endif %}</div>
+</div>
+<div>
+<h2>Price drops</h2>
+<div class="card"><ul class="rows">
+{% for p in m.drops[:20] %}
+  <li>{% if p.image %}<img class="thumb" loading="lazy" alt="" src="{{ p.image }}" style="object-fit:contain;background:#fff">{% endif %}
+    <span class="grow"><a class="t" style="display:block" href="{{ p.Link }}">{{ p.name or "Unknown game" }}</a>
+      <span class="sub">was {{ "%.0f" | format(p.before) }} € on {{ p.before_day[5:] }} · {{ COND.get(p.Condition, p.Condition or "") }}</span></span>
+    <span class="right"><b>{{ "%.0f" | format(p.price) }} €</b><div class="sub">−{{ ((1 - p.price / p.before) * 100) | round | int }}%</div></span></li>
+{% else %}<li class="muted">No drops.</li>{% endfor %}
+</ul></div>
+</div>
+</div>
+
+<h2>Listings seen per day</h2>
+<div class="card">
+  {{ charts.columns(per_day_points, title="Listings seen per day, last 30 days") }}
+  <p class="small muted">{% if m.missed_days %}{{ m.missed_days }} of the last 29 days had no scrape (empty columns): the run failed or didn't happen.{% else %}A scrape every day.{% endif %} Last scrape {{ m.last_scrape | ago }}.</p>
+</div>
+{% endif %}
+
+<h2>Runs, last 30 days</h2>
+<div class="card">{{ runs_table(history, 15) }}</div>
+{% endblock %}
