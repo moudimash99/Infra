@@ -1,0 +1,68 @@
+# fm-llm's ask service (fm-llm/gateway/server.mjs, fm-llm#1): the one way the home's projects call a model.
+# BoardGameFinder, bg-taste-match and Email-remove call http://192.168.1.116:8792 (the contract in the README).
+#   POST /v1/ask {model?, prompt, system?, project, purpose} → {text, model, ...}; 503 = nothing free now; GET /healthz
+# Models: gemma (default), gemini-pro, gemini-flash, any Gemini API model, claude-haiku/-sonnet (once a Claude account is
+# set: GATEWAY_CLAUDE_DIR, a login in the drivers' home). The Gemini key is read from fm-data's .env when needed: until
+# fm-data is on the server (the cut-over), every ask answers 503, which the callers already treat as "try later".
+# Home network only: hostPort 8792 on the server, and the server itself refuses anything outside the LAN, the pods
+# and Tailscale. Every call is a usage event in the drivers' home (.fm-llm/spool), next to Free Motion's.
+# Code: the fm-llm checkout in /srv/apps/freemotion/ws (git pull there, then restart this pod).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-gateway
+  namespace: apps
+  labels: { app: llm-gateway }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }   # one hostPort
+  selector:
+    matchLabels: { app: llm-gateway }
+  template:
+    metadata:
+      labels: { app: llm-gateway }
+    spec:
+      nodeSelector: { kubernetes.io/hostname: moudimash99 }
+      automountServiceAccountToken: false
+      securityContext: { runAsUser: 1000, runAsGroup: 1000 }
+      containers:
+        - name: gateway
+          image: docker.io/library/fm:2026-11-10a
+          imagePullPolicy: Never
+          args: ["node", "/fm/ws/fm-llm/gateway/server.mjs"]
+          env:
+            - { name: PORT, value: "8792" }
+            - { name: HOME, value: /fm/home }
+            - { name: GATEWAY_ENV_FILE, value: /fm/fm-data/.env }
+            - { name: FM_LLM_SPOOL, value: /fm/home/.fm-llm/spool }
+            - { name: FM_MACHINE, value: llm-gateway }
+          securityContext: { allowPrivilegeEscalation: false }
+          ports:
+            - { name: http, containerPort: 8792, hostPort: 8792 }
+          readinessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 10
+          volumeMounts:
+            - { name: ws, mountPath: /fm/ws, readOnly: true }
+            - { name: data, mountPath: /fm/fm-data, readOnly: true }
+            - { name: home, mountPath: /fm/home }
+          resources:
+            requests: { cpu: 20m, memory: 96Mi }
+            limits: { memory: 512Mi }   # a claude -p call at a time
+      volumes:
+        - name: ws
+          hostPath: { path: /srv/apps/freemotion/ws, type: Directory }
+        - name: data
+          hostPath: { path: /srv/apps/freemotion/fm-data, type: Directory }
+        - name: home
+          hostPath: { path: /srv/apps/freemotion/home, type: Directory }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-gateway
+  namespace: apps
+spec:
+  selector: { app: llm-gateway }
+  ports:
+    - { name: http, port: 8792, targetPort: http }

@@ -121,12 +121,14 @@ bg-taste-match also has an idle `bg-taste-match-shell` pod with the same mounts,
 (`kubectl -n apps exec deploy/bg-taste-match-shell -- python score.py <user>`). Its image holds only the environment:
 the code is sent with `deploy/push_code.sh` in that repo, which never touches the live `bgtaste.db`.
 
-**LLM calls** from the cluster go to fm-llm on the control node, which doesn't exist yet: the jobs assume
-`FM_LLM_URL=http://192.168.1.116:8792` and this contract. `GET /healthz` answers 200 when it can take work.
-`POST /v1/ask` takes JSON `{"model", "prompt", "system"?, "project", "purpose"}` and answers `{"text", "model"}`.
-503 means no model is free or signed in now (callers treat it as "out of usage" and try later). Models asked for:
-`gemini-pro` (bg-taste-match), `claude-haiku` and `claude-sonnet` (boardgamefinder). Until fm-llm answers, the LLM steps
-fail or skip; nothing else depends on them.
+**LLM calls** from the cluster go to fm-llm's gateway on the server (`k8s/apps/llm-gateway`, since 2026-11-10):
+`FM_LLM_URL=http://192.168.1.116:8792`, home network only. `GET /healthz` answers 200 when it can take work.
+`POST /v1/ask` takes JSON `{"model", "prompt", "system"?, "project", "purpose"}` and answers `{"text", "model"}` (plus
+`seconds` and token counts). 503 means no model is free or signed in now (callers treat it as "out of usage" and try
+later). Models: `gemma` (the default), `gemini-pro`, `gemini-flash` and any Gemini API model by name, through the key in
+fm-data's `.env`; `claude-haiku` and `claude-sonnet` through `claude -p` (tools off) once `GATEWAY_CLAUDE_DIR` names a
+login. Every call is one usage event (`/srv/apps/freemotion/home/.fm-llm/spool`). Until fm-data is on the server (Free
+Motion's cut-over) it has no key, so it answers 503 to everything, as before for the callers.
 
 All moved from Docker on 2026-10-24; the first three moved to the Acer on 2026-11-02. Their old data
 folders on the server (`~/Cat-Weight/data`, `~/BoardXplorer/data`, `~/unmatched_matcher/data`) stopped
