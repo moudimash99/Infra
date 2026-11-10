@@ -68,11 +68,10 @@ data:
         text_size: md
         format: { dateStyle: long, timeStyle: short, hour12: false }
   services.yaml: |
-    # The tiles open the lab's pages under lab.machaka.net until tastematch., deals. and catcam.machaka.net are in
-    # the Cloudflare Access application; then they can go back to their own names.
+    # Each pipeline: how far it is and what it is doing (paused, running, last run failed), from the lab.
     - Pipelines:
         - Taste Match:
-            href: https://lab.machaka.net/tastematch/
+            href: https://tastematch.machaka.net
             description: Reviews from YouTube to each host's scores
             icon: mdi-youtube
             widget:
@@ -81,12 +80,12 @@ data:
               refreshInterval: 60000
               display: list
               mappings:
-                - { field: now, label: Now }
-                - { field: downloaded, label: Downloaded }
-                - { field: transcribed, label: Transcribed }
-                - { field: rated, label: Rated }
+                - { field: download, label: Downloaded }
+                - { field: transcribe, label: Transcribed }
+                - { field: speakers, label: Speakers }
+                - { field: rate, label: Rated }
         - Deals:
-            href: https://lab.machaka.net/deals/
+            href: https://deals.machaka.net
             description: Okkazeo, checked every morning
             icon: mdi-tag-heart
             widget:
@@ -95,11 +94,12 @@ data:
               refreshInterval: 300000
               display: list
               mappings:
+                - { field: run, label: Last run }
                 - { field: best, label: Best now }
                 - { field: new, label: New and cheap }
                 - { field: bundles, label: Bundles to judge }
         - Cat cam:
-            href: https://lab.machaka.net/catcam/
+            href: https://catcam.machaka.net
             description: Flash of the day, camera, weights
             icon: mdi-cat
             widget:
@@ -108,6 +108,7 @@ data:
               refreshInterval: 300000
               display: list
               mappings:
+                - { field: monitor, label: Monitor }
                 - { field: flash, label: Flash }
                 - { field: weighed, label: Last weigh-in }
     - Sites:

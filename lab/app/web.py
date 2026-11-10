@@ -1,8 +1,8 @@
 """What the three sites share: templates, the page helper, the stylesheet, axis labels.
 
-Each site answers at its own address (tastematch., deals., catcam.machaka.net) at "/", and under /tastematch, /deals
-and /catcam of one address (lab.machaka.net, a development machine). Links in templates start with R, the site's
-root ("" at its own address), so the same templates work both ways.
+Each site answers at its own address (tastematch., deals., catcam.machaka.net) at "/"; on a development machine
+they sit under /tastematch, /deals and /catcam of one address. Links in templates start with R, the site's root
+("" at its own address), so the same templates work both ways.
 """
 import datetime as dt
 import os

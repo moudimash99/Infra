@@ -15,7 +15,7 @@
 <header class="top"><div class="bar">
   <nav class="tabs">
     {% for key, label, url in SITE_LINKS %}
-    {# under a path (lab.machaka.net/tastematch/), the other sites are next to it on the same name #}
+    {# under a path (a development machine), the other sites are next to it on the same name #}
     <a href="{{ (R ~ '/') if key == me else (('/' ~ key ~ '/') if R else url) }}" class="{{ 'on' if key == me }}">{{ label }}</a>
     {% endfor %}
     <a href="{{ LAB_URL }}">Lab ↗</a>

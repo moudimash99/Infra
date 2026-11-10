@@ -2,9 +2,9 @@
 #   tastematch.machaka.net  the review pipeline       deals.machaka.net  BoardGameFinder's deals
 #   catcam.machaka.net      the cats: flash of the day, camera, weights
 # lab.machaka.net itself is Homepage (homepage.yaml); its tiles read /api/summary/* here, inside the cluster.
-# Each site checks the Cloudflare Access token itself (ACCESS_TEAM, ACCESS_AUD below), so a name answers nothing
-# until it is in the Access application, and the home network can't skip the login through Traefik. Until then the
-# sites are also at lab.machaka.net/tastematch/, /deals/ and /catcam/ (Ingress below; that name already has the login).
+# Each site checks the Cloudflare Access token itself (ACCESS_TEAM, ACCESS_AUD below), so the home network can't
+# skip the login through Traefik. A name not yet in the Access application signs in through lab.machaka.net's login
+# (ACCESS_BRIDGE: Traefik sends lab.machaka.net/lab-sso here, see the Ingress), so it works before it is added.
 # Runs on the Acer: it reads the jobs' folders there (read-only); its own data (job runs, log summaries, daily
 # progress, clip cache) is /srv/apps/lab.
 # The PC posts its jobs' status to port 8081 (NodePort 30881, home network only), token in Secret lab-intake;
@@ -83,7 +83,7 @@ spec:
       securityContext: { runAsUser: 10001, runAsGroup: 10001, runAsNonRoot: true }
       containers:
         - name: lab
-          image: docker.io/library/lab:2026-11-10h
+          image: docker.io/library/lab:2026-11-10i
           imagePullPolicy: Never
           ports:
             - { name: http, containerPort: 8080 }
@@ -93,6 +93,8 @@ spec:
             - { name: ACCESS_TEAM, value: hannibalproto.cloudflareaccess.com }
             # The homelab's self-hosted Access application (the kid in its login redirect); comma-separate more.
             - { name: ACCESS_AUD, value: "8209dd48ce99a02ac8c20f6195860c5dae30315d4361346cfcc8a8f0e56b2e9e" }
+            # A name in that application: the others sign in through its login (lab/app/access.py).
+            - { name: ACCESS_BRIDGE, value: lab.machaka.net }
             - name: INTAKE_TOKEN
               # Without the Secret the intake refuses every report (401); the pages work either way.
               valueFrom: { secretKeyRef: { name: lab-intake, key: token, optional: true } }
@@ -182,21 +184,12 @@ spec:
             pathType: Prefix
             backend:
               service: { name: lab, port: { name: http } }
-    # The same sites under lab.machaka.net, which is already in the Access application: they work before their own
-    # names are added to it. Everything else on lab.machaka.net stays Homepage (homepage.yaml); Traefik gives the
-    # longer path priority.
+    # The sign-in bridge on lab.machaka.net, which is in the Access application (Cloudflare asks for the login before
+    # it). Everything else on lab.machaka.net stays Homepage (homepage.yaml); Traefik gives the longer path priority.
     - host: lab.machaka.net
       http:
         paths:
-          - path: /tastematch
-            pathType: Prefix
-            backend:
-              service: { name: lab, port: { name: http } }
-          - path: /deals
-            pathType: Prefix
-            backend:
-              service: { name: lab, port: { name: http } }
-          - path: /catcam
+          - path: /lab-sso
             pathType: Prefix
             backend:
               service: { name: lab, port: { name: http } }

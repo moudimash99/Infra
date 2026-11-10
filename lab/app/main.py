@@ -4,11 +4,11 @@
   deals.machaka.net       BoardGameFinder's deals (site_deals)
   catcam.machaka.net      the cats: flash of the day, camera, weights (site_cats)
 
-Each checks the Cloudflare Access login itself (access.py). lab.machaka.net is Homepage; its tiles read short numbers
-from /api/summary/* here, inside the cluster. The same sites also answer under /tastematch, /deals and /catcam of any
-other name: Traefik sends lab.machaka.net/tastematch/ and the others here (that name is already behind the login, so
-they work before their own names are added to it), and a development machine uses them too. Port 8081 (NodePort,
-home network only) takes the PC's reports and serves them as Prometheus metrics for Grafana.
+Each checks the Cloudflare Access login itself (access.py); a name not yet in the Access application signs in
+through lab.machaka.net's login (the bridge, lab.machaka.net/lab-sso). lab.machaka.net is Homepage; its tiles read
+short numbers from /api/summary/* here, inside the cluster. On a development machine the sites sit under /tastematch,
+/deals and /catcam. Port 8081 (NodePort, home network only) takes the PC's reports and serves them as Prometheus
+metrics for Grafana.
 """
 import asyncio
 import datetime as dt
@@ -57,13 +57,12 @@ async def dev_index(request):
     return HTMLResponse(f"<!DOCTYPE html><title>Lab (development)</title><ul>{links}</ul>")
 
 
-DEV = os.environ.get("LAB_DEV") == "1"     # development machine: an index of the sites at /
+DEV = os.environ.get("LAB_DEV") == "1"     # development machine: the sites also under /tastematch, /deals, /catcam
 app = AccessGate(Starlette(routes=[
     *[Host(host, app=sub) for _, host, sub, _ in SITES],
     Route("/healthz", healthz),
     Mount("/api", app=api),
-    *[Mount(f"/{key}", app=sub) for key, _, sub, _ in SITES],
-    *([Route("/", dev_index)] if DEV else []),
+    *([Mount(f"/{key}", app=sub) for key, _, sub, _ in SITES] + [Route("/", dev_index)] if DEV else []),
 ]))
 
 # ---- the PC's reports (port 8081 only) -----------------------------------------------------------------------

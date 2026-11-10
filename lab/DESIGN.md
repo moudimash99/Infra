@@ -4,9 +4,9 @@
 > lab.machaka.net is Homepage again (simple tiles, with a Pipelines group fed by `/api/summary/*`), and each job
 > with a real use case has its own address: tastematch., deals. and catcam.machaka.net. GPU, machines, jobs and
 > the PC's jobs moved to Grafana (`k8s/monitoring/dashboards/make.py`). Each page checks the Cloudflare Access token
-> itself and fails closed. Until the three names are in the Access application, the same pages also answer at
-> lab.machaka.net/tastematch/, /deals/ and /catcam/ (that name already has the login; Traefik sends only these paths
-> to the lab). The rest of this document is the first design, kept for its data notes.
+> itself and fails closed; a name not yet in the Access application signs in through lab.machaka.net's login (a
+> one-minute code from lab.machaka.net/lab-sso becomes a cookie for that name; `app/access.py`). The rest of this
+> document is the first design, kept for its data notes.
 
 One private web app that answers, for each thing the homelab runs, the question its owner actually has:
 "is it working, what did it find, and what needs me?". Phone first: most visits are from a phone.

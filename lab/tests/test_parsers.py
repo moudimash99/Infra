@@ -85,19 +85,87 @@ def test_access_fails_closed():
     assert not access.check("") and not access.check("not-a-jwt")
 
 
-def test_sites_under_lab_paths():
-    """lab.machaka.net/deals/... reaches the deals site, and its nav links stay on that name."""
-    from starlette.testclient import TestClient
-    from app import main, web
-    inner = TestClient(main.app.app, base_url="https://lab.machaka.net")     # past the login check
-    assert inner.get("/deals/static/lab.css").status_code == 200
-    assert inner.get("/tastematch/static/lab.js").status_code == 200
-    assert inner.get("/nothing/").status_code == 404
+def test_nav_links():
+    """At its own name a site links to the others' names; under a path (development) to the paths next to it."""
+    from app import web
     base = web.templates.get_template("base.html")
     under = base.render(R="/catcam", me="catcam")
     assert 'href="/tastematch/"' in under and 'href="/deals/"' in under and 'href="/catcam/"' in under
     own = base.render(R="", me="deals")
     assert 'href="https://tastematch.machaka.net"' in own and 'href="/"' in own
+
+
+def test_tile_rows():
+    from app import summary
+    fetch = {"kind": "bg-taste-match-fetch",
+             "log": {"now": {"what": "download dt", "label": "Downloading The Dice Tower", "pos": (30, 537)}}}
+    assert summary._running(fetch) == ("download", "now The Dice Tower 30/537")
+    spk = {"kind": "bg-taste-match-gpu", "log": {"now": {"what": "speaker separation", "label": "Finding speakers",
+                                                          "pos": (5, 40)}}}
+    assert summary._running(spk) == ("speakers", "running 5/40")
+    assert summary._running({"kind": "bg-taste-match-gpu", "log": {"now": None}}) == ("transcribe", "starting")
+
+
+def test_bridge_values():
+    import time
+    from app import access
+    code = access.sign({"k": "code", "h": "deals.machaka.net", "e": time.time() + 60})
+    assert access.unsign(code, "code")["h"] == "deals.machaka.net"
+    assert access.unsign(code, "session") is None                                  # a code isn't a cookie
+    assert access.unsign(code[:-3] + "AAA", "code") is None                        # changed: refused
+    assert access.unsign(access.sign({"k": "code", "e": time.time() - 1}), "code") is None    # expired
+    assert access.unsign("", "code") is None and access.unsign("a.b.c", "code") is None
+    for bad in ["//evil.example/", "/\\evil.example", "https://evil.example/", "/a\r\nSet-Cookie: x=1", "/é", "x"]:
+        assert access.safe_next(bad) == "/", bad
+    assert access.safe_next("/v/abc?x=1") == "/v/abc?x=1"
+
+
+def test_bridge_flow(monkeypatch):
+    """A public name not in Access: off to lab.machaka.net's login, back with a code, then a cookie for that name."""
+    import time
+    from starlette.applications import Starlette
+    from starlette.responses import PlainTextResponse
+    from starlette.routing import Route
+    from starlette.testclient import TestClient
+    from app import access
+
+    def fake_check(token):          # stands in for Cloudflare's signature: "good" is a valid login
+        if token == "good":
+            access._good[token] = time.time() + 3600
+            return True
+        return False
+
+    monkeypatch.setattr(access, "DEV", False)
+    monkeypatch.setattr(access, "BRIDGE", "lab.machaka.net")
+    monkeypatch.setattr(access, "check", fake_check)
+    gate = access.AccessGate(Starlette(routes=[Route("/{p:path}", lambda r: PlainTextResponse("page " + r.url.path))]))
+
+    def client(host):
+        return TestClient(gate, base_url=f"https://{host}", follow_redirects=False)
+
+    site, lab, other = client("tastematch.machaka.net"), client("lab.machaka.net"), client("deals.machaka.net")
+    r = site.get("/v/abc?x=1")
+    assert r.status_code == 302 and r.headers["location"].startswith("https://lab.machaka.net/lab-sso/start?")
+    start = r.headers["location"].removeprefix("https://lab.machaka.net")
+    assert lab.get(start).status_code == 403                                      # the bridge needs the login
+    r = lab.get(start, headers={"cf-access-jwt-assertion": "good"})
+    assert r.status_code == 302 and r.headers["location"].startswith("https://tastematch.machaka.net/lab-sso/finish?")
+    finish = r.headers["location"].removeprefix("https://tastematch.machaka.net")
+    assert other.get(finish).status_code == 403                                   # the code is for one name only
+    r = site.get(finish)
+    assert r.status_code == 302 and r.headers["location"] == "/v/abc?x=1"
+    assert "lab_session=" in r.headers["set-cookie"] and "HttpOnly" in r.headers["set-cookie"]
+    used = TestClient(gate, base_url="https://tastematch.machaka.net", follow_redirects=False).get(finish)
+    assert used.status_code == 403 and b"Open the page again" in used.content    # works once
+    assert site.get(finish).headers["location"] == "/"                            # a reload, signed in: the page
+    assert site.get("/v/abc").text == "page /v/abc"                               # the cookie opens the name...
+    cookie = site.cookies.get("lab_session")
+    assert other.get("/", headers={"cookie": f"lab_session={cookie}"}).status_code == 302    # ...and no other
+    assert site.post("/v/abc", headers={"cookie": "lab_session=x"}).status_code == 403
+    r = lab.get("/lab-sso/start?host=evil.example&next=/", headers={"cf-access-jwt-assertion": "good"})
+    assert r.status_code == 403                                                   # only our names get codes
+    monkeypatch.setattr(access, "BRIDGE", "")
+    assert client("catcam.machaka.net").get("/").status_code == 403              # no bridge: refused, as before
 
 
 def test_scope_names():
