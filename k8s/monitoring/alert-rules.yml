@@ -217,11 +217,11 @@ groups:
           summary: "BoardGameFinder hasn't finished a run in over a day"
           description: "Its daily 07:00 run failed or didn't start: no deal email today."
       - alert: CatMonitorMissed
-        expr: time() - kube_cronjob_status_last_successful_time{cronjob="cat-monitor"} > 17 * 3600
+        expr: time() - kube_cronjob_status_last_successful_time{cronjob="cat-monitor"} > 26 * 3600
         labels: { severity: warning }
         annotations:
-          summary: "No cat feeding report for 17 hours"
-          description: "Two 8-hour cat-monitor runs in a row didn't succeed (GPU busy past the 1-hour wait, no recordings, or an error)."
+          summary: "No cat-monitor run has succeeded for over a day"
+          description: "Its daily run failed (GPU busy past the 1-hour wait, no recordings, an error, or past its time limit)."
       - alert: BgTasteMatchDownloadsStalled
         expr: time() - kube_cronjob_status_last_successful_time{cronjob="bg-taste-match-fetch"} > 12 * 3600
         labels: { severity: warning }

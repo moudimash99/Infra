@@ -1,6 +1,8 @@
-# cat-monitor: the rolling feeding monitor from the Cat-Camera repo (automated_feeder_monitor.py once 8). Every 8 hours it
-# reads the last 8 hours of Frigate's living_room recordings from the Acer's disk, runs the cat detector (YOLO) on the
-# GTX 1050, and writes feeding reports to /srv/apps/cat-monitor. Was the PC's task CatCameraFeedingMonitor (disabled
+# cat-monitor: the rolling feeding monitor from the Cat-Camera repo (automated_feeder_monitor.py). It reads Frigate's
+# living_room recordings from the Acer's disk, runs the cat detector (YOLO) on the GTX 1050, and writes feeding reports to
+# /srv/apps/cat-monitor. For now once a day on the last hour only, as a GPU test: the feeder's ArUco tag is gone, so it
+# can't measure feeding, and on this 4-thread CPU it analyses ~7 frames/s (CPU-bound decoding and ArUco), so 8 hours of
+# video takes ~16 hours. The full "once 8" three times a day needs that speed fixed first. It holds the GPU lock while it runs. Was the PC's task CatCameraFeedingMonitor (disabled
 # since 2026-09-13, when it still fetched clips over SFTP). Image built on the server from Dockerfile.monitor, no registry.
 apiVersion: batch/v1
 kind: CronJob
@@ -9,7 +11,7 @@ metadata:
   namespace: apps
   labels: { app: cat-monitor }
 spec:
-  schedule: "16 2,10,18 * * *"
+  schedule: "16 3 * * *"
   timeZone: Europe/Paris
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
@@ -17,7 +19,7 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 0
-      activeDeadlineSeconds: 14400
+      activeDeadlineSeconds: 10800
       template:
         metadata:
           labels: { app: cat-monitor }
@@ -32,7 +34,7 @@ spec:
               image: docker.io/library/cat-monitor:2026-11-10a
               imagePullPolicy: Never
               # one GPU job at a time: waits up to an hour for bg-taste-match to finish its current video
-              command: ["flock", "-w", "3600", "/gpu-lock/gpu.lock", "python", "automated_feeder_monitor.py", "once", "8"]
+              command: ["flock", "-w", "3600", "/gpu-lock/gpu.lock", "python", "automated_feeder_monitor.py", "once", "1"]
               # the scripts run from the Acer's disk (copied there from the Cat-Camera repo), so a code fix needs no
               # new image; the image holds Python, PyTorch, Ultralytics and the model
               workingDir: /app/code

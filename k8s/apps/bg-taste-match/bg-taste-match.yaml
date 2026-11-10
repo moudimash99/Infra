@@ -83,8 +83,8 @@ spec:
                 - name: CHANNELS
                   value: "hc oscs rahdo bgco gbg tbm bgb dtg bower ttgg mvm tantrum amass 3mbg cotb nerdvana lobg slicker purge mu tdg liege dt"
                 - { name: SOLO, value: "" }
-                # about 1.2 GB of memory per audio hour plus the model: longer videos would get the pod killed
-                - { name: WHISPER_MAX_MINUTES, value: "120" }
+                # 0 = no length limit: whisper_captions.py transcribes long audio in 30-minute pieces
+                - { name: WHISPER_MAX_MINUTES, value: "0" }
                 # one GPU job at a time (cat-monitor too): taken per video, see gpu_lock.py
                 - { name: GPU_LOCK, value: /gpu-lock/gpu.lock }
                 - { name: NVIDIA_VISIBLE_DEVICES, value: all }
