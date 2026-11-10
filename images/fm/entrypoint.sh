@@ -22,8 +22,10 @@ case "${1:-controller}" in
     ;;
   browser)
     node /usr/local/lib/fm/camoufox-config.mjs --in /fm/fm-data/config/playwright-mcp-camoufox.json --out /tmp/camoufox.json
+    # One browser for the lane: every driver session (one per job) reuses it, instead of a second Camoufox failing on
+    # the profile the first still holds.
     exec playwright-mcp --config /tmp/camoufox.json --port 8931 --host 0.0.0.0 \
-      --allowed-hosts "${FM_ALLOWED_HOSTS:-*}" --user-data-dir /profile
+      --allowed-hosts "${FM_ALLOWED_HOSTS:-*}" --user-data-dir /profile --shared-browser-context
     ;;
   *)
     exec "$@"
