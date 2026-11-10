@@ -10,7 +10,8 @@ internet ─ Cloudflare (DNS, Access login) ─ tunnel ─ cloudflared ─ nginx
 ```
 
 - **Docker** (`docker-compose.yml`, `nginx/`): cloudflared, nginx, cAdvisor, node-exporter. The Free
-  Motion hub runs in Docker too, from its own folder.
+  Motion hub ran in Docker too (`~/freemotion-hub`) until it moved to k3s on 2026-11-10; its stopped
+  container `freemotion` and volume stay for going back. Never start it while the pod runs.
 - **Kubernetes** (`k8s/`): k3s, two nodes: `moudimash99` (the server) and `acer-laptop` (worker). The
   desktop (WSL2) joins later.
 - `Prometheus/`: the old setup for an EC2 machine, not used.
@@ -84,10 +85,11 @@ X-Forwarded-Proto that nginx sets; without it every visitor looks like 10.42.0.1
 | unmatched | unmatched.machaka.net | Acer | `/srv/apps/unmatched` |
 | website | machaka.net, mohammad.machaka.net | server | `~/Personal-Website/tracking-data` |
 | frigate | http://192.168.1.93:5000 (home network only) | Acer | `/srv/apps/frigate/config`, `/var/lib/frigate/media` |
-| freemotion-hub (trial) | none yet: `kubectl -n apps port-forward svc/freemotion-hub 8790` | server | `/srv/apps/freemotion-hub`: a copy of the Docker hub's `hub.db` from 2026-11-10 |
+| freemotion-hub | freemotion.machaka.net; agents on port 8791 of the server (hostPort, over Tailscale) | server | `/srv/apps/freemotion-hub` |
 
-The Free Motion hub is still live in Docker. The pod `freemotion-hub` is a trial on a copy of its data, with no
-Ingress, no agent port and no Secret yet; the steps to move it are at the top of `k8s/apps/freemotion-hub/freemotion-hub.yaml`.
+The Free Motion hub (dashboard) moved from Docker on 2026-11-10. Its image is always `freemotion-hub:live`, built and
+loaded only by fm-orchestrator's `freemotion-hub/test/deploy.mjs` after its tests; applying the manifest never changes the
+code. Going back to an earlier build, or to Docker, is at the top of `k8s/apps/freemotion-hub/freemotion-hub.yaml`.
 
 Scheduled jobs (CronJobs, no web page), moved from the Windows PC on 2026-11-10. The PC stays as a backup: its copies
 of the code and data stopped updating that day.
@@ -237,6 +239,7 @@ Not in this repo. Made on the server with `sudo k3s kubectl create secret ...`:
 | apps/boardxplorer-env | `~/BoardXplorer/.env` (quotes stripped) |
 | apps/unmatched-env | `~/unmatched_matcher/.env` |
 | apps/website-env | `~/Personal-Website/.env` |
+| apps/freemotion-hub | `~/freemotion-hub/.env`: AGENT_KEYS, CF_TEAM, CF_AUD, ALLOWED_EMAILS |
 | tools/portainer-agent | AGENT_SECRET, same as `~/portainer-agent/.env` |
 | tools/beszel-agent | KEY: the Beszel hub's public key (from `id_ed25519` in its volume) |
 | tools/tool-logins | passwords of Portainer, Beszel, Uptime Kuma |

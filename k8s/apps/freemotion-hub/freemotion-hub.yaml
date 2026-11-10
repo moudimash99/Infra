@@ -1,29 +1,26 @@
 # Free Motion hub: the dashboard's server (fm-orchestrator/freemotion-hub/server.mjs) with fm-web's page.
-# Image: built on the server from the committed fm-orchestrator and fm-web code (Dockerfile in fm-orchestrator, the page
-# copied in as public/) and loaded into k3s by hand: 2026-11-10a = fm-orchestrator d7a814c + fm-web 08e7197.
+# Moved from Docker on the server (~/freemotion-hub, container `freemotion`) on 2026-11-10.
 #
-# TRIAL since 2026-11-10: the live hub is still the Docker container `freemotion` on the server (~/freemotion-hub,
-# volume freemotion-hub_freemotion-data). This pod runs on a COPY of its hub.db, taken with VACUUM INTO, in
-# /srv/apps/freemotion-hub. It has no Ingress and no agent port, so nothing reaches it except kubectl port-forward.
-# Its Secret is optional: without it the hub has no agent keys and no allowed logins, so the page answers 401/403.
+# Image: always the tag `live`, built on the server and loaded into k3s by fm-orchestrator's
+# freemotion-hub/test/deploy.mjs, the only way a dashboard change goes live. It runs the e2e tests first, keeps each build
+# under a dated tag too, restarts this Deployment and checks that the pod serves the files it tested. Applying this file
+# never changes the code. The first `live` was the Docker hub's own image (also tagged 2026-11-01-docker).
+# Back to an earlier build, on the server:
+#   docker tag freemotion-hub:<tag> freemotion-hub:live && docker save freemotion-hub:live | sudo k3s ctr images import -
+#   sudo k3s kubectl -n apps rollout restart deploy/freemotion-hub
 #
-# The move itself (SQLite: never two hubs on the same data; the agents and the page must switch together):
-#  0. Through fm-orchestrator/freemotion-hub/test/deploy.mjs, changed first to build, import and set the image instead of
-#     `docker compose up`: it runs e2e.mjs and moves the PC agent's release (tmp/fm/hub/agent-release) with the server
-#     code. This image has fm-orchestrator code the live hub (built 2026-11-01) never ran, so it goes through those tests.
-#  1. On the server: sudo k3s kubectl -n apps create secret generic freemotion-hub --from-env-file=$HOME/freemotion-hub/.env
-#  2. The data. server.mjs never closes its database, so a stopped hub leaves hub.db-wal behind, and SQLite would replay
-#     an old -wal into a new hub.db. Never copy hub.db alone, never next to an old -wal:
-#     a. kubectl -n apps scale deploy/freemotion-hub --replicas=0, and wait until the pod is gone;
-#     b. sudo rm /srv/apps/freemotion-hub/hub.db*   (the trial copy and its -wal/-shm);
-#     c. docker stop freemotion; then a one-off container on its volume takes the final copy:
-#        docker run --rm -u node -v freemotion-hub_freemotion-data:/data freemotion-hub:2026-11-10a node -e
-#          "new (require('node:sqlite').DatabaseSync)('/data/hub.db').exec(\"VACUUM INTO '/data/final.db'\")"
-#        then move final.db to /srv/apps/freemotion-hub/hub.db (sudo, from the volume's folder) and remove it from the volume;
-#     d. sudo chown -R 1000:1000 /srv/apps/freemotion-hub; kubectl -n apps scale deploy/freemotion-hub --replicas=1.
-#  3. Agents: add hostPort 8791 to the agent port (they use the server's Tailscale address, 100.111.127.103:8791).
-#  4. Page: an Ingress for freemotion.machaka.net, and in nginx/conf.d/site.conf proxy_pass http://192.168.1.116:80.
-#  5. Back: scale this to 0, docker start freemotion, nginx back to http://freemotion:8790 (the Docker volume is as it was).
+# Settings: Secret freemotion-hub (AGENT_KEYS, CF_TEAM, CF_AUD, ALLOWED_EMAILS), made on the server from the old .env:
+#   sudo k3s kubectl -n apps create secret generic freemotion-hub --from-env-file=$HOME/freemotion-hub/.env
+#
+# Reached by:
+#   the page    freemotion.machaka.net: Cloudflare (Access login) → nginx → Traefik → this Ingress; the app checks the login too
+#   the agents  port 8791 on the server (hostPort), at its Tailscale address 100.111.127.103 (the agents' HUB_URL)
+#
+# Data: /srv/apps/freemotion-hub/hub.db on the server (SQLite; never two hubs on it). The hub never closes its database, so
+# a stopped pod leaves hub.db-wal behind: copy hub.db only together with its -wal, or with VACUUM INTO.
+#
+# Back to Docker: scale this to 0; copy hub.db (VACUUM INTO) into the volume freemotion-hub_freemotion-data with the
+# container stopped, its old hub.db-wal/-shm removed; docker start freemotion; nginx back to http://freemotion:8790.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -32,7 +29,7 @@ metadata:
   labels: { app: freemotion-hub }
 spec:
   replicas: 1
-  strategy: { type: Recreate }  # one SQLite file: never two copies at once
+  strategy: { type: Recreate }  # one SQLite file, and one hostPort: never two copies at once
   selector:
     matchLabels: { app: freemotion-hub }
   template:
@@ -43,13 +40,13 @@ spec:
       securityContext: { runAsUser: 1000, runAsGroup: 1000 }   # the image's user `node`; owns /srv/apps/freemotion-hub
       containers:
         - name: hub
-          image: docker.io/library/freemotion-hub:2026-11-10a
+          image: docker.io/library/freemotion-hub:live
           imagePullPolicy: Never
           envFrom:
-            - secretRef: { name: freemotion-hub, optional: true }
+            - secretRef: { name: freemotion-hub }
           ports:
             - { name: page, containerPort: 8790 }
-            - { name: agent, containerPort: 8791 }
+            - { name: agent, containerPort: 8791, hostPort: 8791 }
           volumeMounts:
             - { name: data, mountPath: /data }
           readinessProbe:
@@ -61,7 +58,7 @@ spec:
             periodSeconds: 30
           resources:
             requests: { cpu: 20m, memory: 96Mi }
-            limits: { memory: 256Mi }   # as in compose.yml
+            limits: { memory: 256Mi }   # as in the old compose.yml
       volumes:
         - name: data
           hostPath: { path: /srv/apps/freemotion-hub, type: Directory }
@@ -75,4 +72,19 @@ spec:
   selector: { app: freemotion-hub }
   ports:
     - { name: page, port: 8790, targetPort: page }
-    - { name: agent, port: 8791, targetPort: agent }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: freemotion-hub
+  namespace: apps
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: freemotion.machaka.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: freemotion-hub, port: { name: page } }
