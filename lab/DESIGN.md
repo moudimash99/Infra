@@ -1,5 +1,7 @@
 # Lab: the homelab's own status site (lab.machaka.net)
 
+> **2026-11-10, later:** the owner wanted each address to be a professional, multi-page website. Each site now has its own sections (tabs on a phone, in the header from 900 px) on one design: `static/lab.css` (tokens, one accent colour per site, light and dark), `templates/base.html`, `templates/_m.html`, `static/icons.svg`, Inter served from `static/fonts`. Box art is fetched once and shrunk by `app/images.py`. Taste Match's matches come from bg-taste-match's `score.py`, run in a child process on a read-only connection (`app/sources/taste.py`).
+>
 > **2026-11-10, after the owner's first look:** the single site was too much for a first view. Now
 > lab.machaka.net is Homepage again (simple tiles, with a Pipelines group fed by `/api/summary/*`), and each job
 > with a real use case has its own address: tastematch., deals. and catcam.machaka.net. GPU, machines, jobs and
