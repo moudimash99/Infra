@@ -8,12 +8,22 @@
 # Its Secret is optional: without it the hub has no agent keys and no allowed logins, so the page answers 401/403.
 #
 # The move itself (SQLite: never two hubs on the same data; the agents and the page must switch together):
+#  0. Through fm-orchestrator/freemotion-hub/test/deploy.mjs, changed first to build, import and set the image instead of
+#     `docker compose up`: it runs e2e.mjs and moves the PC agent's release (tmp/fm/hub/agent-release) with the server
+#     code. This image has fm-orchestrator code the live hub (built 2026-11-01) never ran, so it goes through those tests.
 #  1. On the server: sudo k3s kubectl -n apps create secret generic freemotion-hub --from-env-file=$HOME/freemotion-hub/.env
-#  2. Stop the Docker hub (docker stop freemotion), copy its hub.db again into /srv/apps/freemotion-hub (VACUUM INTO, or
-#     the stopped volume's hub.db after a checkpoint), restart this pod.
+#  2. The data. server.mjs never closes its database, so a stopped hub leaves hub.db-wal behind, and SQLite would replay
+#     an old -wal into a new hub.db. Never copy hub.db alone, never next to an old -wal:
+#     a. kubectl -n apps scale deploy/freemotion-hub --replicas=0, and wait until the pod is gone;
+#     b. sudo rm /srv/apps/freemotion-hub/hub.db*   (the trial copy and its -wal/-shm);
+#     c. docker stop freemotion; then a one-off container on its volume takes the final copy:
+#        docker run --rm -u node -v freemotion-hub_freemotion-data:/data freemotion-hub:2026-11-10a node -e
+#          "new (require('node:sqlite').DatabaseSync)('/data/hub.db').exec(\"VACUUM INTO '/data/final.db'\")"
+#        then move final.db to /srv/apps/freemotion-hub/hub.db (sudo, from the volume's folder) and remove it from the volume;
+#     d. sudo chown -R 1000:1000 /srv/apps/freemotion-hub; kubectl -n apps scale deploy/freemotion-hub --replicas=1.
 #  3. Agents: add hostPort 8791 to the agent port (they use the server's Tailscale address, 100.111.127.103:8791).
 #  4. Page: an Ingress for freemotion.machaka.net, and in nginx/conf.d/site.conf proxy_pass http://192.168.1.116:80.
-#  5. fm-orchestrator/freemotion-hub/test/deploy.mjs: build, import and set the image instead of docker compose up.
+#  5. Back: scale this to 0, docker start freemotion, nginx back to http://freemotion:8790 (the Docker volume is as it was).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
