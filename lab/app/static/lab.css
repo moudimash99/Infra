@@ -183,3 +183,21 @@ details.fold > summary { cursor: pointer; color: var(--ink-2); padding: .5rem 0;
 .quote { color: var(--ink-2); font-style: italic; font-size: .9rem; margin-top: .15rem; }
 .score { font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
 footer.foot { color: var(--muted); font-size: .8rem; margin-top: 2.5rem; }
+
+/* v2: one site per address */
+nav.tabs a:last-child { margin-left: auto; color: var(--muted); }
+.stage-rows.big .stage-row { grid-template-columns: 7.4rem 1fr 3.4rem; font-size: .95rem; }
+.stage-rows.big .meter { height: 10px; }
+.stage-rows.big .n { font-size: 1.05rem; color: var(--ink); }
+.stage-note { color: var(--muted); font-size: .8rem; margin: -.15rem 0 .35rem 7.9rem; }
+@media (max-width: 420px) { .stage-note { margin-left: 0; } }
+.stage-row .n { white-space: nowrap; }
+.card.now { margin-top: .75rem; }
+.card + .card { margin-top: .75rem; }
+.grid > .card + .card { margin-top: 0; }
+.deal .saving { color: var(--good-ink); font-weight: 600; font-size: .92rem; }
+.flash video { margin-top: .4rem; }
+.moments { display: flex; flex-wrap: wrap; gap: .1rem; margin-top: .4rem; }
+.btn.on { box-shadow: 0 0 0 2px var(--s1); font-weight: 600; }
+button.tag.seek { border: 0; cursor: pointer; font: inherit; font-size: .78rem; padding: .25rem .5rem; }
+button.tag.seek:hover { box-shadow: 0 0 0 1px var(--axis); }

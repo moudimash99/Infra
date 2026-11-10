@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% from "_m.html" import chip, unreadable %}
-{% block title %}{{ r.data.video.title if r.data else "Video" }} · Lab{% endblock %}
+{% block title %}{{ r.data.video.title if r.data else "Video" }} · Taste Match{% endblock %}
 {% block main %}
-<p class="small"><a href="/bg-taste-match">← Taste Match</a></p>
+<p class="small"><a href="{{ R }}/">← Pipeline</a></p>
 {{ unreadable(r, "this video") }}
 {% if r.data %}{% set v = r.data.video %}
 <div class="grid two">

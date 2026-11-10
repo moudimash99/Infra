@@ -1,107 +1,90 @@
 {% extends "base.html" %}
 {% from "_m.html" import chip, unreadable, runs_table %}
-{% block title %}Cats · Lab{% endblock %}
+{% block title %}Cat cam{% endblock %}
 {% block main %}
 <h1>Simba and Nala</h1>
-<div class="card" style="margin-bottom:.8rem">
-  <p><b>Feeding time can't be measured right now.</b> The monitor finds the bowls from a tag on the feeder, and the tag is gone; it still counts which cat is in view. Frigate below records everything.</p>
-</div>
 
-{# ---- Live + look back ---- #}
+{# ---- Flash of the day ---- #}
+{% if flash %}
+<div class="card flash">
+  <div class="head"><h3>{{ "Today so far" if flash.day == today else "Flash of " ~ flash.day_label }}</h3>
+    <span class="muted small">{{ flash.moments }} moment{{ "s" if flash.moments != 1 }} · {{ flash.seconds | round | int }} s</span></div>
+  <video controls playsinline preload="metadata" poster="{{ R }}/flash/{{ flash.day }}.jpg" src="{{ R }}/flash/{{ flash.day }}.mp4"></video>
+  {% if flash["items"] %}
+  <div class="moments">
+    {% for it in flash["items"] %}<button type="button" class="tag seek" data-seek="{{ it.seek }}" title="{{ it.what }}">{{ it.at_label }} {{ it.cats | join(" & ") }}</button>{% endfor %}
+  </div>
+  {% endif %}
+  {% if flashes | length > 1 %}
+  <div class="btns">{% for f in flashes[:8] %}<a class="btn{{ ' on' if f.day == flash.day }}" href="{{ R }}/?day={{ f.day }}">{{ f.day_label }}</a>{% endfor %}</div>
+  {% endif %}
+</div>
+{% else %}
+<div class="card"><p><b>Flash of the day:</b> the first one is built tonight. Every evening and after midnight, the
+  cat model looks through the day's recordings and stitches the moments with Simba or Nala into a short video.</p></div>
+{% endif %}
+
+{# ---- Now and earlier ---- #}
 <div class="grid two">
   <div>
-    <h2 style="margin-top:.4rem">Right now</h2>
-    <img class="frame" alt="Living room camera, latest frame" src="/cats/media/latest.jpg?t={{ now_ts }}">
-    <div class="btns"><a class="btn" href="/cats">Refresh</a>
-      <a class="btn" href="/cats/media/clip/{{ now_ts - 70 }}-{{ now_ts - 10 }}.mp4">Last minute as video</a></div>
+    <h2>Right now</h2>
+    <img class="frame" alt="Living room camera, latest frame" src="{{ R }}/media/latest.jpg?t={{ now_ts }}">
+    <div class="btns"><a class="btn" href="{{ R }}/">Refresh</a>
+      <a class="btn" href="{{ R }}/media/clip/{{ now_ts - 70 }}-{{ now_ts - 10 }}.mp4">Last minute as video</a></div>
   </div>
   <div>
-    <h2 style="margin-top:.4rem">{% if look %}Around {{ look | clock }}{% else %}The last 8 hours, one frame an hour{% endif %}</h2>
-    <form class="search" action="/cats">
-      <input type="datetime-local" name="at" value="{{ at }}" aria-label="Look at a moment">
-      <button class="btn">Look</button>
-    </form>
+    <h2>{% if look %}Around {{ look | clock }}{% else %}Earlier today, one frame an hour{% endif %}</h2>
     <div class="shots">
       {% for f in frames %}
-      <a class="shot" href="/cats/media/clip/{{ f }}-{{ f + 60 }}.mp4" title="Play one minute from here">
-        <img loading="lazy" alt="Frame at {{ f | clock }}" src="/cats/media/frame/{{ f }}.jpg">
+      <a class="shot" href="{{ R }}/media/clip/{{ f }}-{{ f + 60 }}.mp4" title="Play one minute from here">
+        <img loading="lazy" alt="Frame at {{ f | clock }}" src="{{ R }}/media/frame/{{ f }}.jpg">
         <div class="cap">{{ f | clock }} ▸</div></a>
       {% endfor %}
     </div>
-    <p class="small muted">Tap a frame to play one minute from it. Frigate keeps 14 days.</p>
+    <form class="search" action="{{ R }}/" style="margin-top:.6rem">
+      <input type="datetime-local" name="at" value="{{ at }}" aria-label="Look at a moment">
+      <button class="btn">Look</button>
+    </form>
+    <p class="small muted">Tap a frame to play a minute from it. The camera keeps 14 days.</p>
   </div>
-</div>
-
-{# ---- Frigate visits ---- #}
-<h2>Seen by Frigate</h2>
-{{ unreadable(events, "Frigate's events") }}
-{% if events.data is not none %}
-{% set evs = events.data %}
-<div class="grid two">
-  <div class="card">
-    <h3>Visits per day</h3>
-    {{ charts.columns(day_points, title="Cat visits per day, last 14 days") }}
-    <p class="small muted">{{ evs | length }} visits in 14 days{% if evs %}, the last {{ evs[0].start | ago }}{% endif %}. Frigate's general detector misses most of them: use the frames above to check.</p>
-  </div>
-  <div class="card">
-    <h3>Time of day</h3>
-    {{ charts.columns(hour_points, title="Cat visits by hour of day, last 14 days", slot=2) }}
-    <p class="small muted">When the visits happened, local time.</p>
-  </div>
-</div>
-{% if evs %}
-<div class="shots" style="margin-top:.7rem">
-  {% for e in evs[:16] %}
-  <a class="shot" href="/cats/media/event/{{ e.id }}/clip.mp4">
-    <img loading="lazy" alt="Cat at {{ e.start | clock }}" src="/cats/media/event/{{ e.id }}/thumbnail.jpg">
-    <div class="cap">{{ e.start | ago }} · {{ ((e.end or e.start) - e.start) | span }}{% if e.zones %} · {{ e.zones | join(", ") | replace("_", " ") }}{% endif %} ▸</div></a>
-  {% endfor %}
-</div>
-{% endif %}
-{% endif %}
-
-{# ---- Monitor runs ---- #}
-<h2>Feeding monitor</h2>
-<p class="small muted">{% if cron %}{% if cron.suspended %}Paused.{% else %}Runs daily at 03:16 on the hour before.{% endif %}{% endif %} It looks for each cat (its own model, Simba and Nala) on Frigate's recordings, on the GPU.</p>
-{{ unreadable(monitor, "the monitor's reports") }}
-<div class="grid two">
-{% for r in (monitor.data or [])[:6] %}
-  {% set mid = ((r.start + r.end) / 2) | int if r.start and r.end else none %}
-  <div class="card">
-    <div class="head"><h3>{{ r.start | clock }} to {{ r.end | clock }}</h3>
-      {% if r.suspicious %}{{ chip("warning", "Check") }}{% endif %}</div>
-    <dl class="kv">
-      {% for cat in ["Simba", "Nala"] %}
-      <dt>{{ cat }} in view</dt><dd>{{ (r.presence.get(cat) or 0) | span }}</dd>
-      {% endfor %}
-      <dt>Feeding</dt><dd>{% if r.feeding.values() | sum > 0 %}{% for c, s in r.feeding.items() %}{{ c }} {{ s | span }}{{ ", " if not loop.last }}{% endfor %}{% else %}not measured{% endif %}</dd>
-    </dl>
-    {% if r.suspicious %}<p class="note"><span aria-hidden="true">ⓘ</span>{{ r.suspicious | join(" and ") }} in view the whole window: often a false detection or a cat asleep in front of the camera. Look at the frame.</p>{% endif %}
-    {% if mid and now_ts - mid < 14 * 86400 %}
-      <a class="shot" href="/cats/media/clip/{{ mid }}-{{ mid + 60 }}.mp4" style="display:block;margin-top:.5rem">
-        <img loading="lazy" alt="Frame from the middle of the window" src="/cats/media/frame/{{ mid }}.jpg">
-        <div class="cap">The middle of the window, {{ mid | clock }} ▸</div></a>
-    {% endif %}
-  </div>
-{% else %}<p class="muted">No monitor run yet.</p>{% endfor %}
 </div>
 
 {# ---- Weight ---- #}
-<h2>Weight</h2>
-{{ unreadable(weights, "the cat weight tracker") }}
 {% if weights.data %}
-<div class="grid two">
-  <div class="card">
-    {% for cat, pts in weights.data | dictsort %}
-    <div class="head"><h3>{{ cat }}</h3><span class="num"><b>{{ "%.2f" | format(pts[-1][1]) }} kg</b>{% if pts | length > 1 %} <span class="muted small">({{ "%+.2f" | format(pts[-1][1] - pts[-2][1]) }} since the weigh-in before)</span>{% endif %}</span></div>
-    {% endfor %}
-    {% set latest = weights.data.values() | map("last") | map("first") | max %}
-    <p class="small muted">Last weigh-in {{ latest | ago }} ({{ ((now_ts - latest) / 86400) | int }} days). Add one at <a href="https://cat.machaka.net">cat.machaka.net</a>.</p>
-  </div>
-  <div class="card">{{ weight_chart }}</div>
+<h2>Weight</h2>
+<div class="card">
+  {% for cat, pts in weights.data | dictsort %}
+  <div class="head"><b>{{ cat }}</b><span class="num"><b>{{ "%.2f" | format(pts[-1][1]) }} kg</b>{% if pts | length > 1 %} <span class="muted small">{{ "%+.2f" | format(pts[-1][1] - pts[-2][1]) }}</span>{% endif %}</span></div>
+  {% endfor %}
+  {{ weight_chart }}
+  {% set latest = weights.data.values() | map("last") | map("first") | max %}
+  <p class="small muted">Last weigh-in {{ latest | ago }}. Add one at <a href="https://cat.machaka.net">cat.machaka.net</a>.</p>
 </div>
 {% endif %}
+{{ unreadable(weights, "the weight tracker") }}
 
-<h2>Monitor runs, last 30 days</h2>
-<div class="card">{{ runs_table(runs) }}</div>
+{# ---- The machinery, folded ---- #}
+<h2>Behind the scenes</h2>
+<details class="fold"><summary>Feeding monitor runs</summary>
+  <p class="small muted">Without the bowl tag it can't measure feeding; it counts which cat is in view.{% if cron.get("cat-monitor") and cron["cat-monitor"].suspended %} Paused.{% endif %}</p>
+  {{ unreadable(monitor, "the monitor's reports") }}
+  <div class="card"><ul class="rows">
+  {% for r in (monitor.data or [])[:6] %}
+    <li><span class="grow">{{ r.start | clock }} to {{ r.end | clock }}
+      <div class="sub">{% for cat in ["Simba", "Nala"] %}{{ cat }} {{ (r.presence.get(cat) or 0) | span }}{{ " · " if not loop.last }}{% endfor %}</div></span>
+      {% if r.suspicious %}{{ chip("warning", "In view all along") }}{% endif %}</li>
+  {% endfor %}
+  </ul></div>
+</details>
+<details class="fold"><summary>Frigate's own cat detections{% if events.data is not none %} ({{ events.data | length }} in 14 days){% endif %}</summary>
+  <p class="small muted">Frigate's general detector mistakes chairs for cats and misses most real visits; the flash uses the cats' own model instead.</p>
+  {% if events.data %}
+  <div class="shots">
+    {% for e in events.data[:8] %}
+    <a class="shot" href="{{ R }}/media/event/{{ e.id }}/clip.mp4"><img loading="lazy" alt="" src="{{ R }}/media/event/{{ e.id }}/thumbnail.jpg"><div class="cap">{{ e.start | ago }} ▸</div></a>
+    {% endfor %}
+  </div>
+  {% endif %}
+</details>
+<details class="fold"><summary>Job runs</summary><div class="card">{{ runs_table(runs | sort(attribute="start", reverse=True), 12) }}</div></details>
 {% endblock %}

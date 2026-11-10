@@ -2,9 +2,9 @@
 {% from "_m.html" import unreadable %}
 {% set COND = {"neuf_cello": "New, sealed", "juste_deballe": "Opened, unplayed", "etat_excellent": "Excellent",
                "tres_bon_etat": "Very good", "bon_etat": "Good", "etat_moyen": "Fair", "mauvais_etat": "Poor"} %}
-{% block title %}{{ r.data.name if r.data else "Game" }} · Deals · Lab{% endblock %}
+{% block title %}{{ r.data.name if r.data else "Game" }} · Deals{% endblock %}
 {% block main %}
-<p class="small"><a href="/deals">← Deals</a></p>
+<p class="small"><a href="{{ R }}/">← Deals</a></p>
 {{ unreadable(r, "this game") }}
 {% if r.data %}{% set g = r.data %}
 <div class="deal" style="grid-template-columns:96px 1fr">

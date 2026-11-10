@@ -67,3 +67,58 @@ spec:
               emptyDir: { medium: Memory, sizeLimit: 512Mi }
             - name: gpu-lock
               hostPath: { path: /srv/apps/gpu-lock, type: DirectoryOrCreate }
+---
+# Flash of the day (catcam.machaka.net): the cats' model looks at a few hundred frames of the day's recordings and
+# daily_flash.py stitches the moments with Simba or Nala into a short captioned video in /srv/apps/cat-monitor/flash.
+# 19:20 builds today so far, 00:20 the whole of yesterday. CPU only (a few hundred frames), so it doesn't wait for or
+# heat the GPU. Code from the same hostPath as the monitor (copied from the Cat-Camera repo).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cat-flash
+  namespace: apps
+  labels: { app: cat-monitor }
+spec:
+  schedule: "20 0,19 * * *"
+  timeZone: Europe/Paris
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels: { app: cat-monitor, stage: flash }
+        spec:
+          restartPolicy: Never
+          nodeSelector: { kubernetes.io/hostname: acer-laptop }
+          tolerations:
+            - { key: dedicated, value: worker, effect: NoSchedule }
+          containers:
+            - name: flash
+              image: docker.io/library/cat-monitor:2026-11-10a
+              imagePullPolicy: Never
+              command: ["python", "daily_flash.py", "--auto"]
+              workingDir: /app/code
+              env:
+                - { name: FLASH_DIR, value: /data/flash }
+                - { name: FRIGATE_RECORDINGS, value: /recordings }
+                - { name: FRIGATE_URL, value: "http://192.168.1.93:5000" }
+                - { name: YOLO_CONFIG_DIR, value: /tmp }
+                - { name: OMP_NUM_THREADS, value: "3" }    # leave a thread for Frigate
+              volumeMounts:
+                - { name: data, mountPath: /data }
+                - { name: code, mountPath: /app/code, readOnly: true }
+                - { name: recordings, mountPath: /recordings, readOnly: true }
+              resources:
+                requests: { cpu: 500m, memory: 1Gi }
+                limits: { memory: 2560Mi }
+          volumes:
+            - name: data
+              hostPath: { path: /srv/apps/cat-monitor, type: DirectoryOrCreate }
+            - name: recordings
+              hostPath: { path: /var/lib/frigate/media/recordings, type: Directory }
+            - name: code
+              hostPath: { path: /srv/apps/cat-monitor/code, type: Directory }

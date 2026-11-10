@@ -104,3 +104,13 @@
     }, 60000);
   }
 })();
+
+// Flash of the day: tap a moment to jump the video to it.
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("button.seek");
+  if (!b) return;
+  const v = b.closest(".flash") && b.closest(".flash").querySelector("video");
+  if (!v) return;
+  v.currentTime = parseFloat(b.dataset.seek) + 0.05;
+  v.play();
+});

@@ -141,7 +141,8 @@ Never `docker compose up` an app that runs in the cluster: two copies would writ
 | Portainer | portainer.machaka.net | `admin` | Containers and pods: the cluster (`homelab`) and Docker on the server (`server-docker`, through `~/portainer-agent` on the server) |
 | Beszel | beszel.machaka.net | owner's email | CPU, memory, disk, network and Docker containers per machine, with history. One agent per node |
 | Uptime Kuma | status.machaka.net | `admin` | Checks each site and tool every minute; its status page `homelab` feeds the home page |
-| Lab | lab.machaka.net | (Cloudflare only) | The homelab's status site: what needs you, each job's own page (bg-taste-match's pipeline, today's deals, the cats with Frigate frames and clips, the GPU, the PC's jobs), machines and sites (`lab/`, `k8s/tools/lab.yaml`; design in `lab/DESIGN.md`). Homepage still runs without an Ingress |
+| Home page | lab.machaka.net | (Cloudflare only) | Homepage (`k8s/tools/homepage.yaml`): every site and tool with live numbers; its Pipelines tiles read the lab's `/api/summary/*` |
+| Taste Match, Deals, Cat cam | tastematch., deals., catcam.machaka.net | (Cloudflare only) | One page per job, built for what it's for (`lab/`, `k8s/tools/lab.yaml`): the review pipeline by channel; the best Okkazeo deals now, new cheap listings and bundles to judge; the cats' flash of the day (CronJob `cat-flash`), camera and weights. Each checks the Access token itself, so a name answers 403 until it is in the Access application |
 | Alertmanager | `kubectl -n tools port-forward svc/alertmanager 9093:9093` | none | Emails Prometheus's alerts (`k8s/tools/alertmanager.yaml`); silence an alert in its page |
 
 **Alerts** go by email to the owner's Gmail (the `to` key of the Secret below), sent through Gmail SMTP with the same Gmail sender

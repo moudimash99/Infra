@@ -1,6 +1,4 @@
-# Homepage: one page with every site and tool, each with its live numbers. Since 2026-11-10 lab.machaka.net is the
-# lab (lab.yaml) and Homepage has no Ingress (removed at the end of this file); it still runs:
-#   kubectl -n tools port-forward svc/homepage 3000:80   -> http://localhost:3000
+# lab.machaka.net: one page with every site and tool, each with its live numbers (Homepage).
 # Its Portainer API key is in the Secret homepage-env (HOMEPAGE_VAR_PORTAINER_KEY). The Uptime Kuma widget
 # reads Kuma's status page "homelab". Beszel's and Grafana's widgets would need admin logins (a Beszel
 # superuser, a Grafana server admin), so those two tiles only check that the tool answers.
@@ -57,6 +55,7 @@ data:
     statusStyle: dot
     hideVersion: true
     layout:
+      Pipelines: { style: row, columns: 3 }
       Sites: { style: row, columns: 3 }
       Tools: { style: row, columns: 3 }
       Monitoring: { style: row, columns: 3 }
@@ -69,6 +68,46 @@ data:
         text_size: md
         format: { dateStyle: long, timeStyle: short, hour12: false }
   services.yaml: |
+    - Pipelines:
+        - Taste Match:
+            href: https://tastematch.machaka.net
+            description: Reviews from YouTube to each host's scores
+            icon: mdi-youtube
+            widget:
+              type: customapi
+              url: http://lab.tools.svc/api/summary/tastematch
+              refreshInterval: 60000
+              display: list
+              mappings:
+                - { field: now, label: Now }
+                - { field: downloaded, label: Downloaded }
+                - { field: transcribed, label: Transcribed }
+                - { field: rated, label: Rated }
+        - Deals:
+            href: https://deals.machaka.net
+            description: Okkazeo, checked every morning
+            icon: mdi-tag-heart
+            widget:
+              type: customapi
+              url: http://lab.tools.svc/api/summary/deals
+              refreshInterval: 300000
+              display: list
+              mappings:
+                - { field: best, label: Best now }
+                - { field: new, label: New and cheap }
+                - { field: bundles, label: Bundles to judge }
+        - Cat cam:
+            href: https://catcam.machaka.net
+            description: Flash of the day, camera, weights
+            icon: mdi-cat
+            widget:
+              type: customapi
+              url: http://lab.tools.svc/api/summary/catcam
+              refreshInterval: 300000
+              display: list
+              mappings:
+                - { field: flash, label: Flash }
+                - { field: weighed, label: Last weigh-in }
     - Sites:
         - Website:
             href: https://machaka.net
@@ -255,5 +294,19 @@ spec:
   selector: { app: homepage }
   ports:
     - { name: http, port: 80, targetPort: http }
-# No Ingress: lab.machaka.net goes to the lab (lab.yaml). To bring Homepage back there, restore the Ingress from
-# git history and remove the lab's.
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: homepage
+  namespace: tools
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: lab.machaka.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: homepage, port: { name: http } }

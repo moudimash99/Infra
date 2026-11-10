@@ -29,7 +29,7 @@ spec:
             - { key: dedicated, value: worker, effect: NoSchedule }
           containers:
             - name: pipeline
-              image: docker.io/library/boardgamefinder:2026-11-10a
+              image: docker.io/library/boardgamefinder:2026-11-10b
               imagePullPolicy: Never
               envFrom:
                 - secretRef: { name: boardgamefinder }

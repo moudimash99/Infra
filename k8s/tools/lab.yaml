@@ -1,11 +1,13 @@
-# lab.machaka.net: the homelab's own status site (code in lab/, design in lab/DESIGN.md). Behind Cloudflare Access.
-# For each job it shows what the job is for: bg-taste-match's pipeline, today's board game deals, the cats (frames and
-# clips from Frigate), the GPU, the PC's jobs; and "Needs you" from Alertmanager on the front page.
-# It runs on the Acer because it reads the jobs' folders there (read-only). Its own memory (job runs, log summaries,
-# daily progress, clip cache) is /srv/apps/lab.
-# The PC posts its jobs' status to port 8081 (NodePort 30881, home network only, never in the Ingress), with the token
-# in Secret lab-intake (key token); the PC keeps the same token in %USERPROFILE%\.lab-token.
-# Homepage (homepage.yaml) still runs; to go back, point the Ingress below at service homepage.
+# The lab: three small sites served by one process (code in lab/; see lab/app/main.py):
+#   tastematch.machaka.net  the review pipeline       deals.machaka.net  BoardGameFinder's deals
+#   catcam.machaka.net      the cats: flash of the day, camera, weights
+# lab.machaka.net itself is Homepage (homepage.yaml); its tiles read /api/summary/* here, inside the cluster.
+# Each site checks the Cloudflare Access token itself (ACCESS_TEAM, ACCESS_AUD below), so a name answers nothing
+# until it is in the Access application, and the home network can't skip the login through Traefik.
+# Runs on the Acer: it reads the jobs' folders there (read-only); its own data (job runs, log summaries, daily
+# progress, clip cache) is /srv/apps/lab.
+# The PC posts its jobs' status to port 8081 (NodePort 30881, home network only), token in Secret lab-intake;
+# Prometheus reads them back from 8081/metrics for Grafana's PC dashboard.
 # Build: sh lab/build.sh TAG, then set the image tag below and apply.
 apiVersion: v1
 kind: ServiceAccount
@@ -71,6 +73,7 @@ spec:
   template:
     metadata:
       labels: { app: lab }
+      annotations: { prometheus.io/scrape: "true", prometheus.io/port: "8081", prometheus.io/path: /metrics }
     spec:
       serviceAccountName: lab
       nodeSelector: { kubernetes.io/hostname: acer-laptop }
@@ -79,13 +82,16 @@ spec:
       securityContext: { runAsUser: 10001, runAsGroup: 10001, runAsNonRoot: true }
       containers:
         - name: lab
-          image: docker.io/library/lab:2026-11-10c
+          image: docker.io/library/lab:2026-11-10e
           imagePullPolicy: Never
           ports:
             - { name: http, containerPort: 8080 }
             - { name: intake, containerPort: 8081 }
           env:
             - { name: LAB_DB, value: /srv/lab/lab.db }
+            - { name: ACCESS_TEAM, value: hannibalproto.cloudflareaccess.com }
+            # The homelab's self-hosted Access application (the kid in its login redirect); comma-separate more.
+            - { name: ACCESS_AUD, value: "8209dd48ce99a02ac8c20f6195860c5dae30315d4361346cfcc8a8f0e56b2e9e" }
             - name: INTAKE_TOKEN
               # Without the Secret the intake refuses every report (401); the pages work either way.
               valueFrom: { secretKeyRef: { name: lab-intake, key: token, optional: true } }
@@ -154,7 +160,21 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-    - host: lab.machaka.net
+    - host: tastematch.machaka.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: lab, port: { name: http } }
+    - host: deals.machaka.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: lab, port: { name: http } }
+    - host: catcam.machaka.net
       http:
         paths:
           - path: /

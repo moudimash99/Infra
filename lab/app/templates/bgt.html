@@ -1,61 +1,65 @@
 {% extends "base.html" %}
 {% from "_m.html" import chip, unreadable, runs_table %}
-{% block title %}Taste Match · Lab{% endblock %}
+{% block title %}Taste Match{% endblock %}
+{% macro pct(n, d) %}{{ ((100 * n / d) if d else 0) | round | int }}%{% endmacro %}
 {% block main %}
-<h1>BG Taste Match</h1>
-<form class="search" action="/bg-taste-match/search"><input name="q" placeholder="Find a video or a game" aria-label="Search videos and games"><button class="btn">Search</button></form>
+<h1>Taste Match pipeline</h1>
+<p class="muted small">Board game reviews from YouTube → audio → text → who said what → each host's score per game.</p>
+
+{# ---- The round in one glance ---- #}
+{{ unreadable(prog, "the pipeline database") }}
+{% if prog.data %}{% set t = prog.data.totals %}{% set sp = prog.data.speed %}
+<div class="card">
+  <div class="head"><h3>{{ "{:,}".format(t.videos) }} review videos from {{ prog.data.channels | length }} channels</h3></div>
+  <div class="stage-rows big">
+    {% for key, label, note in [("audio", "Downloaded", "{:,} left · {} in the last 24 h".format(t.to_download, sp.downloads_24h)),
+                                ("text", "Transcribed", "{} h of audio left{}".format(t.hours_to_transcribe | round | int, (" · ≈ {} h on the GPU".format((t.hours_to_transcribe / whisper_speed) | round | int)) if whisper_speed else "")),
+                                ("speakers", "Speakers found", ""),
+                                ("rated", "Rated", "{:,} waiting for the rating stage".format(problems.data.waiting_rating) if problems.data else "")] %}
+    <div class="stage-row"><span>{{ label }}</span>{{ charts.meter(t[key], t.videos, label=label) }}<span class="n"><b>{{ pct(t[key], t.videos) }}</b></span></div>
+    {% if note %}<div class="stage-note">{{ "{:,}".format(t[key]) }} of {{ "{:,}".format(t.videos) }} · {{ note }}</div>{% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
 
 {# ---- Now ---- #}
-<h2>Now</h2>
 {{ unreadable(pipe, "the jobs") }}
 {% if pipe.data %}
   {% set running = pipe.data.runs | selectattr("state", "equalto", "running") | list %}
-  <div class="grid two">
-  {% for r in running %}
-    {% set st = r.log.now %}
-    <div class="card">
-      <div class="head"><h3>{{ r.label }}</h3>{{ chip("running") }}</div>
-      <div class="status">{% if st %}{{ st.label }}{% else %}Starting{% endif %} · pass started {{ r.start | ago }}</div>
-      {% if st and st.pos %}
-        {{ charts.meter(st.pos[0], st.pos[1], label=st.label) }}
-        <p class="small muted">{{ st.pos[0] }} of {{ st.pos[1] }} in this channel's list{% if st.fail %} · {{ st.fail }} failed{% endif %}</p>
-        {% if st.last %}<p class="small" style="overflow-wrap:anywhere">{{ st.last }}</p>{% endif %}
-      {% endif %}
+  {% for r in running %}{% set st = r.log.now %}
+  <div class="card now">
+    <div class="head"><h3>{% if st %}{{ st.label }}{% else %}{{ r.label }}: starting{% endif %}</h3>{{ chip("running", "Now") }}</div>
+    {% if st and st.pos %}
+      {{ charts.meter(st.pos[0], st.pos[1], label=st.label) }}
+      <p class="small muted">{{ st.pos[0] }} of {{ st.pos[1] }} ({{ pct(st.pos[0], st.pos[1]) }}){% if st.fail %} · {{ st.fail }} failed{% endif %} · pass started {{ r.start | ago }}</p>
+    {% endif %}
+    <details class="fold"><summary>Details</summary>
       {% set before = r.log.stages[:-1] %}
-      {% if before %}
-      <details class="fold"><summary>Done in this pass: {{ before | length }} channel{{ "s" if before | length > 1 }}, {{ "{:,}".format(before | sum(attribute="ok")) }} ok{% if before | sum(attribute="fail") %}, {{ before | sum(attribute="fail") }} failed{% endif %}</summary>
-        <ul class="rows">{% for s in before %}<li><span class="grow small">{{ s.label }}</span><span class="right small muted">{{ s.ok }} ok{% if s.fail %}, {{ s.fail }} failed{% endif %}</span></li>{% endfor %}</ul>
-      </details>
-      {% endif %}
-      <details class="fold"><summary>Last log lines</summary><pre>{{ r.log_tail }}</pre></details>
-    </div>
-  {% else %}
-    <div class="card"><p>No pass running right now.</p>
-      <p class="small muted">Downloads start at :05 every 2 hours, Whisper and speakers at :15 every hour, rating at :45.</p></div>
-  {% endfor %}
+      {% if before %}<p class="small">Earlier in this pass: {{ before | length }} channels, {{ "{:,}".format(before | sum(attribute="ok")) }} new{% if before | sum(attribute="fail") %}, {{ before | sum(attribute="fail") }} failed{% endif %}.</p>{% endif %}
+      <pre>{{ r.log_tail }}</pre>
+    </details>
   </div>
+  {% else %}
+  <p class="muted small">Nothing running right now. Downloads start at :05 every 2 hours, Whisper at :15 every hour, rating at :45.</p>
+  {% endfor %}
   <div class="btns">
     {% for name, label in [("bg-taste-match-fetch", "Downloads"), ("bg-taste-match-gpu", "Whisper + speakers"), ("bg-taste-match-llm", "Rating")] %}
       {% set c = pipe.data.cron[name] %}
-      {% if c %}<span class="chip {{ 'paused' if c.suspended else 'ok' }}">{{ label }}: {{ "paused" if c.suspended else "scheduled" }}{% if not c.suspended and c.last_schedule %}, last {{ c.last_schedule | ago }}{% endif %}</span>{% endif %}
+      {% if c %}<span class="chip {{ 'paused' if c.suspended else 'ok' }}">{{ label }} {{ "paused" if c.suspended else "on" }}</span>{% endif %}
     {% endfor %}
   </div>
   {% if pipe.data.youtube_blocked %}<p class="err">YouTube refused the last download pass (5 refusals in a row). It tries again every 2 hours.</p>{% endif %}
 {% endif %}
 
-{# ---- Totals ---- #}
-<h2>Round progress</h2>
-{{ unreadable(prog, "the pipeline database") }}
-{% if prog.data %}
-{% set t = prog.data.totals %}{% set sp = prog.data.speed %}
-<div class="stats">
-  <div class="stat"><div class="l">Videos in scope</div><div class="v">{{ "{:,}".format(t.videos) }}</div><div class="s">{{ t.hours | round | int }} h of video{% if t.unavailable %} · {{ t.unavailable }} unavailable{% endif %}</div></div>
-  <div class="stat"><div class="l">Still to download</div><div class="v">{{ "{:,}".format(t.to_download) }}</div><div class="s">{{ t.hours_to_download | round | int }} h · {{ sp.downloads_24h }} in the last 24 h</div></div>
-  <div class="stat"><div class="l">Whisper still to do</div><div class="v">{{ t.hours_to_transcribe | round | int }} h</div>
-    <div class="s">{% if whisper_speed %}≈ {{ (t.hours_to_transcribe / whisper_speed) | round | int }} h of GPU at {{ whisper_speed | round(1) }}× real time{% else %}{{ sp.transcribed_24h }} done in 24 h{% endif %}</div></div>
-  <div class="stat"><div class="l">Rated</div><div class="v">{{ "{:,}".format(t.rated) }}</div><div class="s">{{ charts.meter(t.rated, t.videos, label="Rated") }}{{ ((100 * t.rated / t.videos) if t.videos else 0) | round | int }}% · {{ "{:,}".format(t.voices) }} with voices</div></div>
+<div class="btns">
+  {% if has_results %}<a class="btn" href="{{ R }}/results">Results so far</a>{% endif %}
+  <a class="btn" href="{{ R }}/census">Channel census</a>
 </div>
+<form class="search" action="{{ R }}/search"><input name="q" placeholder="Find a video or a game" aria-label="Search videos and games"><button class="btn">Search</button></form>
 
+{# ---- Channels ---- #}
+{% if prog.data %}
 {% set order = (pipe.data.cron["bg-taste-match-fetch"].env.CHANNELS.split() if pipe.data and pipe.data.cron["bg-taste-match-fetch"] else []) %}
 {% set chans = prog.data.channels %}
 {% set listed = order + (chans.keys() | reject("in", order) | list) %}
@@ -65,89 +69,60 @@
   {% elif chans[k].started %}{% set _ = active.append(chans[k]) %}
   {% else %}{% set _ = waiting.append(chans[k]) %}{% endif %}
 {% endfor %}
-
-<h2>Channels in progress</h2>
-<div class="grid two">
+<h2>Channels ({{ active | length }} in progress)</h2>
+<div class="card"><ul class="rows">
 {% for c in active %}
-  <div class="card">
-    <div class="head"><h3>{{ c.name }}</h3><span class="muted small">{{ c.videos }} videos · {{ c.hours | round | int }} h</span></div>
+  <li style="display:block">
+    <div class="head"><b>{{ c.name }}</b><span class="muted small">{{ c.videos }} videos · {{ c.hours | round | int }} h</span></div>
     <div class="stage-rows">
-      {% for key, label in STAGES %}
-      <div class="stage-row"><span>{{ label }}</span>{{ charts.meter(c[key], c.videos, label=label) }}<span class="n">{{ c[key] }} / {{ c.videos }}</span></div>
+      {% for key, label in STAGES[:4] %}
+      <div class="stage-row"><span>{{ "Downloaded" if key == "audio" else label }}</span>{{ charts.meter(c[key], c.videos, label=label ~ ": " ~ c[key] ~ " of " ~ c.videos) }}<span class="n">{{ pct(c[key], c.videos) }}</span></div>
       {% endfor %}
     </div>
-    {% if c.unavailable %}<p class="small muted">{{ c.unavailable }} more videos are unavailable on YouTube.</p>{% endif %}
-  </div>
-{% else %}<p class="muted">No channel in progress.</p>{% endfor %}
-</div>
+  </li>
+{% else %}<li class="muted">No channel in progress.</li>{% endfor %}
+</ul></div>
 {% if waiting %}
-<details class="fold"><summary>{{ waiting | length }} channels not started yet</summary>
+<details class="fold"><summary>{{ waiting | length }} channels not started</summary>
   <div class="card"><ul class="rows">{% for c in waiting %}<li><span class="grow">{{ c.name }}</span><span class="right small muted">{{ c.videos }} videos · {{ c.hours | round | int }} h</span></li>{% endfor %}</ul></div>
 </details>{% endif %}
 {% if finished %}
 <details class="fold"><summary>{{ finished | length }} channels finished</summary>
-  <div class="card"><ul class="rows">{% for c in finished %}<li><span class="grow">{{ c.name }}</span><span class="right small muted">{{ c.videos }} videos rated with voices</span></li>{% endfor %}</ul></div>
+  <div class="card"><ul class="rows">{% for c in finished %}<li><span class="grow">{{ c.name }}</span><span class="right small muted">{{ c.videos }} videos</span></li>{% endfor %}</ul></div>
 </details>{% endif %}
 {% endif %}
 
-{# ---- Over time ---- #}
 {% if progress_chart %}
-<h2>Progress over time</h2>
-<div class="card">
-  {{ progress_chart }}
-  <p class="small muted">Videos that reached each stage, one point per day (the lab records it from its first day).</p>
-</div>
+<h2>Over time</h2>
+<div class="card">{{ progress_chart }}<p class="small muted">Videos that reached each stage, one point per day.</p></div>
 {% endif %}
 
-{# ---- Problems ---- #}
+{# ---- Problems and activity, folded ---- #}
 <h2>Problems</h2>
-<div class="grid two">
-  <div class="card">
-    <h3>Failures in recent passes</h3>
-    {% if fails %}
-      <ul class="rows">{% for f in fails[:15] %}<li><span class="grow small" style="overflow-wrap:anywhere">{{ f.line }}<div class="sub">{{ f.run }} · {{ f.at | ago }}</div></span></li>{% endfor %}</ul>
-    {% else %}<p class="muted">No failed downloads or transcriptions in the last 7 days.</p>{% endif %}
-  </div>
-  <div class="card">
-    <h3>Waiting</h3>
-    {% if problems.data %}
-    <dl class="kv">
-      <dt>Text ready, not rated</dt><dd>{{ "{:,}".format(problems.data.waiting_rating) }} videos</dd>
-      <dt>Game names with no BGG match</dt><dd>{{ problems.data.n_unmatched }}</dd>
-    </dl>
-    <p class="small muted">Rating needs fm-llm on the server; the rating job checks every hour and does nothing until it answers.</p>
-    {% if problems.data.unmatched %}
-    <details class="fold"><summary>Unmatched names</summary>
-      <ul class="rows">{% for g in problems.data.unmatched %}<li><span class="grow">{{ g.name }}</span><span class="right small muted">{{ g.ratings }} ratings · {{ g.method or "-" }}</span></li>{% endfor %}</ul>
-    </details>{% endif %}
-    {% endif %}{{ unreadable(problems, "problems") }}
-  </div>
+<div class="card">
+  {% if fails %}
+    <p><b>{{ fails | length }} failures in the last 7 days</b></p>
+    <ul class="rows">{% for f in fails[:8] %}<li><span class="grow small" style="overflow-wrap:anywhere">{{ f.line }}<div class="sub">{{ f.at | ago }}</div></span></li>{% endfor %}</ul>
+  {% else %}<p class="muted">No failed downloads or transcriptions in the last 7 days.</p>{% endif %}
+  {% if problems.data and problems.data.n_unmatched %}
+  <details class="fold"><summary>{{ problems.data.n_unmatched }} game names with no BGG match</summary>
+    <ul class="rows">{% for g in problems.data.unmatched %}<li><span class="grow">{{ g.name }}</span><span class="right small muted">{{ g.ratings }} ratings</span></li>{% endfor %}</ul>
+  </details>{% endif %}
 </div>
 
-{# ---- Activity ---- #}
-<h2>Recent activity</h2>
-{{ unreadable(activity, "activity") }}
-{% macro activity_rows(items) %}
-{% for e in items %}
+{% set acts = activity.data or [] %}
+{% if acts %}
+<details class="fold"><summary>Recent activity</summary>
+<div class="card"><ul class="rows">
+{% for e in acts[:20] %}
   <li><img class="thumb wide" loading="lazy" alt="" src="https://i.ytimg.com/vi/{{ e.id }}/mqdefault.jpg">
-    <span class="grow"><a class="t" style="display:block" href="/bg-taste-match/v/{{ e.id }}">{{ e.title }}</a>
+    <span class="grow"><a class="t" style="display:block" href="{{ R }}/v/{{ e.id }}">{{ e.title }}</a>
       <span class="sub">{{ e.what }} · {{ e.channel }}{% if e.duration %} · {{ e.duration | span }}{% endif %}</span></span>
     <span class="right small muted">{{ e.at | ago }}</span></li>
 {% endfor %}
-{% endmacro %}
-{% set acts = activity.data or [] %}
-<div class="card"><ul class="rows">{{ activity_rows(acts[:8]) }}</ul>
-{% if acts | length > 8 %}<details class="fold"><summary>{{ acts | length - 8 }} more</summary><ul class="rows">{{ activity_rows(acts[8:]) }}</ul></details>{% endif %}
-</div>
+</ul></div>
+</details>
+{% endif %}
 
-{# ---- Results + runs ---- #}
-<h2>Results</h2>
-<div class="btns">
-  {% if has_results %}<a class="btn" href="/bg-taste-match/results">Latest results page</a>{% endif %}
-  <a class="btn" href="/bg-taste-match/census">Channel census</a>
-</div>
-<p class="small muted">The results page is rebuilt when a channel is finished (build_results.py).</p>
-
-<h2>Runs, last 7 days</h2>
-<div class="card">{{ runs_table(runs, 15) }}</div>
+<details class="fold"><summary>Runs, last 7 days</summary><div class="card">{{ runs_table(runs, 15) }}</div></details>
 {% endblock %}

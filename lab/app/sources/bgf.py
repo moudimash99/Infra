@@ -128,6 +128,82 @@ def market():
             "missed_days": sum(1 for d in days[:-1] if d not in seen)}
 
 
+def _read_scored():
+    """Output/scored.csv: every live listing BoardGameFinder valued (deal_finder writes it since 2026-11-10), with
+    its usual price (Baseline), how far under it the ask is (Edge) and the saving after shipping (Net)."""
+    path = os.path.join(BGF_DIR, "Output", "scored.csv")
+    if not os.path.exists(path):
+        return None, None
+    return list(csv.DictReader(open(path, encoding="utf-8"))), os.path.getmtime(path)
+
+
+@source("bgf.new_deals", ttl=300)
+def new_deals():
+    """Listings first seen in the last 24 hours that are under their usual price, biggest saving first."""
+    rows, at = _read_scored()
+    if rows is None:
+        return {"available": False, "deals": [], "file_time": None}
+    day_ago = (dt.datetime.now(TZ) - dt.timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+    conn = db()
+    try:
+        img = _images(conn)
+        fresh = {r[0]: r[1] for r in conn.execute(
+            "SELECT Link, First_Seen FROM Post WHERE Is_Online = 1 AND First_Seen LIKE '20%' AND First_Seen >= ?",
+            (day_ago,))}
+    finally:
+        conn.close()
+    out = []
+    for r in rows:
+        if r["Link"] in fresh and (_f(r.get("Net")) or 0) > 0:
+            bg = int(_f(r.get("BG_ID")) or 0)
+            out.append({"name": r["Name"], "price": _f(r["Price"]), "baseline": _f(r["Baseline"]),
+                        "edge": _f(r["Edge"]), "net": _f(r["Net"]), "condition": r.get("Condition", ""),
+                        "ships": r.get("Ships", ""), "link": r["Link"], "bg_id": bg, "image": img.get(bg),
+                        "first_seen": _paris(fresh[r["Link"]])})
+    out.sort(key=lambda d: d["net"], reverse=True)
+    return {"available": True, "deals": out, "file_time": at}
+
+
+@source("bgf.bundles", ttl=300)
+def bundles():
+    """Bundles, special editions and played legacy copies waiting for the LLM's judgement (review_pending.json),
+    with what the listing says."""
+    path = os.path.join(BGF_DIR, "Output", "review_pending.json")
+    try:
+        pending = json.load(open(path, encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"items": [], "file_time": None, "last_review": None}
+    links = [p["link"] for p in pending if p.get("link")]
+    conn = db()
+    try:
+        img = _images(conn)
+        marks = ",".join("?" * len(links)) or "''"
+        posts = {r["Link"]: dict(r) for r in conn.execute(
+            f"""SELECT p.Link, p.Price, p.Condition, p.Location, p.Listing_Text, p.Seller_Description, p.First_Seen,
+                       p.Is_Bundle, p.Is_Special_Edition, p.Is_Online, p.Can_Ship, p.BG_ID,
+                       COALESCE(g.Name, l.Name) AS name, g.Rank
+                FROM Post p LEFT JOIN BGG_Games g ON g.ID = p.BG_ID
+                LEFT JOIN (SELECT BG_Id, MIN(Name) AS Name FROM Game_main_page_link GROUP BY BG_Id) l ON l.BG_Id = p.BG_ID
+                WHERE p.Link IN ({marks})""", links)}
+    finally:
+        conn.close()
+    items = []
+    for p in pending:
+        post = posts.get(p.get("link"))
+        if not post or not post["Is_Online"]:
+            continue
+        text = " ".join(filter(None, [post["Listing_Text"], post["Seller_Description"]])).strip()
+        kind = "Bundle" if post["Is_Bundle"] else "Special edition" if post["Is_Special_Edition"] else "To check"
+        items.append({"link": post["Link"], "price": post["Price"], "name": post["name"] or "Unknown game",
+                      "rank": post["Rank"], "kind": kind, "condition": post["Condition"],
+                      "location": (post["Location"] or "").split("\n")[0], "ships": bool(post["Can_Ship"]),
+                      "text": text[:280] + ("…" if len(text) > 280 else ""), "bg_id": post["BG_ID"],
+                      "image": img.get(post["BG_ID"]), "first_seen": _paris(post["First_Seen"])})
+    review = os.path.join(BGF_DIR, "Output", "bundle_newsletter.html")
+    return {"items": items, "file_time": os.path.getmtime(path),
+            "last_review": os.path.getmtime(review) if os.path.exists(review) else None}
+
+
 @source("bgf.game", ttl=300)
 def game(bg_id):
     conn = db()

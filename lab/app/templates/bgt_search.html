@@ -1,16 +1,16 @@
 {% extends "base.html" %}
 {% from "_m.html" import unreadable %}
-{% block title %}Search · Lab{% endblock %}
+{% block title %}Search · Taste Match{% endblock %}
 {% block main %}
-<p class="small"><a href="/bg-taste-match">← Taste Match</a></p>
-<form class="search" action="/bg-taste-match/search"><input name="q" value="{{ q }}" placeholder="Find a video or a game" aria-label="Search videos and games" autofocus><button class="btn">Search</button></form>
+<p class="small"><a href="{{ R }}/">← Pipeline</a></p>
+<form class="search" action="{{ R }}/search"><input name="q" value="{{ q }}" placeholder="Find a video or a game" aria-label="Search videos and games" autofocus><button class="btn">Search</button></form>
 {{ unreadable(r, "the search") }}
 {% if q and r.data is not none %}
 <p class="muted small">{{ r.data | length }} video{{ "s" if r.data | length != 1 }}{% if r.data | length == 60 %} (the first 60){% endif %}</p>
 <div class="card"><ul class="rows">
 {% for v in r.data %}
   <li><img class="thumb wide" loading="lazy" alt="" src="https://i.ytimg.com/vi/{{ v.id }}/mqdefault.jpg">
-    <span class="grow"><a class="t" style="display:block" href="/bg-taste-match/v/{{ v.id }}">{{ v.title }}</a>
+    <span class="grow"><a class="t" style="display:block" href="{{ R }}/v/{{ v.id }}">{{ v.title }}</a>
       <span class="sub">{{ names.get(v.channel, v.channel) }} · {{ v.category }}{% if v.n_ratings %} · {{ v.n_ratings }} verdicts{% endif %}</span></span>
     <span class="right small muted">{{ v.duration | span if v.duration else "" }}</span></li>
 {% else %}<li class="muted">Nothing found.</li>{% endfor %}
