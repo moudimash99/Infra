@@ -12,6 +12,7 @@ metrics for Grafana.
 """
 import asyncio
 import datetime as dt
+import importlib
 import logging
 import os
 import re
@@ -21,19 +22,25 @@ import time
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.applications import Starlette
 from starlette.routing import Host, Mount, Route
 from starlette.responses import JSONResponse
 
-from . import logs, store, summary
+from . import logs, store, summary, web
 from .access import AccessGate
 from .sources import bgt, k8s
-from . import site_bgt, site_cats, site_deals
 
 log = logging.getLogger("lab")
-SITES = [("tastematch", os.environ.get("HOST_TASTEMATCH", "tastematch.machaka.net"), site_bgt.app, "Taste Match"),
-         ("deals", os.environ.get("HOST_DEALS", "deals.machaka.net"), site_deals.app, "Deals"),
-         ("catcam", os.environ.get("HOST_CATCAM", "catcam.machaka.net"), site_cats.app, "Cat cam")]
+# LAB_SITES (development): load only these sites ("deals" or "tastematch,catcam"), so one site being edited can't
+# stop the others from starting. Unset: all three.
+_ONLY = {s.strip() for s in os.environ.get("LAB_SITES", "").split(",") if s.strip()}
+SITES = [(key, os.environ.get(env, host), importlib.import_module(f".{module}", __package__).app, title)
+         for key, env, host, module, title in [
+             ("tastematch", "HOST_TASTEMATCH", "tastematch.machaka.net", "site_bgt", "Taste Match"),
+             ("deals", "HOST_DEALS", "deals.machaka.net", "site_deals", "Deals"),
+             ("catcam", "HOST_CATCAM", "catcam.machaka.net", "site_cats", "Cat cam")]
+         if not _ONLY or key in _ONLY]
 
 # ---- in-cluster API for Homepage -------------------------------------------------------------------------------
 
@@ -54,7 +61,19 @@ async def healthz(request):
 
 async def dev_index(request):
     links = "".join(f'<li><a href="/{key}/">{title}</a> (at {host})</li>' for key, host, _, title in SITES)
-    return HTMLResponse(f"<!DOCTYPE html><title>Lab (development)</title><ul>{links}</ul>")
+    return HTMLResponse(f"<!DOCTYPE html><title>Lab (development)</title><ul>{links}<li><a href='/_kit'>Design kit</a>"
+                        f"</li></ul>")
+
+
+async def dev_kit(request):
+    """Every piece of the design on one page, in a site's colour (?site=deals): for checking the look."""
+    key = request.query_params.get("site", "tastematch")
+    s = web.SITES.get(key, web.SITES["tastematch"])
+    nav = [("/", "Home", "home"), ("/x", "Reviewers", "users"), ("/y", "Games", "dices"), ("/z", "Videos", "video"),
+           ("/w", "Pipeline", "activity")]
+    return web.templates.TemplateResponse(request, "_kit.html", {"R": "", "site": {**s, "nav": nav}, "me": s["key"],
+                                                                 "active": "/", "SITES": list(web.SITES.values()),
+                                                                 "path": "/_kit"})
 
 
 DEV = os.environ.get("LAB_DEV") == "1"     # development machine: the sites also under /tastematch, /deals, /catcam
@@ -62,7 +81,9 @@ app = AccessGate(Starlette(routes=[
     *[Host(host, app=sub) for _, host, sub, _ in SITES],
     Route("/healthz", healthz),
     Mount("/api", app=api),
-    *([Mount(f"/{key}", app=sub) for key, _, sub, _ in SITES] + [Route("/", dev_index)] if DEV else []),
+    *([Mount(f"/{key}", app=sub) for key, _, sub, _ in SITES]
+      + [Mount("/static", app=StaticFiles(directory=web.STATIC)), Route("/_kit", dev_kit), Route("/", dev_index)]
+      if DEV else []),
 ]))
 
 # ---- the PC's reports (port 8081 only) -----------------------------------------------------------------------

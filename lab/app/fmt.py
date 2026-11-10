@@ -94,6 +94,39 @@ def pct(part, whole):
     return 0 if not whole else max(0, min(100, round(100 * part / whole)))
 
 
+def initials(name):
+    """'Shut Up & Sit Down' -> 'SU', 'Tom' -> 'TO', 'Rahdo' -> 'RA'."""
+    words = [w for w in str(name or "?").replace("&", " ").split() if w[:1].isalnum()]
+    if len(words) >= 2:
+        return (words[0][0] + words[1][0]).upper()
+    return (words[0][:2] if words else "?").upper()
+
+
+def av(name):
+    """A stable avatar colour class for a name: av-1 .. av-8."""
+    return f"av-{sum(map(ord, str(name or ''))) % 8 + 1}"
+
+
+def eur(value, digits=0):
+    """'24 €', '1,250 €'; None -> '-'."""
+    if value is None:
+        return "-"
+    return f"{float(value):,.{digits}f} €"
+
+
+def of5(value):
+    """A score out of 5 -> its pill class: s5 (4.5 and up) .. s1."""
+    if value is None:
+        return ""
+    v = float(value)
+    return "s5" if v >= 4.5 else "s4" if v >= 3.75 else "s3" if v >= 3 else "s2" if v >= 2 else "s1"
+
+
+def comma(value):
+    return "-" if value is None else f"{int(value):,}"
+
+
 def register(env):
-    env.filters.update(ago=ago, clock=clock, span=span, num=num, local=local)
+    env.filters.update(ago=ago, clock=clock, span=span, num=num, local=local, initials=initials, av=av, eur=eur,
+                       of5=of5, comma=comma)
     env.globals.update(pct=pct, now=time.time)

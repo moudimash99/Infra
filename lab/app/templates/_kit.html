@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% from "_m.html" import page_head, section_head, kpi, empty, alert, avatar, score, thumb, chip, runs_table %}
+{#- Development only (/_kit?site=deals): every piece of the design, to check the look in each site's colour. -#}
+{% block title %}Design kit · {{ site.name }}{% endblock %}
+{% set BOX = ["https://cf.geekdo-images.com/x3zxjr-Vw5iU4yDPg70Jgw__small/img/o18rjEemoWaVru9Y2TyPwuIaRfE=/fit-in/200x150/filters:strip_icc()/pic3490053.jpg",
+              "https://cf.geekdo-images.com/SoU8p28Sk1s8MSvoM4N8pQ__small/img/4KuHNTWSMPf8vTNDKSRMMI3oOv8=/fit-in/200x150/filters:strip_icc()/pic6293412.jpg",
+              "https://cf.geekdo-images.com/sZYp_3BTDGjh2unaZfZmuA__small/img/veqFeP4d_3zNhFc3GNBkV95rBEQ=/fit-in/200x150/filters:strip_icc()/pic2437871.jpg",
+              "https://cf.geekdo-images.com/PhjygpWSo-0labGrPBMyyg__small/img/JGgY-nBmkyB8WRp8vcoBLlNMQ5U=/fit-in/200x150/filters:strip_icc()/pic5666597.jpg"] %}
+{% block main %}
+{% call page_head("Your taste, matched", "Which board game reviewers rate games the way you do, from 3,171 verdicts in 2,511 reviews.", eyebrow="moudimash99 · 206 games rated") %}
+  <a class="btn primary" href="#">{{ icon("users") }}All reviewers</a><a class="btn" href="#">{{ icon("dices") }}Games</a>
+{% endcall %}
+
+<div class="kpis">
+  {{ kpi("Best match", "+0.42", "Quinns · Shut Up & Sit Down", "trophy") }}
+  {{ kpi("Reviewers", "64", "in 25 channels", "users") }}
+  {{ kpi("Verdicts", "3,171", "+212 this week", "star") }}
+  {{ kpi("Downloaded", "80", "now The Dice Tower 43/537", "download", "%") }}
+</div>
+
+<section class="section">
+  <div class="hero">
+    <div class="row between top">
+      <div class="stack tight">
+        <div class="eyebrow">Your closest match</div>
+        <div class="row gap-lg">{{ avatar("Quinns", "xl") }}<div><h2 style="font-size:1.4rem">Quinns</h2><p class="soft small">Shut Up &amp; Sit Down · 41 shared games</p></div></div>
+      </div>
+      <div class="big">+0.42</div>
+    </div>
+    <div class="diverge mt-4"><span class="zero" style="left:40%"></span><span class="band" style="left:58%;width:22%"></span><span class="dot" style="left:68%"></span></div>
+    <div class="row between xs muted mt-1"><span>Opposite taste</span><span>Same taste</span></div>
+  </div>
+</section>
+
+<section class="section">
+  {{ section_head("Top matches", "#", count=64) }}
+  <div class="card flush"><div class="list">
+    {% for n, ch, m in [("Quinns", "Shut Up & Sit Down", 0.42), ("Tom", "Heavy Cardboard", 0.31), ("Rahdo", "Rahdo Runs Through", 0.18), ("Zee", "The Dice Tower", -0.07)] %}
+    <a class="item" href="#"><span class="rank">{{ loop.index }}</span>{{ avatar(n) }}
+      <span class="body"><span class="title" style="display:block">{{ n }}</span><span class="meta" style="display:block">{{ ch }} · {{ 20 + loop.index * 3 }} shared games</span></span>
+      <span class="trail"><b class="{{ 'accent' if m > 0 }}">{{ '%+.2f' | format(m) }}</b><span class="meta" style="display:block">likely ±0.1</span></span>{{ icon("chevron-right", "chev") }}</a>
+    {% endfor %}
+  </div><div class="card-foot"><span class="muted">Shrunk toward 0 when few games are shared</span><a href="#">All 64{{ icon("chevron-right") }}</a></div></div>
+</section>
+
+<section class="section">
+  {{ section_head("Games your matches love", "#", sub="Games you haven't rated that your closest reviewers score 4 or more.") }}
+  <div class="tiles">
+    {% for g in ["Brass: Birmingham", "Ark Nova", "Gloomhaven", "Dune: Imperium"] %}
+    <a class="tile" href="#"><div class="media"><img src="{{ BOX[loop.index0] }}" alt="" loading="lazy">
+      <span class="on-img badge accent">{{ icon("star") }}{{ ['4.8', '4.5', '4.2', '3.9'][loop.index0] }}</span></div>
+      <div class="body"><div class="title">{{ g }}</div><div class="meta">BGG 4.3 · 3 reviewers</div></div></a>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="section grid md-main gap-lg">
+  <div class="card">
+    <div class="card-head"><h3>{{ icon("activity") }}Pipeline</h3>{{ chip("running", "Running") }}</div>
+    <div class="steps">
+      {% for ic, label, n, sub, cls in [("download", "Downloaded", 80, "2,009 of 2,511", ""), ("file-text", "Transcribed", 33, "paused while the Acer cools", "muted"), ("mic", "Speakers found", 37, "paused", "muted"), ("star", "Rated", 30, "752 videos", "")] %}
+      <div class="step"><span class="ic">{{ icon(ic) }}</span><div><div class="what"><b>{{ label }}</b><span>{{ sub }}</span></div><span class="progress {{ cls }}"><span style="width:{{ n }}%"></span></span></div><span class="n">{{ n }}%</span></div>
+      {% endfor %}
+    </div>
+    <div class="card-foot"><span class="muted">Now: The Dice Tower 43/537</span><a href="#">Details{{ icon("chevron-right") }}</a></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h3>{{ icon("clock") }}Recent</h3></div>
+    <ul class="feed">
+      <li><span class="ev accent">{{ icon("download") }}</span><div><b class="small">Downloaded</b><div class="xs muted clamp-2">Castle Combo Review: is this the best filler of the year?</div></div><span class="when">5 min</span></li>
+      <li><span class="ev ok">{{ icon("star") }}</span><div><b class="small">Rated (3 verdicts)</b><div class="xs muted">Heavy Cardboard</div></div><span class="when">1 h</span></li>
+      <li><span class="ev bad">{{ icon("alert") }}</span><div><b class="small">Download failed</b><div class="xs muted">HTTP 403 from YouTube</div></div><span class="when">2 h</span></li>
+    </ul>
+  </div>
+</section>
+
+<section class="section">
+  {{ section_head("Pieces") }}
+  <div class="stack">
+    <div class="row wrap"><span class="badge">Neutral</span><span class="badge accent">Accent</span><span class="badge solid">Solid</span><span class="badge ok dot">Done</span><span class="badge warn dot">Paused</span><span class="badge bad dot">Failed</span><span class="badge info dot live">Live</span><span class="badge outline">{{ icon("truck") }}Ships</span></div>
+    <div class="row wrap">{{ chip("ok") }}{{ chip("running") }}{{ chip("failed") }}{{ chip("paused") }}{{ chip("pending") }}</div>
+    <div class="row wrap">{{ score(4.8) }}{{ score(4.0) }}{{ score(3.2) }}{{ score(2.1) }}{{ score(4.6, True) }}<span class="of5">4.5<small>/5</small></span></div>
+    <div class="btns"><a class="btn primary" href="#">{{ icon("play") }}Primary</a><a class="btn" href="#">Secondary</a><a class="btn soft" href="#">Soft</a><a class="btn ghost" href="#">Ghost</a><a class="btn sm" href="#">Small</a></div>
+    <nav class="seg"><a class="on" href="#">All<span class="n">64</span></a><a href="#">Strong<span class="n">12</span></a><a href="#">By channel</a><a href="#">Opposite</a></nav>
+    <label class="searchbar">{{ icon("search") }}<input class="input" placeholder="Find a game or a video"></label>
+    {{ alert("YouTube refused the last download pass. It tries again every 2 hours.", "warn", "Downloads paused") }}
+    {{ alert("Rating waits for fm-llm on the server; 412 transcripts are ready.", "info") }}
+    {{ alert("Couldn't read the jobs: timed out.", "bad") }}
+    <div class="card">{{ empty("No bundles waiting", "Lots and big boxes show up here when a listing needs a human eye.", "package") }}</div>
+    <div class="card"><blockquote class="quote" style="margin:0">“It's the best worker placement game I've played in years, and I've played a lot of them.”</blockquote></div>
+    <div class="grid sm-2">
+      <div class="card"><dl class="dl"><dt>Players</dt><dd>2 to 4</dd><dt>Time</dt><dd>60 to 120 min</dd><dt>Weight</dt><dd>3.9 / 5</dd><dt>BGG</dt><dd>4.3 / 5</dd></dl></div>
+      <div class="card flush">{{ runs_table([{"name": "boardgamefinder-29384", "start": now() - 3600 * 6, "end": now() - 3600 * 5, "state": "ok"}, {"name": "boardgamefinder-29383", "start": now() - 86400, "end": now() - 86000, "state": "failed", "reason": "Error"}]) }}</div>
+    </div>
+    <div class="card flush"><div class="list">
+      <a class="item" href="#">{{ thumb(BOX[0], "thumb box lg") }}<span class="body"><span class="title" style="display:block">Brass: Birmingham</span><span class="meta" style="display:block">Very good · Lyon · ships</span><span class="row mt-1"><span class="badge ok">−38%</span><span class="badge">New</span></span></span><span class="trail"><b style="font-size:1.15rem">42 €</b><span class="meta" style="display:block"><s>68 €</s></span></span></a>
+      <a class="item" href="#">{{ thumb(None, "thumb video", "video") }}<span class="body"><span class="title" style="display:block">A video without a picture</span><span class="meta" style="display:block">Placeholder</span></span></a>
+    </div></div>
+  </div>
+</section>
+{% endblock %}

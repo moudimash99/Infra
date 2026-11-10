@@ -86,13 +86,16 @@ def test_access_fails_closed():
 
 
 def test_nav_links():
-    """At its own name a site links to the others' names; under a path (development) to the paths next to it."""
+    """A site's sections are its tabs; the other sites are in the menu, at their own names (or, on a development
+    machine, at the paths next to it)."""
     from app import web
     base = web.templates.get_template("base.html")
-    under = base.render(R="/catcam", me="catcam")
-    assert 'href="/tastematch/"' in under and 'href="/deals/"' in under and 'href="/catcam/"' in under
-    own = base.render(R="", me="deals")
-    assert 'href="https://tastematch.machaka.net"' in own and 'href="/"' in own
+    site = {**web.SITES["deals"], "nav": [("/", "Deals", "tag"), ("/new", "New", "zap")]}
+    own = base.render(R="", site=site, active="/new", me="deals", SITES=list(web.SITES.values()))
+    assert 'href="/new" class="on"' in own and 'href="https://tastematch.machaka.net"' in own
+    dev = base.render(R="/deals", site=site, active="/", me="deals",
+                      SITES=[{**s, "url": f"/{s['key']}/"} for s in web.SITES.values()])
+    assert 'href="/deals/new"' in dev and 'href="/tastematch/"' in dev and 'data-site="deals"' in dev
 
 
 def test_tile_rows():

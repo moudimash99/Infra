@@ -10,7 +10,8 @@ from .sources import bgt
 from .web import day_labels, page, site, templates
 
 templates.env.globals.update(STAGES=bgt.STAGES)
-app = site("Taste Match")
+app = site("tastematch", [("/", "Home", "home"), ("/reviewers", "Reviewers", "users"), ("/games", "Games", "dices"),
+                         ("/videos", "Videos", "video"), ("/pipeline", "Pipeline", "activity")])
 
 
 @app.get("/", response_class=HTMLResponse)

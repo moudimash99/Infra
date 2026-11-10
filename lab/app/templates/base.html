@@ -4,27 +4,45 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#f9f9f7" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b0b0f" media="(prefers-color-scheme: dark)">
 <meta name="robots" content="noindex">
-<title>{% block title %}Lab{% endblock %}</title>
-<link rel="stylesheet" href="{{ R }}/static/lab.css?v=3">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='4' fill='%232a78d6'/%3E%3C/svg%3E">
+<title>{% block title %}{{ site.name }}{% endblock %}</title>
+<link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/static/lab.css?v={{ STATIC_V }}">
+<link rel="icon" href="/static/favicon-{{ site.key }}.svg?v={{ STATIC_V }}" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/touch-{{ site.key }}.png">
+{% block head %}{% endblock %}
 </head>
-<body>
-<header class="top"><div class="bar">
-  <nav class="tabs">
-    {% for key, label, url in SITE_LINKS %}
-    {# under a path (a development machine), the other sites are next to it on the same name #}
-    <a href="{{ (R ~ '/') if key == me else (('/' ~ key ~ '/') if R else url) }}" class="{{ 'on' if key == me }}">{{ label }}</a>
-    {% endfor %}
-    <a href="{{ LAB_URL }}">Lab ↗</a>
+<body data-site="{{ site.key }}">
+<header class="app-header"><div class="inner">
+  <a class="brand" href="{{ R }}/"><span class="mark">{{ icon("mark-" ~ site.key) }}</span><span>{{ site.name }}</span></a>
+  <nav class="topnav" aria-label="{{ site.name }}">
+    {% for href, label, ic in site.nav %}<a href="{{ R }}{{ href }}"{% if href == active %} class="on" aria-current="page"{% endif %}>{{ icon(ic) }}{{ label }}</a>{% endfor %}
   </nav>
+  <div class="header-end">
+    {% block header_end %}{% endblock %}
+    <details class="switch">
+      <summary class="icon-btn" aria-label="Other sites" title="Other sites">{{ icon("grid") }}</summary>
+      <div class="switch-menu">
+        <div class="label">Machaka lab</div>
+        {% for s in SITES %}
+        <a href="{{ s.url }}"{% if s.key == site.key %} class="on"{% endif %}><span class="mark sm {{ s.key }}">{{ icon("mark-" ~ s.key) }}</span>
+          <span><b>{{ s.name }}</b><small>{{ s.tagline }}</small></span></a>
+        {% endfor %}
+        <a href="{{ LAB_URL }}"><span class="mark sm lab">{{ icon("mark-lab") }}</span><span><b>Lab</b><small>Every service in the homelab</small></span></a>
+      </div>
+    </details>
+  </div>
 </div></header>
 <main>
 {% block main %}{% endblock %}
-<footer class="foot">Read {{ now() | ago }}</footer>
+<footer class="app-foot"><span>{{ site.name }} · read {{ now() | ago }}</span><a href="{{ LAB_URL }}">Machaka lab</a></footer>
 </main>
-<script src="{{ R }}/static/lab.js?v=3" defer></script>
+<nav class="tabbar" aria-label="{{ site.name }}">
+  {% for href, label, ic in site.nav %}<a href="{{ R }}{{ href }}"{% if href == active %} class="on" aria-current="page"{% endif %}>{{ icon(ic) }}<span>{{ label }}</span></a>{% endfor %}
+</nav>
+<script src="/static/lab.js?v={{ STATIC_V }}" defer></script>
+{% block scripts %}{% endblock %}
 </body>
 </html>

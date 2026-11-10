@@ -1,55 +1,77 @@
+{#- Shared pieces for the three sites. Import what a page needs:
+      {% from "_m.html" import page_head, section_head, kpi, empty, alert, avatar, score, chip, thumb, unreadable, runs_table %}
+    page_head and section_head take a {% call %} block for actions (buttons, a filter) when needed.
+    icon(name) is a global (static/icons.svg); filters: ago, clock, span, num, comma, eur, initials, av, of5. -#}
+
+{% macro page_head(title, sub=None, eyebrow=None, back=None) -%}
+<header class="page-head">
+  {% if back %}<a class="back" href="{{ back[0] }}">{{ icon("chevron-left") }}{{ back[1] }}</a>{% endif %}
+  {% if eyebrow %}<div class="eyebrow">{{ eyebrow }}</div>{% endif %}
+  <h1 class="page-title">{{ title }}</h1>
+  {% if sub %}<p class="page-sub">{{ sub }}</p>{% endif %}
+  {% if caller %}<div class="page-actions">{{ caller() }}</div>{% endif %}
+</header>
+{%- endmacro %}
+
+{% macro section_head(title, more=None, more_label="See all", count=None, sub=None) -%}
+<div class="section-head"><h2>{{ title }}{% if count is not none %} <span class="count">{{ count }}</span>{% endif %}</h2>
+  {%- if caller %}{{ caller() }}{% elif more %}<a class="more" href="{{ more }}">{{ more_label }}{{ icon("chevron-right") }}</a>{% endif %}</div>
+{% if sub %}<p class="section-sub">{{ sub }}</p>{% endif %}
+{%- endmacro %}
+
+{% macro kpi(label, value, sub=None, ic=None, unit=None, href=None) -%}
+<{{ 'a' if href else 'div' }} class="kpi"{% if href %} href="{{ href }}"{% endif %}>
+  <div class="label">{% if ic %}{{ icon(ic) }}{% endif %}{{ label }}</div>
+  <div class="value">{{ value }}{% if unit %}<small>{{ unit }}</small>{% endif %}</div>
+  {% if sub %}<div class="sub">{{ sub }}</div>{% endif %}
+</{{ 'a' if href else 'div' }}>
+{%- endmacro %}
+
+{% macro empty(title, text=None, ic="info") -%}
+<div class="empty"><div class="ic">{{ icon(ic) }}</div><h3>{{ title }}</h3>{% if text %}<p>{{ text }}</p>{% endif %}</div>
+{%- endmacro %}
+
+{% macro alert(text, kind="info", title=None) -%}
+<div class="alert {{ kind }}" role="{{ 'alert' if kind == 'bad' else 'status' }}">{{ icon({"ok": "check-circle", "warn": "alert", "bad": "x-circle"}.get(kind, "info")) }}
+  <div>{% if title %}<b>{{ title }}.</b> {% endif %}{{ text }}</div></div>
+{%- endmacro %}
+
+{% macro avatar(name, size="", img=None) -%}
+<span class="avatar {{ size }} {{ name | av }}" aria-hidden="true">{% if img %}<img src="{{ img }}" alt="" loading="lazy">{% else %}{{ name | initials }}{% endif %}</span>
+{%- endmacro %}
+
+{#- A score out of 5 as a pill: the higher, the darker. -#}
+{% macro score(value, lg=False) -%}
+{% if value is not none %}<span class="score {{ value | of5 }}{{ ' lg' if lg }}" title="{{ '%.1f' | format(value) }} out of 5">{{ '%.1f' | format(value) }}</span>{% endif %}
+{%- endmacro %}
+
+{#- A picture, or a grey placeholder with an icon when there's none. cls: thumb [box|video|sm|lg]. -#}
+{% macro thumb(src, cls="thumb", ic="image", alt="") -%}
+{% if src %}<img class="{{ cls }}" src="{{ src }}" alt="{{ alt }}" loading="lazy" decoding="async">{% else %}<span class="{{ cls }} ph" aria-hidden="true">{{ icon(ic) }}</span>{% endif %}
+{%- endmacro %}
+
 {% macro chip(state, label=None) -%}
 {%- set words = {"ok": "OK", "running": "Running", "failed": "Failed", "paused": "Paused", "unknown": "Unknown",
-                 "pending": "Waiting", "stopped": "Stopped", "critical": "Critical", "warning": "Warning"} -%}
+                 "pending": "Waiting", "stopped": "Stopped", "critical": "Critical", "warning": "Warning", "done": "Done"} -%}
 <span class="chip {{ state }}">{{ label or words.get(state, state) }}</span>
 {%- endmacro %}
 
 {% macro unreadable(r, what) -%}
-{% if not r.ok %}<p class="err">Couldn't read {{ what }}: {{ r.error }}{% if r.data %} (showing the last good read){% endif %}</p>{% endif %}
-{%- endmacro %}
-
-{% macro attention_list(items) -%}
-{% set urgent = items | rejectattr("level", "equalto", "info") | list %}
-{% set notes = items | selectattr("level", "equalto", "info") | list %}
-{% if urgent %}
-<div class="attention">
-  {% for i in urgent %}
-  <{{ 'a' if i.href else 'div' }} class="item {{ i.level }}" {% if i.href %}href="{{ i.href }}"{% endif %}>
-    <span class="dot" aria-hidden="true"></span>
-    <span><b>{{ i.title }}</b>{% if i.since %} <span class="muted small">· {{ i.since | ago }}</span>{% endif %}
-      <span class="muted small">({{ i.level }})</span></span>
-    {% if i.detail %}<span class="d">{{ i.detail }}</span>{% endif %}
-  </{{ 'a' if i.href else 'div' }}>
-  {% endfor %}
-</div>
-{% else %}
-<p class="allgood">Nothing needs you</p>
-{% endif %}
-{% if notes %}
-<details class="notes"{% if not urgent %} open{% endif %}>
-  <summary>{{ notes | length }} note{{ 's' if notes | length > 1 }}</summary>
-  <div class="attention">
-  {% for i in notes %}
-    <{{ 'a' if i.href else 'div' }} class="item info" {% if i.href %}href="{{ i.href }}"{% endif %}>
-      <span class="dot" aria-hidden="true"></span>
-      <span><b>{{ i.title }}</b></span>
-      {% if i.detail %}<span class="d">{{ i.detail }}</span>{% endif %}
-    </{{ 'a' if i.href else 'div' }}>
-  {% endfor %}
-  </div>
-</details>
-{% endif %}
+{% if not r.ok %}{{ alert("Couldn't read " ~ what ~ ": " ~ r.error ~ (". Showing the last good read." if r.data else "."), "bad") }}{% endif %}
 {%- endmacro %}
 
 {% macro runs_table(runs, limit=10) -%}
 {% if runs %}
-<div class="scroll-x"><table class="t">
-  <tr><th>Run</th><th>Started</th><th class="r">Took</th><th>Result</th></tr>
+<div class="table-wrap"><table class="table">
+  <thead><tr><th>Run</th><th>Started</th><th class="r">Took</th><th>Result</th></tr></thead>
+  <tbody>
   {% for r in runs[:limit] %}
-  <tr><td class="small">{{ r.name | replace("bg-taste-match-", "") | replace("boardgamefinder-", "#") | replace("cat-monitor-", "#") }}</td><td>{{ r.start | ago }}</td>
-      <td class="r">{{ ((r.end or now()) - r.start) | span if r.start else "-" }}</td>
-      <td>{{ chip(r.state) }}{% if r.reason %} <span class="muted small">{{ r.reason }}</span>{% endif %}</td></tr>
+  <tr><td class="nowrap">{{ r.name | replace("bg-taste-match-", "") | replace("boardgamefinder-", "#") | replace("cat-monitor-", "#") | replace("cat-flash-", "flash #") }}</td>
+      <td class="nowrap">{{ r.start | ago }}</td>
+      <td class="r nowrap">{{ ((r.end or now()) - r.start) | span if r.start else "-" }}</td>
+      <td class="nowrap">{{ chip(r.state) }}{% if r.reason %} <span class="muted xs">{{ r.reason }}</span>{% endif %}</td></tr>
   {% endfor %}
+  </tbody>
 </table></div>
-{% else %}<p class="muted">No runs recorded yet (the lab remembers runs from the day it started).</p>{% endif %}
+{% else %}{{ empty("No runs recorded yet", "The lab remembers runs from the day it started.", "history") }}{% endif %}
 {%- endmacro %}

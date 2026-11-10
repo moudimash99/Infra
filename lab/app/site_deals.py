@@ -10,7 +10,8 @@ from .config import TZ
 from .sources import bgf
 from .web import day_labels, page, site
 
-app = site("Deals")
+app = site("deals", [("/", "Deals", "tag"), ("/new", "New", "zap"), ("/bundles", "Bundles", "package"),
+                    ("/games", "Games", "dices"), ("/status", "Status", "gauge")])
 
 
 @app.get("/", response_class=HTMLResponse)

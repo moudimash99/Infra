@@ -17,7 +17,8 @@ from .config import CATS_DIR, TZ
 from .sources import cats, k8s
 from .web import page, site
 
-app = site("Cat cam")
+app = site("catcam", [("/", "Today", "home"), ("/flashes", "Flashes", "film"), ("/camera", "Camera", "camera"),
+                     ("/weight", "Weight", "scale"), ("/status", "Status", "gauge")])
 FLASH = os.path.join(CATS_DIR, "flash")
 DAY = re.compile(r"\d{4}-\d\d-\d\d")
 
