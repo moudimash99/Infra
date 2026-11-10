@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+# Run on Linux (the server, the images): always LF, whatever the checkout machine
+*.sh text eol=lf
+images/** text eol=lf
