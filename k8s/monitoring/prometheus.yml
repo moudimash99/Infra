@@ -5,6 +5,12 @@ global:
   scrape_interval: 30s
   evaluation_interval: 30s
 
+# Alert rules (alert-rules.yml, in the same ConfigMap) go to Alertmanager in tools, which emails them.
+rule_files: [/etc/prometheus/alert-rules.yml]
+alerting:
+  alertmanagers:
+    - static_configs: [{ targets: ['alertmanager.tools.svc:9093'] }]
+
 scrape_configs:
   - job_name: prometheus
     static_configs:
@@ -122,3 +128,9 @@ scrape_configs:
       - { source_labels: [__meta_kubernetes_namespace], target_label: namespace }
       - { source_labels: [__meta_kubernetes_pod_name], target_label: pod }
       - { source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name], target_label: app }
+
+  # Alertmanager itself, for AlertEmailsFailing.
+  - job_name: alertmanager
+    static_configs:
+      - targets: ['alertmanager.tools.svc:9093']
+    relabel_configs: *cluster

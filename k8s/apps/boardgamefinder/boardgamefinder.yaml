@@ -1,0 +1,48 @@
+# BoardGameFinder: the daily board game deal search (Okkazeo listings, BGG ranks, prices, deal email). Was the PC's
+# scheduled task BoardGameFinder_DailyRun at 07:00. Image built on the server from the BoardGameFinder repo (Dockerfile
+# there) and imported by hand (no registry). LLM steps go to fm-llm on the control node; until it exists they fail,
+# and the pipeline treats them as non-critical.
+# Secret (not in this repo), from the repo's .env: kubectl -n apps create secret generic boardgamefinder --from-env-file=.env
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: boardgamefinder
+  namespace: apps
+  labels: { app: boardgamefinder }
+spec:
+  schedule: "0 7 * * *"
+  timeZone: Europe/Paris
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 21600
+      template:
+        metadata:
+          labels: { app: boardgamefinder }
+        spec:
+          restartPolicy: Never
+          nodeSelector: { kubernetes.io/hostname: acer-laptop }
+          tolerations:
+            - { key: dedicated, value: worker, effect: NoSchedule }
+          containers:
+            - name: pipeline
+              image: docker.io/library/boardgamefinder:2026-11-10a
+              imagePullPolicy: Never
+              envFrom:
+                - secretRef: { name: boardgamefinder }
+              env:
+                - { name: FM_LLM_URL, value: "http://192.168.1.116:8792" }
+              volumeMounts:
+                - { name: data, mountPath: /app/data }
+                - { name: log, mountPath: /app/Log }
+              resources:
+                requests: { cpu: 200m, memory: 1Gi }   # Chromium tabs
+                limits: { memory: 2Gi }
+          volumes:
+            - name: data
+              hostPath: { path: /srv/apps/boardgamefinder/data, type: Directory }
+            - name: log
+              hostPath: { path: /srv/apps/boardgamefinder/Log, type: DirectoryOrCreate }

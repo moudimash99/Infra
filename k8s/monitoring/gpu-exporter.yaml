@@ -1,0 +1,37 @@
+# The Acer's GTX 1050 for Prometheus: load, memory, temperature, power and clocks from nvidia-smi
+# (utkuozdemir/nvidia_gpu_exporter, port 9835; metrics nvidia_smi_*). Scraped by the "pods" job through the
+# prometheus.io annotations. Runs only where the nvidia runtime is, the Acer.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nvidia-gpu-exporter
+  namespace: monitoring
+  labels: { app: nvidia-gpu-exporter }
+spec:
+  selector:
+    matchLabels: { app: nvidia-gpu-exporter }
+  template:
+    metadata:
+      labels: { app: nvidia-gpu-exporter, app.kubernetes.io/name: nvidia-gpu-exporter }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9835"
+    spec:
+      runtimeClassName: nvidia
+      nodeSelector: { kubernetes.io/hostname: acer-laptop }
+      tolerations:
+        - { key: dedicated, value: worker, effect: NoSchedule }
+      containers:
+        - name: exporter
+          image: utkuozdemir/nvidia_gpu_exporter:1.18.0
+          ports:
+            - { name: metrics, containerPort: 9835 }
+          env:
+            - { name: NVIDIA_VISIBLE_DEVICES, value: all }
+            - { name: NVIDIA_DRIVER_CAPABILITIES, value: utility }
+          readinessProbe:
+            httpGet: { path: /metrics, port: metrics }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 5m, memory: 16Mi }
+            limits: { memory: 64Mi }

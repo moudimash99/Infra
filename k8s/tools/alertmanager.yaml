@@ -1,0 +1,111 @@
+# Alertmanager: turns Prometheus's alerts (k8s/monitoring/alert-rules.yml) into emails, through the same Gmail sender
+# as Uptime Kuma and Beszel (Secret alert-smtp: user, password, to). In tools for that Secret. The addresses stay out of
+# this repo: an init container writes them into the config from the Secret. Silences live in memory (emptyDir).
+# UI without Cloudflare: kubectl -n tools port-forward svc/alertmanager 9093:9093 (http://localhost:9093).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-template
+  namespace: tools
+data:
+  alertmanager.yml: |
+    global:
+      smtp_smarthost: smtp.gmail.com:587
+      smtp_from: "Homelab alerts <__USER__>"
+      smtp_auth_username: "__USER__"
+      smtp_auth_password_file: /etc/alertmanager/secret/password
+      smtp_require_tls: true
+    route:
+      receiver: email
+      group_by: [alertname, instance, namespace, job_name, pod]
+      group_wait: 1m
+      group_interval: 10m
+      repeat_interval: 12h
+      routes:
+        - matchers: [severity="critical"]
+          repeat_interval: 3h
+          receiver: email
+    receivers:
+      - name: email
+        email_configs:
+          - to: "__TO__"
+            send_resolved: true
+            headers:
+              Subject: '[homelab {{ .Status | toUpper }}] {{ .CommonLabels.alertname }}{{ with .CommonLabels.instance }} on {{ . }}{{ end }}{{ with .CommonLabels.job_name }} ({{ . }}){{ end }}'
+    inhibit_rules:
+      # a machine that's down explains everything else on it
+      - source_matchers: [alertname="NodeDown"]
+        target_matchers: [alertname!="NodeDown"]
+        equal: [instance]
+      # a critical alert replaces its own warning
+      - source_matchers: [severity="critical"]
+        target_matchers: [severity="warning"]
+        equal: [alertname, instance]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: tools
+  labels: { app: alertmanager }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: alertmanager }
+  template:
+    metadata:
+      labels: { app: alertmanager }
+    spec:
+      initContainers:
+        - name: config
+          image: busybox:1.36
+          command: ["sh", "-c", "sed -e \"s|__USER__|$SMTP_USER|g\" -e \"s|__TO__|$SMTP_TO|g\" /template/alertmanager.yml > /config/alertmanager.yml"]
+          env:
+            - name: SMTP_USER
+              valueFrom: { secretKeyRef: { name: alert-smtp, key: user } }
+            - name: SMTP_TO
+              valueFrom: { secretKeyRef: { name: alert-smtp, key: to } }
+          volumeMounts:
+            - { name: template, mountPath: /template }
+            - { name: config, mountPath: /config }
+      containers:
+        - name: alertmanager
+          image: prom/alertmanager:v0.35.0
+          args:
+            - --config.file=/config/alertmanager.yml
+            - --storage.path=/alertmanager
+            - --web.external-url=http://localhost:9093
+          ports:
+            - { name: http, containerPort: 9093 }
+          volumeMounts:
+            - { name: config, mountPath: /config }
+            - { name: secret, mountPath: /etc/alertmanager/secret, readOnly: true }
+            - { name: data, mountPath: /alertmanager }
+          readinessProbe:
+            httpGet: { path: /-/ready, port: http }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 5m, memory: 32Mi }
+            limits: { memory: 128Mi }
+      volumes:
+        - name: template
+          configMap: { name: alertmanager-template }
+        - name: config
+          emptyDir: {}
+        - name: secret
+          secret:
+            secretName: alert-smtp
+            items: [{ key: password, path: password }]
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: tools
+spec:
+  selector: { app: alertmanager }
+  ports:
+    - { name: http, port: 9093, targetPort: http }

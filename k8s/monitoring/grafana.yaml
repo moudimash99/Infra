@@ -78,6 +78,7 @@ spec:
               - configMap: { name: dashboard-docker-containers }
               - configMap: { name: dashboard-node-temperatures }
               - configMap: { name: dashboard-home }
+              - configMap: { name: dashboard-gpu-jobs }
 ---
 apiVersion: v1
 kind: Service

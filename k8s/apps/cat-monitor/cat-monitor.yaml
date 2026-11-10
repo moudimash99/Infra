@@ -1,0 +1,67 @@
+# cat-monitor: the rolling feeding monitor from the Cat-Camera repo (automated_feeder_monitor.py once 8). Every 8 hours it
+# reads the last 8 hours of Frigate's living_room recordings from the Acer's disk, runs the cat detector (YOLO) on the
+# GTX 1050, and writes feeding reports to /srv/apps/cat-monitor. Was the PC's task CatCameraFeedingMonitor (disabled
+# since 2026-09-13, when it still fetched clips over SFTP). Image built on the server from Dockerfile.monitor, no registry.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cat-monitor
+  namespace: apps
+  labels: { app: cat-monitor }
+spec:
+  schedule: "16 2,10,18 * * *"
+  timeZone: Europe/Paris
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 14400
+      template:
+        metadata:
+          labels: { app: cat-monitor }
+        spec:
+          restartPolicy: Never
+          runtimeClassName: nvidia
+          nodeSelector: { kubernetes.io/hostname: acer-laptop }
+          tolerations:
+            - { key: dedicated, value: worker, effect: NoSchedule }
+          containers:
+            - name: monitor
+              image: docker.io/library/cat-monitor:2026-11-10a
+              imagePullPolicy: Never
+              # one GPU job at a time: waits up to an hour for bg-taste-match to finish its current video
+              command: ["flock", "-w", "3600", "/gpu-lock/gpu.lock", "python", "automated_feeder_monitor.py", "once", "8"]
+              # the scripts run from the Acer's disk (copied there from the Cat-Camera repo), so a code fix needs no
+              # new image; the image holds Python, PyTorch, Ultralytics and the model
+              workingDir: /app/code
+              env:
+                - { name: NVIDIA_VISIBLE_DEVICES, value: all }
+                - { name: NVIDIA_DRIVER_CAPABILITIES, value: "compute,utility" }
+                # one stream and smaller batches: two streams of 16 full-size frames went over 3 GiB
+                - { name: CATCAM_STREAMS, value: "1" }
+                - { name: CATCAM_BATCH, value: "8" }
+                # delete the ~4 GB of merged video once the report is written (the SSD is 128 GB)
+                - { name: CATCAM_KEEP_VIDEO, value: "0" }
+              volumeMounts:
+                - { name: data, mountPath: /data }
+                - { name: code, mountPath: /app/code, readOnly: true }
+                - { name: recordings, mountPath: /recordings, readOnly: true }
+                # dual-stream GPU inference shares tensors through /dev/shm
+                - { name: shm, mountPath: /dev/shm }
+                - { name: gpu-lock, mountPath: /gpu-lock }
+              resources:
+                requests: { cpu: 500m, memory: 2560Mi }   # one stream, batches of 8: its real peak, so it waits rather than squeeze
+                limits: { memory: 4Gi }
+          volumes:
+            - name: data
+              hostPath: { path: /srv/apps/cat-monitor, type: DirectoryOrCreate }
+            - name: recordings
+              hostPath: { path: /var/lib/frigate/media/recordings, type: Directory }
+            - name: code
+              hostPath: { path: /srv/apps/cat-monitor/code, type: Directory }
+            - name: shm
+              emptyDir: { medium: Memory, sizeLimit: 512Mi }
+            - name: gpu-lock
+              hostPath: { path: /srv/apps/gpu-lock, type: DirectoryOrCreate }

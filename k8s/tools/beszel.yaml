@@ -122,13 +122,17 @@ spec:
     spec:
       hostNetwork: true
       nodeSelector: { role: worker }
+      # The Acer's GTX 1050: the NVIDIA variant reads it with nvidia-smi, which the nvidia runtime mounts in.
+      runtimeClassName: nvidia
       tolerations:
         - { key: dedicated, value: worker, effect: NoSchedule }
       containers:
         - name: beszel-agent
-          image: henrygd/beszel-agent:0.21.1
+          image: henrygd/beszel-agent-nvidia:0.21.1
           env:
             - { name: LISTEN, value: "45876" }
+            - { name: NVIDIA_VISIBLE_DEVICES, value: all }
+            - { name: NVIDIA_DRIVER_CAPABILITIES, value: utility }
             - name: KEY
               valueFrom: { secretKeyRef: { name: beszel-agent, key: KEY } }
           resources:

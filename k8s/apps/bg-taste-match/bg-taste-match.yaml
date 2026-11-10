@@ -1,0 +1,189 @@
+# bg-taste-match: board game YouTube reviewers matched to a BGG profile (repo moudimash99/bg-taste-match). No web page:
+# scheduled stages on the Acer, sharing one working folder (code + SQLite + captions + speaker data) and the audio.
+#   fetch  every 2 hours audio downloads (yt-dlp, 30 s apart); a YouTube block ends the pass (see deploy/run_fetch.sh)
+#   gpu    every hour    Whisper captions/transcripts, then speaker separation (GTX 1050 through the nvidia runtime)
+#   llm    every hour    first rating pass through fm-llm on the control node; quiet until fm-llm answers /healthz
+#   shell  always        an idle pod with the same mounts, for the stages run by hand (voice ID, matching, scoring)
+# The stage scripts run from the code folder (deploy/run_*.sh), so a change needs push_code.sh, not a new image.
+# Each stage skips finished work and concurrencyPolicy: Forbid keeps one run of each at a time. SQLite is shared by
+# processes on one host, as on the PC. Image built by deploy/build.sh in the repo and imported by hand (no registry).
+# Code goes to /srv/apps/bg-taste-match with deploy/push_code.sh; never copy bgtaste.db over the live one.
+# Secret (not in this repo): kubectl -n apps create secret generic bg-taste-match --from-literal=HF_TOKEN=...
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: bg-taste-match-fetch
+  namespace: apps
+  labels: { app: bg-taste-match }
+spec:
+  schedule: "5 */2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        metadata:
+          labels: { app: bg-taste-match, stage: fetch }
+        spec:
+          restartPolicy: Never
+          nodeSelector: { kubernetes.io/hostname: acer-laptop }
+          tolerations:
+            - { key: dedicated, value: worker, effect: NoSchedule }
+          containers:
+            - name: fetch
+              image: docker.io/library/bg-taste-match:2026-11-10a
+              imagePullPolicy: Never
+              command: ["sh", "/work/deploy/run_fetch.sh"]
+              env:
+                - name: CHANNELS
+                  value: "hc oscs rahdo bgco gbg tbm bgb dtg bower ttgg mvm tantrum amass 3mbg cotb nerdvana lobg slicker purge mu tdg liege dt"
+              volumeMounts:
+                - { name: work, mountPath: /work }
+                - { name: audio, mountPath: /work/audio }
+              resources:
+                requests: { cpu: 100m, memory: 256Mi }
+                limits: { memory: 1Gi }
+          volumes:
+            - name: work
+              hostPath: { path: /srv/apps/bg-taste-match, type: Directory }
+            - name: audio
+              hostPath: { path: /var/lib/bg-taste-match/audio, type: Directory }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: bg-taste-match-gpu
+  namespace: apps
+  labels: { app: bg-taste-match }
+spec:
+  schedule: "15 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        metadata:
+          labels: { app: bg-taste-match, stage: gpu }
+        spec:
+          restartPolicy: Never
+          runtimeClassName: nvidia
+          nodeSelector: { kubernetes.io/hostname: acer-laptop }
+          tolerations:
+            - { key: dedicated, value: worker, effect: NoSchedule }
+          containers:
+            - name: gpu
+              image: docker.io/library/bg-taste-match:2026-11-10a
+              imagePullPolicy: Never
+              command: ["sh", "/work/deploy/run_gpu.sh"]
+              env:
+                - name: CHANNELS
+                  value: "hc oscs rahdo bgco gbg tbm bgb dtg bower ttgg mvm tantrum amass 3mbg cotb nerdvana lobg slicker purge mu tdg liege dt"
+                - { name: SOLO, value: "" }
+                # about 1.2 GB of memory per audio hour plus the model: longer videos would get the pod killed
+                - { name: WHISPER_MAX_MINUTES, value: "120" }
+                # one GPU job at a time (cat-monitor too): taken per video, see gpu_lock.py
+                - { name: GPU_LOCK, value: /gpu-lock/gpu.lock }
+                - { name: NVIDIA_VISIBLE_DEVICES, value: all }
+                - { name: NVIDIA_DRIVER_CAPABILITIES, value: "compute,utility" }
+                - name: HF_TOKEN
+                  valueFrom: { secretKeyRef: { name: bg-taste-match, key: HF_TOKEN } }
+              volumeMounts:
+                - { name: work, mountPath: /work }
+                - { name: audio, mountPath: /work/audio }
+                - { name: gpu-lock, mountPath: /gpu-lock }
+              resources:
+                requests: { cpu: 500m, memory: 1536Mi }   # Whisper or pyannote with one video loaded
+                limits: { memory: 4Gi }
+          volumes:
+            - name: work
+              hostPath: { path: /srv/apps/bg-taste-match, type: Directory }
+            - name: audio
+              hostPath: { path: /var/lib/bg-taste-match/audio, type: Directory }
+            - name: gpu-lock
+              hostPath: { path: /srv/apps/gpu-lock, type: DirectoryOrCreate }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: bg-taste-match-llm
+  namespace: apps
+  labels: { app: bg-taste-match }
+spec:
+  schedule: "45 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        metadata:
+          labels: { app: bg-taste-match, stage: llm }
+        spec:
+          restartPolicy: Never
+          nodeSelector: { kubernetes.io/hostname: acer-laptop }
+          tolerations:
+            - { key: dedicated, value: worker, effect: NoSchedule }
+          containers:
+            - name: llm
+              image: docker.io/library/bg-taste-match:2026-11-10a
+              imagePullPolicy: Never
+              command: ["sh", "/work/deploy/run_llm.sh"]
+              env:
+                - { name: RATE_CHANNELS, value: "hc" }
+                - { name: GEMINI_BACKEND, value: fm }
+                # fm-llm on the control node; the service doesn't exist yet (see Infra README, "LLM calls")
+                - { name: FM_LLM_URL, value: "http://192.168.1.116:8792" }
+                - { name: FM_LLM_MODEL, value: gemini-pro }
+                - { name: FM_LLM_PURPOSE, value: rating }
+              volumeMounts:
+                - { name: work, mountPath: /work }
+              resources:
+                requests: { cpu: 50m, memory: 128Mi }
+                limits: { memory: 512Mi }
+          volumes:
+            - name: work
+              hostPath: { path: /srv/apps/bg-taste-match, type: Directory }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bg-taste-match-shell
+  namespace: apps
+  labels: { app: bg-taste-match }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: bg-taste-match, stage: shell }
+  template:
+    metadata:
+      labels: { app: bg-taste-match, stage: shell }
+    spec:
+      nodeSelector: { kubernetes.io/hostname: acer-laptop }
+      tolerations:
+        - { key: dedicated, value: worker, effect: NoSchedule }
+      containers:
+        - name: shell
+          image: docker.io/library/bg-taste-match:2026-11-10a
+          imagePullPolicy: Never
+          command: ["sleep", "infinity"]
+          env:
+            - { name: GEMINI_BACKEND, value: fm }
+            - { name: FM_LLM_URL, value: "http://192.168.1.116:8792" }
+            - { name: FM_LLM_MODEL, value: gemini-pro }
+          volumeMounts:
+            - { name: work, mountPath: /work }
+            - { name: audio, mountPath: /work/audio }
+          resources:
+            requests: { cpu: 10m, memory: 64Mi }
+            limits: { memory: 2Gi }
+      volumes:
+        - name: work
+          hostPath: { path: /srv/apps/bg-taste-match, type: Directory }
+        - name: audio
+          hostPath: { path: /var/lib/bg-taste-match/audio, type: Directory }

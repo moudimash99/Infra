@@ -9,10 +9,11 @@ resources:
   - kube-state-metrics.yaml
   - node-exporter.yaml
   - process-exporter.yaml
+  - gpu-exporter.yaml
   - grafana.yaml
 configMapGenerator:
   - name: prometheus-config
-    files: [prometheus.yml]
+    files: [prometheus.yml, alert-rules.yml]
   - name: grafana-datasources
     files: [provisioning/datasources.yaml]
   - name: grafana-dashboard-providers
@@ -33,3 +34,5 @@ configMapGenerator:
     files: [dashboards/node-temperatures.json]
   - name: dashboard-home                 # The simple one; Grafana opens on it
     files: [dashboards/home.json]
+  - name: dashboard-gpu-jobs             # Made here: the Acer GPU, the scheduled jobs, alerts firing
+    files: [dashboards/gpu-jobs.json]
