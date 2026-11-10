@@ -31,6 +31,7 @@ spec:
           nodeSelector: { kubernetes.io/hostname: acer-laptop }
           tolerations:
             - { key: dedicated, value: worker, effect: NoSchedule }
+          priorityClassName: batch-low
           containers:
             - name: fetch
               image: docker.io/library/bg-taste-match:2026-11-10a
@@ -74,6 +75,7 @@ spec:
           nodeSelector: { kubernetes.io/hostname: acer-laptop }
           tolerations:
             - { key: dedicated, value: worker, effect: NoSchedule }
+          priorityClassName: batch-mid
           containers:
             - name: gpu
               image: docker.io/library/bg-taste-match:2026-11-10a
@@ -128,6 +130,7 @@ spec:
           nodeSelector: { kubernetes.io/hostname: acer-laptop }
           tolerations:
             - { key: dedicated, value: worker, effect: NoSchedule }
+          priorityClassName: batch-high
           containers:
             - name: llm
               image: docker.io/library/bg-taste-match:2026-11-10a
@@ -167,6 +170,7 @@ spec:
       nodeSelector: { kubernetes.io/hostname: acer-laptop }
       tolerations:
         - { key: dedicated, value: worker, effect: NoSchedule }
+      priorityClassName: batch-low
       containers:
         - name: shell
           image: docker.io/library/bg-taste-match:2026-11-10a

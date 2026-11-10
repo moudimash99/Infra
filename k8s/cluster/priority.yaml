@@ -1,0 +1,43 @@
+# Who the cluster keeps when a machine runs short of memory (the Acer has 6.6 GiB and its pods may ask for more).
+# The kubelet evicts low priority first; a pod above its own memory limit is killed whatever its priority, so
+# priority protects against a full machine, not against one program outgrowing its limit.
+#   homelab-critical  Frigate's recordings, the websites, the lab sites, Homepage, monitoring
+#   homelab-normal    everything not tagged (the default)
+#   batch-high        daily or hourly jobs whose results are expected: cat flash, BoardGameFinder, cat monitor,
+#                     bg-taste-match rating
+#   batch-mid         long jobs that pick up where they stopped: Whisper and speakers
+#   batch-low         jobs that retry on their own and idle helpers: downloads, the bg-taste-match shell
+# Batch levels never push a running pod out to start (preemptionPolicy Never): they wait for room.
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata: { name: homelab-critical }
+value: 1000000
+description: "Keep running: camera recordings, websites, the lab sites, monitoring."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata: { name: homelab-normal }
+value: 100000
+globalDefault: true
+description: "Services with no tag."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata: { name: batch-high }
+value: 30000
+preemptionPolicy: Never
+description: "Daily or hourly jobs whose results are expected (flash, deals, cat monitor, rating)."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata: { name: batch-mid }
+value: 20000
+preemptionPolicy: Never
+description: "Long jobs that resume where they stopped (Whisper, speakers)."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata: { name: batch-low }
+value: 10000
+preemptionPolicy: Never
+description: "Jobs that retry on their own, idle helpers (downloads, shell)."

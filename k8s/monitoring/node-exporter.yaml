@@ -18,6 +18,7 @@ spec:
       hostNetwork: true
       hostPID: true
       securityContext: { runAsUser: 65534, runAsNonRoot: true }
+      priorityClassName: homelab-critical
       containers:
         - name: node-exporter
           image: prom/node-exporter:v1.12.1

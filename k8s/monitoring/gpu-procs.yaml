@@ -110,6 +110,7 @@ spec:
       nodeSelector: { kubernetes.io/hostname: acer-laptop }
       tolerations:
         - { key: dedicated, value: worker, effect: NoSchedule }
+      priorityClassName: homelab-critical
       containers:
         - name: gpu-procs
           image: docker.io/library/python@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90   # 3.13-slim

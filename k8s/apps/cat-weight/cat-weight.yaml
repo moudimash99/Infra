@@ -26,6 +26,7 @@ spec:
       nodeSelector: { kubernetes.io/hostname: acer-laptop }
       tolerations:
         - { key: dedicated, value: worker, effect: NoSchedule }
+      priorityClassName: homelab-critical
       containers:
         - name: cat-weight
           image: docker.io/library/cat-weight:b93165d
@@ -42,7 +43,7 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 20
           resources:
-            requests: { cpu: 10m, memory: 64Mi }
+            requests: { cpu: 10m, memory: 192Mi }
             limits: { memory: 256Mi }
       volumes:
         - name: data

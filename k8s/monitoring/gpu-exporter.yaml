@@ -21,6 +21,7 @@ spec:
       nodeSelector: { kubernetes.io/hostname: acer-laptop }
       tolerations:
         - { key: dedicated, value: worker, effect: NoSchedule }
+      priorityClassName: homelab-critical
       containers:
         - name: exporter
           image: utkuozdemir/nvidia_gpu_exporter:1.18.0

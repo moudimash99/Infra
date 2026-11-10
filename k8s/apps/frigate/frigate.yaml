@@ -24,6 +24,7 @@ spec:
         - { key: dedicated, value: worker, effect: NoSchedule }
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
+      priorityClassName: homelab-critical
       containers:
         - name: frigate
           # The 0.16.3 image that ran in Docker. Pinned, because "stable" moves between versions.
@@ -49,7 +50,7 @@ spec:
             periodSeconds: 30
             failureThreshold: 5
           resources:
-            requests: { cpu: 500m, memory: 1Gi }
+            requests: { cpu: 500m, memory: 1536Mi }  # it uses about 1.45 GiB: reserved, so it is not the first to go when the Acer runs short
             limits: { memory: 3Gi }  # includes the 1 GB cache and the 128 MB shared memory below
       volumes:
         - name: localtime

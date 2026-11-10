@@ -69,6 +69,7 @@ spec:
           volumeMounts:
             - { name: template, mountPath: /template }
             - { name: config, mountPath: /config }
+      priorityClassName: homelab-critical
       containers:
         - name: alertmanager
           image: prom/alertmanager:v0.35.0

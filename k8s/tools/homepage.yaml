@@ -243,6 +243,7 @@ spec:
       labels: { app: homepage }
     spec:
       serviceAccountName: homepage
+      priorityClassName: homelab-critical
       containers:
         - name: homepage
           image: ghcr.io/gethomepage/homepage:v2.5.0
@@ -269,7 +270,7 @@ spec:
             initialDelaySeconds: 20
             periodSeconds: 30
           resources:
-            requests: { cpu: 10m, memory: 96Mi }
+            requests: { cpu: 10m, memory: 128Mi }
             limits: { memory: 384Mi }
           volumeMounts:
             - { name: config, mountPath: /app/config/kubernetes.yaml, subPath: kubernetes.yaml }

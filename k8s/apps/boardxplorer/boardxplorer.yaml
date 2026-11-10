@@ -20,6 +20,7 @@ spec:
       nodeSelector: { kubernetes.io/hostname: acer-laptop }
       tolerations:
         - { key: dedicated, value: worker, effect: NoSchedule }
+      priorityClassName: homelab-critical
       containers:
         - name: boardxplorer
           image: docker.io/library/boardxplorer:2026-10-24

@@ -27,6 +27,7 @@ spec:
     spec:
       hostPID: true
       securityContext: { runAsUser: 65534, runAsNonRoot: true }
+      priorityClassName: homelab-critical
       containers:
         - name: process-exporter
           image: ncabatoff/process-exporter:0.8.7

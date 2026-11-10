@@ -27,6 +27,7 @@ spec:
           nodeSelector: { kubernetes.io/hostname: acer-laptop }
           tolerations:
             - { key: dedicated, value: worker, effect: NoSchedule }
+          priorityClassName: batch-high
           containers:
             - name: pipeline
               image: docker.io/library/boardgamefinder:2026-11-10b

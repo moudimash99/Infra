@@ -81,6 +81,7 @@ spec:
       tolerations:
         - { key: dedicated, value: worker, effect: NoSchedule }
       securityContext: { runAsUser: 10001, runAsGroup: 10001, runAsNonRoot: true }
+      priorityClassName: homelab-critical
       containers:
         - name: lab
           image: docker.io/library/lab:2026-11-10j
@@ -107,8 +108,8 @@ spec:
             periodSeconds: 60
             failureThreshold: 3
           resources:
-            requests: { cpu: 20m, memory: 96Mi }
-            limits: { memory: 512Mi }
+            requests: { cpu: 20m, memory: 384Mi }
+            limits: { memory: 768Mi }
           volumeMounts:
             - { name: lab, mountPath: /srv/lab }
             - { name: tmp, mountPath: /tmp }

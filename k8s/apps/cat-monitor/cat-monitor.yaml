@@ -29,6 +29,7 @@ spec:
           nodeSelector: { kubernetes.io/hostname: acer-laptop }
           tolerations:
             - { key: dedicated, value: worker, effect: NoSchedule }
+          priorityClassName: batch-high
           containers:
             - name: monitor
               image: docker.io/library/cat-monitor:2026-11-10a
@@ -96,6 +97,7 @@ spec:
           nodeSelector: { kubernetes.io/hostname: acer-laptop }
           tolerations:
             - { key: dedicated, value: worker, effect: NoSchedule }
+          priorityClassName: batch-high
           containers:
             - name: flash
               image: docker.io/library/cat-monitor:2026-11-10a

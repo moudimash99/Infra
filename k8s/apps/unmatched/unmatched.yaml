@@ -20,6 +20,7 @@ spec:
       nodeSelector: { kubernetes.io/hostname: acer-laptop }
       tolerations:
         - { key: dedicated, value: worker, effect: NoSchedule }
+      priorityClassName: homelab-critical
       containers:
         - name: unmatched
           image: docker.io/library/unmatched:2026-10-29-0739
@@ -38,7 +39,7 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 20
           resources:
-            requests: { cpu: 10m, memory: 128Mi }
+            requests: { cpu: 10m, memory: 192Mi }
             limits: { memory: 384Mi }
       volumes:
         - name: data
