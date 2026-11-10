@@ -39,10 +39,12 @@
 {% if market.data %}{% set m = market.data %}
 <div class="stats" style="margin-top:.8rem">
   <div class="stat"><div class="l">Deals today</div><div class="v">{{ (deals.data.deals | length) if deals.data else "-" }}</div><div class="s">after removing games you own</div></div>
-  <div class="stat"><div class="l">New listings, 24 h</div><div class="v">{{ m.new | length }}{{ "+" if m.new | length == 60 }}</div><div class="s">across tracked games</div></div>
-  <div class="stat"><div class="l">Price drops</div><div class="v">{{ m.drops | length }}</div><div class="s">since the previous scrape</div></div>
+  <div class="stat"><div class="l">New listings, 24 h</div><div class="v">{{ m.n_new }}</div><div class="s">across tracked games</div></div>
+  <div class="stat"><div class="l">Price drops</div><div class="v">{{ m.n_drops }}</div><div class="s">since the previous scrape</div></div>
   <div class="stat"><div class="l">Live listings</div><div class="v">{{ "{:,}".format(m.live) }}</div><div class="s">{{ m.tracked }} games tracked</div></div>
 </div>
+{% if m.live == 0 %}<p class="err">No live listing at all: the last scrape probably failed part-way (it marks every listing offline before it starts). The numbers here aren't real until the next good run.</p>
+{% elif m.last_scrape and now() - m.last_scrape > 30 * 3600 %}<p class="err">The last scrape was {{ m.last_scrape | ago }}: today's run didn't scrape.</p>{% endif %}
 {% if m.review_pending %}<p class="small" style="margin-top:.5rem">{{ m.review_pending }} bundles and special editions wait for the LLM review · <a href="/deals/review-packet">read the packet</a></p>{% endif %}
 {% endif %}
 {{ unreadable(market, "the market") }}
@@ -50,6 +52,7 @@
 {# ---- Deals ---- #}
 <h2>Today's deals</h2>
 {{ unreadable(deals, "the deals") }}
+{% if deals.data and deals.data.file_time %}<p class="small muted">From the run {{ deals.data.file_time | ago }}{% if now() - deals.data.file_time > 30 * 3600 %}: <b>no newer run has produced deals</b>{% endif %}.</p>{% endif %}
 {% if deals.data %}
 <div class="grid two">
 {% for d in deals.data.deals %}
@@ -60,7 +63,7 @@
       <div><span class="price">{{ "%.0f" | format(d.price) }} €</span>
         {% if d.baseline %}<span class="worth"> · usually {{ "%.0f" | format(d.baseline) }} € · saves {{ "%.0f" | format(d.edge) }} €</span>{% endif %}</div>
       <div>
-        {% if d.first_seen and (now() - (d.first_seen | local).timestamp()) < 86400 %}<span class="tag new">New</span>{% endif %}
+        {% if d.first_seen and now() - d.first_seen < 86400 %}<span class="tag new">New</span>{% endif %}
         <span class="tag">{{ COND.get(d.condition, d.condition) }}</span>
         {% if d.language %}<span class="tag">{{ d.language }}</span>{% endif %}
         <span class="tag">{{ "Ships" if d.ships == "yes" else "Pickup only" if d.ships == "pickup" else d.ships }}</span>
@@ -85,7 +88,7 @@
       <span class="sub">{{ COND.get(p.Condition, p.Condition or "") }}{% if p.Location %} · {{ p.Location.split("\n")[0] }}{% endif %}</span></span>
     <span class="right"><b>{{ "%.0f" | format(p.Price or 0) }} €</b></span></li>
 {% else %}<li class="muted">Nothing new.</li>{% endfor %}
-</ul>{% if m.new | length > 20 %}<p class="small muted">and {{ m.new | length - 20 }}{{ "+" if m.new | length == 60 }} more</p>{% endif %}</div>
+</ul>{% if m.n_new > 20 %}<p class="small muted">and {{ m.n_new - 20 }} more</p>{% endif %}</div>
 </div>
 <div>
 <h2>Price drops</h2>

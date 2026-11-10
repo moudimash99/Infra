@@ -80,6 +80,7 @@ def columns(points, *, height=150, title="", slot=1, unit=""):
 def lines(series, *, height=170, title="", x_labels=None, y_max=None, unit="", step=False):
     """Lines over time. series: [{"name", "slot", "points": [(x, y), ...]}] with x as epoch seconds.
     x_labels: [(x, text)] for the bottom axis. A legend (HTML) comes with two or more series."""
+    series = [{**s, "points": [(x, y) for x, y in s["points"] if y is not None]} for s in series]
     series = [s for s in series if s["points"]]
     if not series:
         return Markup('<p class="muted">No data yet.</p>')

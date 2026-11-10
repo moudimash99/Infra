@@ -83,7 +83,8 @@ def _pod(p):
 
 @source("k8s.pods", ttl=20)
 def pods():
-    return [_pod(p) for p in get("/api/v1/pods")["items"]]
+    """Pods in apps (the jobs and apps the lab shows; its RBAC covers only this namespace)."""
+    return [_pod(p) for p in get("/api/v1/namespaces/apps/pods")["items"]]
 
 
 @source("k8s.nodes", ttl=60)
@@ -109,8 +110,14 @@ def log_tail(namespace, pod, lines=200):
 
 
 def pods_of_job(job_name):
+    """A Job's pods, newest first (a retried Job has more than one)."""
     r = pods.get()
-    return [p for p in (r.data or []) if p["job"] == job_name]
+    return sorted((p for p in (r.data or []) if p["job"] == job_name), key=lambda p: p["start"] or 0, reverse=True)
+
+
+def latest_pod(job_name):
+    found = pods_of_job(job_name)
+    return found[0] if found else None
 
 
 def runs_of(cronjob):

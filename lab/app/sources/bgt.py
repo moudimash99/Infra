@@ -235,7 +235,9 @@ def video(vid):
         conn.close()
     has = lambda folder, ext: os.path.exists(os.path.join(folder, vid + ext))
     audio = any(i == vid for i in _ids(BGT_AUDIO))
-    return {"video": dict(v), "ratings": ratings, "transcript": dict(t) if t else None,
+    if t:   # the page shows the start; full transcripts reach 235 KB
+        t = {"lang": t["lang"], "text": t["text"][:6000], "length": len(t["text"])}
+    return {"video": dict(v), "ratings": ratings, "transcript": t,
             "speakers": sp["speakers"] if sp else None, "errors": errors,
             "flags": {"audio": audio, "captions": has(os.path.join(BGT_DIR, "captions"), ".json3"),
                       "diar": has(os.path.join(BGT_DIR, "diar"), ".json"), "voices": bool(sp)}}

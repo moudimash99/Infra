@@ -65,7 +65,22 @@ def attention():
                                                                                  "in 14 days"),
                           "detail": "Frigate's detector rarely catches the cats; check a frame on the cats page.",
                           "since": last, "href": "/cats"})
-    for src in (bgt.progress, bgf.deals, bgf.market, cats.monitor, cats.weights, misc.mail_classifier, prom.machines):
+    # Failed runs: the newest finished run of each scheduled job, when it failed (the JobFailed alert covers some, not
+    # the downloads, and an alert clears; this stays until a run succeeds).
+    jobs = k8s.jobs.get()
+    if jobs.ok:
+        for name, cron in jobs.data["cronjobs"].items():
+            runs = [r for r in jobs.data["jobs"] if r["cronjob"] == name and r["state"] in ("ok", "failed")]
+            if runs and runs[0]["state"] == "failed" and not (name == "bg-taste-match-fetch" and now.ok
+                                                               and now.data["youtube_blocked"]):
+                pod = k8s.latest_pod(runs[0]["name"])
+                why = (pod or {}).get("reason") or runs[0]["reason"] or "failed"
+                items.append({"level": "warning", "title": f"{name}: last run failed ({why})",
+                              "detail": "OOMKilled means it ran out of memory." if why == "OOMKilled" else "",
+                              "since": runs[0]["failed_at"] or runs[0]["start"], "href": _page_for(
+                                  {"name": name, "labels": {}}) or "/gpu"})
+    for src in (k8s.jobs, k8s.pods, k8s.nodes, bgt.now, bgt.progress, bgf.deals, bgf.market, cats.events, cats.monitor,
+                cats.weights, misc.mail_classifier, prom.machines):
         r = src.get()
         if not r.ok:
             items.append({"level": "warning", "title": f"Lab can't read {src.name}", "detail": r.error,
@@ -91,8 +106,9 @@ def job_cards():
 
     # bg-taste-match: three stages in one card.
     prog, now = bgt.progress.get(), bgt.now.get()
-    card = {"title": "BG Taste Match", "href": "/bg-taste-match", "state": "ok", "lines": [], "meter": None,
-            "note": None, "error": None if prog.ok else prog.error}
+    card = {"title": "BG Taste Match", "href": "/bg-taste-match", "state": "ok" if (prog.ok and now.ok) else "unknown",
+            "lines": [], "meter": None, "note": None,
+            "error": None if (prog.ok and now.ok) else (prog.error or now.error)}
     if now.ok:
         running = [r for r in now.data["runs"] if r["state"] == "running"]
         if running:
@@ -121,8 +137,9 @@ def job_cards():
 
     # BoardGameFinder.
     run, deals, market = bgf.run.get(), bgf.deals.get(), bgf.market.get()
-    card = {"title": "BoardGameFinder", "href": "/deals", "state": "ok", "lines": [], "meter": None, "note": None,
-            "error": None if deals.ok else deals.error}
+    jobs_ok = k8s.jobs.get().ok
+    card = {"title": "BoardGameFinder", "href": "/deals", "state": "ok" if (deals.ok and jobs_ok) else "unknown",
+            "lines": [], "meter": None, "note": None, "error": None if deals.ok else deals.error}
     running, done = _last("boardgamefinder")
     cron = _cron("boardgamefinder")
     if running:
@@ -137,16 +154,18 @@ def job_cards():
         if failing:
             card["note"] = f"{len(failing)} steps failing: " + ", ".join(failing)
     if deals.ok:
-        n_new = sum(1 for d in deals.data["deals"] if d["first_seen"] and time.time() - (to_ts(d["first_seen"]) or 0) < 86400)
+        n_new = sum(1 for d in deals.data["deals"] if d["first_seen"] and time.time() - d["first_seen"] < 86400)
         card["lines"].append(("Deals", f"{len(deals.data['deals'])} ({n_new} new today)"))
     if market.ok:
         card["lines"].append(("Live listings", f"{market.data['live']:,} across {market.data['tracked']} games"))
-        card["lines"].append(("New in 24 h", f"{len(market.data['new'])} listings, {len(market.data['drops'])} price drops"))
+        card["lines"].append(("New in 24 h", f"{market.data['n_new']} listings, {market.data['n_drops']} price drops"))
+        if market.data["live"] == 0 or (market.data["last_scrape"] and time.time() - market.data["last_scrape"] > 30 * 3600):
+            card["state"], card["note"] = "failed", "The last scrape failed or didn't run: listings aren't current" 
     cards.append(card)
 
     # Cat monitor + Frigate.
     mon, ev, w = cats.monitor.get(), cats.events.get(), cats.weights.get()
-    card = {"title": "Cats", "href": "/cats", "state": "ok", "lines": [], "meter": None,
+    card = {"title": "Cats", "href": "/cats", "state": "ok" if jobs_ok else "unknown", "lines": [], "meter": None,
             "note": "Feeding can't be measured: the bowl tag is missing", "error": None}
     running, done = _last("cat-monitor")
     cron = _cron("cat-monitor")

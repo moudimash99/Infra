@@ -54,6 +54,8 @@ def bgt(text):
             if rest.startswith(("FAIL", "FAILED")):
                 cur["fail"] += 1
                 cur["fails"].append(line[:300])
+            elif rest.startswith("have "):          # already downloaded: not work done in this pass
+                cur["have"] = cur.get("have", 0) + 1
             else:
                 cur["ok"] += 1
                 w = WHISPER.match(rest)

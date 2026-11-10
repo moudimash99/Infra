@@ -78,7 +78,7 @@ def bgt_page(request: Request):
                              title="Videos per stage, by day", x_labels=day_labels(xs))
     # Whisper's speed on the GPU (audio minutes per minute of work) and the failures, from the passes' logs:
     # the running ones live, the finished ones as the lab saved them.
-    saved = store.job_logs("bg-taste-match", days=7) + store.job_logs("bgt-", days=7)
+    saved = list({r["uid"]: r for r in store.job_logs("bg-taste-match", days=7) + store.job_logs("bgt-", days=7)}.values())
     live = [r for r in (now.data or {}).get("runs", []) if r["state"] == "running"]
     audio = took = 0.0
     fails = []
@@ -221,6 +221,7 @@ EVENT_ID = re.compile(r"\d+\.\d+-[a-z0-9]+")
 
 
 async def _proxy(url, params=None, media="image/jpeg", cache=300):
+    """Only images come through here, always labelled as such (never Frigate's own pages)."""
     req = _frigate.build_request("GET", url, params=params)
     try:
         r = await _frigate.send(req, stream=True)
@@ -229,11 +230,13 @@ async def _proxy(url, params=None, media="image/jpeg", cache=300):
     if r.status_code != 200:
         await r.aclose()
         raise HTTPException(r.status_code if r.status_code < 500 else 502, "Frigate has no such image or clip")
-    headers = {"Cache-Control": f"private, max-age={cache}"}
+    if not r.headers.get("content-type", "").startswith("image/"):
+        await r.aclose()
+        raise HTTPException(502, "Frigate answered with something that isn't an image")
+    headers = {"Cache-Control": f"private, max-age={cache}", "X-Content-Type-Options": "nosniff"}
     if "content-length" in r.headers:
         headers["Content-Length"] = r.headers["content-length"]
-    return StreamingResponse(r.aiter_raw(), media_type=r.headers.get("content-type", media), headers=headers,
-                             background=None if False else _Closer(r))
+    return StreamingResponse(r.aiter_raw(), media_type=media, headers=headers, background=_Closer(r))
 
 
 class _Closer:
@@ -254,12 +257,7 @@ async def _clip(url, name):
     os.makedirs(CLIPS, exist_ok=True)
     path = os.path.join(CLIPS, name)
     if not os.path.exists(path):
-        files = sorted((os.path.join(CLIPS, f) for f in os.listdir(CLIPS)), key=os.path.getmtime)
-        total = sum(os.path.getsize(f) for f in files)
-        for f in files:
-            if time.time() - os.path.getmtime(f) > 7200 or total > CLIPS_MAX_BYTES:
-                total -= os.path.getsize(f)
-                os.remove(f)
+        await asyncio.to_thread(_trim_clips)
         tmp = f"{path}.{uuid.uuid4().hex}.part"     # two viewers opening the same clip don't share a file
         try:
             async with _frigate.stream("GET", url) as r:
@@ -274,6 +272,25 @@ async def _clip(url, name):
                 os.remove(tmp)
             raise HTTPException(502, f"Frigate: {type(e).__name__}")
     return FileResponse(path, media_type="video/mp4", headers={"Cache-Control": "private, max-age=3600"})
+
+
+def _trim_clips():
+    """Drop clips older than 2 hours, then the oldest while over the size cap (files may vanish meanwhile)."""
+    files = []
+    for f in os.listdir(CLIPS):
+        try:
+            st = os.stat(os.path.join(CLIPS, f))
+            files.append((st.st_mtime, st.st_size, os.path.join(CLIPS, f)))
+        except OSError:
+            continue
+    total = sum(f[1] for f in files)
+    for mtime, size, f in sorted(files):
+        if time.time() - mtime > 7200 or total > CLIPS_MAX_BYTES:
+            try:
+                os.remove(f)
+                total -= size
+            except OSError:
+                pass
 
 
 @app.get("/cats/media/event/{eid}/snapshot.jpg")
@@ -353,7 +370,7 @@ async def report(name: str, request: Request):
         data = await request.json()
     except ValueError:
         raise HTTPException(400, "JSON expected")
-    store.add_report(name, data)
+    await asyncio.to_thread(store.add_report, name, data)
     return {"ok": True}
 
 
@@ -365,22 +382,33 @@ def intake_health():
 # ---- background: remember job runs and the daily pipeline snapshot ----------------------------------------------
 
 def poll_once():
-    j = k8s.jobs.get()
-    if j.ok:
-        store.record_jobs(j.data["jobs"])
-        # Keep each finished run's log summary before Kubernetes deletes the Job (it keeps only the last few).
-        saved = store.logged_uids()
-        for job in j.data["jobs"]:
-            if job["state"] in ("ok", "failed") and job["uid"] not in saved:
-                pods = k8s.pods_of_job(job["name"])
-                text = k8s.get(f"/api/v1/namespaces/{job['namespace']}/pods/{pods[0]['name']}/log",
-                               tailLines=5000) if pods else ""
-                kind = job["cronjob"] or job["name"]
-                store.save_log(job, logs.summarize(kind, text if isinstance(text, str) else ""),
-                               logs.tail(text if isinstance(text, str) else "", 60))
     p = bgt.progress.get()
     if p.ok:
         store.record_bgt(p.data["totals"])
+    j = k8s.jobs.get()
+    if not j.ok:
+        return
+    jobs = [dict(x) for x in j.data["jobs"]]
+    for job in jobs:   # a failed run's real cause is its pod's (OOMKilled, Error), not the Job's BackoffLimitExceeded
+        if job["state"] == "failed":
+            pod = k8s.latest_pod(job["name"])
+            if pod and pod.get("reason"):
+                job["reason"] = pod["reason"]
+    store.record_jobs(jobs)
+    # Keep each finished run's log summary before Kubernetes deletes the Job (it keeps only the last few).
+    saved = store.logged_uids()
+    for job in jobs:
+        if job["state"] not in ("ok", "failed") or job["uid"] in saved:
+            continue
+        text = ""
+        try:
+            pod = k8s.latest_pod(job["name"])
+            if pod:
+                got = k8s.get(f"/api/v1/namespaces/{job['namespace']}/pods/{pod['name']}/log", tailLines=5000)
+                text = got if isinstance(got, str) else ""
+        except Exception as e:     # a log that's gone or unreachable: save what we know, don't retry forever
+            log.warning("log of %s unreadable: %s", job["name"], e)
+        store.save_log(job, logs.summarize(job["cronjob"] or job["name"], text), logs.tail(text, 60))
 
 
 async def poller():

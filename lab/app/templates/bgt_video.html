@@ -39,8 +39,8 @@
 
 {% if r.data.transcript %}
 <h2>Transcript</h2>
-<details class="fold"><summary>{{ r.data.transcript.text | length }} characters ({{ r.data.transcript.lang }})</summary>
-  <pre>{{ r.data.transcript.text[:6000] }}{% if r.data.transcript.text | length > 6000 %}…{% endif %}</pre>
+<details class="fold"><summary>{{ "{:,}".format(r.data.transcript.length) }} characters ({{ r.data.transcript.lang }})</summary>
+  <pre>{{ r.data.transcript.text }}{% if r.data.transcript.length > 6000 %}…{% endif %}</pre>
 </details>
 {% endif %}
 {% if r.data.errors %}

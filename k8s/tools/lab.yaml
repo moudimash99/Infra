@@ -13,14 +13,14 @@ metadata:
   name: lab
   namespace: tools
 ---
-# Read only: pods and nodes everywhere (who uses the GPU, machine state).
+# Read only: the nodes (machine state).
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: lab
 rules:
   - apiGroups: [""]
-    resources: [pods, nodes]
+    resources: [nodes]
     verbs: [get, list]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -31,13 +31,16 @@ roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: lab }
 subjects:
   - { kind: ServiceAccount, name: lab, namespace: tools }
 ---
-# Read only, apps only: the jobs, their schedules and their logs.
+# Read only, apps only: the pods (who uses the GPU), the jobs, their schedules and their logs.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: lab
   namespace: apps
 rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list]
   - apiGroups: [""]
     resources: [pods/log]
     verbs: [get]
@@ -76,7 +79,7 @@ spec:
       securityContext: { runAsUser: 10001, runAsGroup: 10001, runAsNonRoot: true }
       containers:
         - name: lab
-          image: docker.io/library/lab:2026-11-10b
+          image: docker.io/library/lab:2026-11-10c
           imagePullPolicy: Never
           ports:
             - { name: http, containerPort: 8080 }

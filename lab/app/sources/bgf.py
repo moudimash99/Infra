@@ -12,7 +12,7 @@ import sqlite3
 
 from . import source, k8s
 from .. import logs, store
-from ..config import BGF_DIR
+from ..config import BGF_DIR, TZ
 
 STEPS = [  # run_pipeline.py order; critical steps stop the run
     ("top_500_games", "BGG top 500", False), ("update_all_ranks", "BGG ranks", False),
@@ -34,6 +34,14 @@ def _images(conn):
     img = {r[0]: r[1] for r in conn.execute("SELECT BG_Id, Image_URL FROM Game_main_page_link WHERE Image_URL != ''")}
     img.update({r[0]: r[1] for r in conn.execute("SELECT ID, Image_URL FROM BGG_Games WHERE Image_URL != ''")})
     return img
+
+
+def _paris(s):
+    """BoardGameFinder writes naive local (Paris) times: '2026-11-10 07:43:51.02' -> epoch."""
+    try:
+        return dt.datetime.fromisoformat(str(s)[:19]).replace(tzinfo=TZ).timestamp()
+    except (TypeError, ValueError):
+        return None
 
 
 def _f(x):
@@ -61,32 +69,37 @@ def deals():
                     "net": _f(r["Net"]), "comps": int(_f(r.get("Sold_Comps")) or 0), "condition": r.get("Condition", ""),
                     "language": r.get("Language", ""), "bundle": r.get("Bundle", ""), "ships": r.get("Ships", ""),
                     "link": r["Link"], "posted": r.get("Post_Date", ""), "bg_id": bg, "image": img.get(bg),
-                    "alerted": alerted.get(r["Link"]), "first_seen": first.get(r["Link"])})
+                    "alerted": _paris(alerted.get(r["Link"])), "first_seen": _paris(first.get(r["Link"]))})
     return {"deals": out, "file_time": os.path.getmtime(path) if os.path.exists(path) else None}
 
 
 @source("bgf.market", ttl=600)
 def market():
+    # Cut-offs in Paris time, as BoardGameFinder writes its times (SQLite's 'localtime' would be the pod's UTC).
+    now = dt.datetime.now(TZ)
+    day_ago = (now - dt.timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+    since30, since60, since3 = (str((now - dt.timedelta(days=n)).date()) for n in (30, 60, 3))
     conn = db()
     try:
         img = _images(conn)
         live = conn.execute("SELECT COUNT(*) FROM Post WHERE Is_Online = 1").fetchone()[0]
         tracked = conn.execute("SELECT COUNT(*) FROM Game_main_page_link WHERE COALESCE(Ignore, 0) = 0").fetchone()[0]
         per_day = conn.execute("""SELECT substr(Date, 1, 10) AS day, COUNT(DISTINCT Link) AS n FROM Price_History
-                                  WHERE Date >= date('now', '-30 day') GROUP BY day ORDER BY day""").fetchall()
+                                  WHERE Date >= ? GROUP BY day ORDER BY day""", (since30,)).fetchall()
         last_scrape = conn.execute("SELECT MAX(Date) FROM Price_History").fetchone()[0]
-        new = [dict(r) for r in conn.execute("""SELECT p.Link, p.Price, p.Condition, p.Location, p.First_Seen, p.BG_ID,
+        recent = "p.Is_Online = 1 AND p.First_Seen LIKE '20%' AND p.First_Seen >= ?"
+        n_new = conn.execute(f"SELECT COUNT(*) FROM Post p WHERE {recent}", (day_ago,)).fetchone()[0]
+        new = [dict(r) for r in conn.execute(f"""SELECT p.Link, p.Price, p.Condition, p.Location, p.First_Seen, p.BG_ID,
                        COALESCE(g.Name, l.Name) AS name FROM Post p
                        LEFT JOIN BGG_Games g ON g.ID = p.BG_ID
                        LEFT JOIN (SELECT BG_Id, MIN(Name) AS Name FROM Game_main_page_link GROUP BY BG_Id) l
                          ON l.BG_Id = p.BG_ID
-                       WHERE p.Is_Online = 1 AND p.First_Seen >= datetime('now', '-1 day') AND p.First_Seen LIKE '20%'
-                       ORDER BY p.First_Seen DESC LIMIT 60""")]
+                       WHERE {recent} ORDER BY p.First_Seen DESC LIMIT 60""", (day_ago,))]
         # Price drops: a listing's price on its latest scrape day below its price on the scrape day before (a day can
         # hold two runs, so prices are taken per day), latest day within 3 days.
         drops = [dict(r) for r in conn.execute("""
             WITH d AS (SELECT Link, substr(Date, 1, 10) AS day, MIN(Price) AS price FROM Price_History
-                       WHERE Date >= date('now', '-60 day') GROUP BY Link, day),
+                       WHERE Date >= ? GROUP BY Link, day),
                  r AS (SELECT Link, day, price, ROW_NUMBER() OVER (PARTITION BY Link ORDER BY day DESC) AS k FROM d)
             SELECT a.Link, a.price, b.price AS before, a.day, b.day AS before_day, p.BG_ID, p.Condition,
                    COALESCE(g.Name, l.Name, '') AS name
@@ -94,23 +107,24 @@ def market():
             JOIN Post p ON p.Link = a.Link
             LEFT JOIN BGG_Games g ON g.ID = p.BG_ID
             LEFT JOIN (SELECT BG_Id, MIN(Name) AS Name FROM Game_main_page_link GROUP BY BG_Id) l ON l.BG_Id = p.BG_ID
-            WHERE a.price < b.price AND a.day >= date('now', '-3 day') AND p.Is_Online = 1
-            ORDER BY (b.price - a.price) / b.price DESC LIMIT 30""")]
+            WHERE a.price < b.price AND a.day >= ? AND p.Is_Online = 1
+            ORDER BY (b.price - a.price) / b.price DESC""", (since60, since3))]
     finally:
         conn.close()
     for r in new + drops:
         r["image"] = img.get(r.get("BG_ID"))
+        r["First_Seen"] = _paris(r.get("First_Seen")) if r.get("First_Seen") else None
     # Every day of the last 30, a day without a scrape as None (a gap, not zero listings).
     seen = {r["day"]: r["n"] for r in per_day}
-    today = dt.date.today()
+    today = dt.datetime.now(TZ).date()
     days = [(today - dt.timedelta(days=i)).isoformat() for i in range(29, -1, -1)]
     pending = os.path.join(BGF_DIR, "Output", "review_pending.json")
     try:
         review = len(json.load(open(pending, encoding="utf-8")))
     except (OSError, ValueError):
         review = None
-    return {"live": live, "tracked": tracked, "per_day": [(d, seen.get(d)) for d in days], "last_scrape": last_scrape,
-            "new": new, "drops": drops, "review_pending": review,
+    return {"live": live, "tracked": tracked, "per_day": [(d, seen.get(d)) for d in days], "last_scrape": _paris(last_scrape),
+            "new": new, "n_new": n_new, "drops": drops[:30], "n_drops": len(drops), "review_pending": review,
             "missed_days": sum(1 for d in days[:-1] if d not in seen)}
 
 

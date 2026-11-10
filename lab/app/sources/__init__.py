@@ -40,8 +40,9 @@ class Source:
             except Exception as e:
                 log.warning("source %s failed: %s", self.name, traceback.format_exc(limit=3))
                 reading = Reading(False, hit.data if hit else None, f"{type(e).__name__}: {e}"[:300], time.time())
-            if len(self._cache) > 200:
-                self._cache.clear()
+            if len(self._cache) > 50:     # drop what has expired (logs and videos are keyed per pod / per video)
+                now = time.time()
+                self._cache = {k: v for k, v in self._cache.items() if now - v.read_at < self.ttl}
             self._cache[args] = reading
             return reading
 
