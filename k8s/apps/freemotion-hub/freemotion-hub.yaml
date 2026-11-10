@@ -1,0 +1,68 @@
+# Free Motion hub: the dashboard's server (fm-orchestrator/freemotion-hub/server.mjs) with fm-web's page.
+# Image: built on the server from the committed fm-orchestrator and fm-web code (Dockerfile in fm-orchestrator, the page
+# copied in as public/) and loaded into k3s by hand: 2026-11-10a = fm-orchestrator d7a814c + fm-web 08e7197.
+#
+# TRIAL since 2026-11-10: the live hub is still the Docker container `freemotion` on the server (~/freemotion-hub,
+# volume freemotion-hub_freemotion-data). This pod runs on a COPY of its hub.db, taken with VACUUM INTO, in
+# /srv/apps/freemotion-hub. It has no Ingress and no agent port, so nothing reaches it except kubectl port-forward.
+# Its Secret is optional: without it the hub has no agent keys and no allowed logins, so the page answers 401/403.
+#
+# The move itself (SQLite: never two hubs on the same data; the agents and the page must switch together):
+#  1. On the server: sudo k3s kubectl -n apps create secret generic freemotion-hub --from-env-file=$HOME/freemotion-hub/.env
+#  2. Stop the Docker hub (docker stop freemotion), copy its hub.db again into /srv/apps/freemotion-hub (VACUUM INTO, or
+#     the stopped volume's hub.db after a checkpoint), restart this pod.
+#  3. Agents: add hostPort 8791 to the agent port (they use the server's Tailscale address, 100.111.127.103:8791).
+#  4. Page: an Ingress for freemotion.machaka.net, and in nginx/conf.d/site.conf proxy_pass http://192.168.1.116:80.
+#  5. fm-orchestrator/freemotion-hub/test/deploy.mjs: build, import and set the image instead of docker compose up.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: freemotion-hub
+  namespace: apps
+  labels: { app: freemotion-hub }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }  # one SQLite file: never two copies at once
+  selector:
+    matchLabels: { app: freemotion-hub }
+  template:
+    metadata:
+      labels: { app: freemotion-hub }
+    spec:
+      nodeSelector: { kubernetes.io/hostname: moudimash99 }
+      securityContext: { runAsUser: 1000, runAsGroup: 1000 }   # the image's user `node`; owns /srv/apps/freemotion-hub
+      containers:
+        - name: hub
+          image: docker.io/library/freemotion-hub:2026-11-10a
+          imagePullPolicy: Never
+          envFrom:
+            - secretRef: { name: freemotion-hub, optional: true }
+          ports:
+            - { name: page, containerPort: 8790 }
+            - { name: agent, containerPort: 8791 }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+          readinessProbe:
+            httpGet: { path: /healthz, port: page }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: page }
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 20m, memory: 96Mi }
+            limits: { memory: 256Mi }   # as in compose.yml
+      volumes:
+        - name: data
+          hostPath: { path: /srv/apps/freemotion-hub, type: Directory }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: freemotion-hub
+  namespace: apps
+spec:
+  selector: { app: freemotion-hub }
+  ports:
+    - { name: page, port: 8790, targetPort: page }
+    - { name: agent, port: 8791, targetPort: agent }

@@ -84,6 +84,10 @@ X-Forwarded-Proto that nginx sets; without it every visitor looks like 10.42.0.1
 | unmatched | unmatched.machaka.net | Acer | `/srv/apps/unmatched` |
 | website | machaka.net, mohammad.machaka.net | server | `~/Personal-Website/tracking-data` |
 | frigate | http://192.168.1.93:5000 (home network only) | Acer | `/srv/apps/frigate/config`, `/var/lib/frigate/media` |
+| freemotion-hub (trial) | none yet: `kubectl -n apps port-forward svc/freemotion-hub 8790` | server | `/srv/apps/freemotion-hub`: a copy of the Docker hub's `hub.db` from 2026-11-10 |
+
+The Free Motion hub is still live in Docker. The pod `freemotion-hub` is a trial on a copy of its data, with no
+Ingress, no agent port and no Secret yet; the steps to move it are at the top of `k8s/apps/freemotion-hub/freemotion-hub.yaml`.
 
 Scheduled jobs (CronJobs, no web page), moved from the Windows PC on 2026-11-10. The PC stays as a backup: its copies
 of the code and data stopped updating that day.
