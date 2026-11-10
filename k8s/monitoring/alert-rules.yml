@@ -147,6 +147,17 @@ groups:
         annotations:
           summary: "{{ $labels.namespace }}/{{ $labels.pod }} was killed for memory"
           description: "Container {{ $labels.container }} went over its memory limit and was killed. Raise the limit, or find what grew."
+      - alert: PodEvicted
+        # The kubelet pushed a pod out because its machine ran short (memory or disk): priority at work. An evicted
+        # pod stays listed until deleted, so this fires for 30 minutes after the eviction, not for as long as it stays.
+        expr: |
+          (kube_pod_status_reason{reason="Evicted"} == 1
+           unless kube_pod_status_reason{reason="Evicted"} offset 30m == 1)
+          * on (namespace, pod) group_left (node) max by (namespace, pod, node) (kube_pod_info)
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.pod }} was evicted from {{ $labels.node }}"
+          description: "{{ $labels.node }} ran short of memory or disk and pushed out its lowest-priority pods first. A job retries once; a service is restarted. kubectl -n {{ $labels.namespace }} describe pod {{ $labels.pod }} says why."
       - alert: ContainerMemoryNearLimit
         expr: |
           max by (namespace, pod, container) (container_memory_working_set_bytes{container!="", container!="POD"})
