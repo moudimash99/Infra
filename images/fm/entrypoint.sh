@@ -13,6 +13,8 @@ case "${1:-controller}" in
     # agy keeps its sign-in in the Secret Service: a session bus and gnome-keyring, its keyring in $HOME (a volume).
     eval "$(dbus-launch --sh-syntax)"
     export DBUS_SESSION_BUS_ADDRESS
+    # For shells opened later with kubectl exec (a sign-in again, a check): `. /tmp/dbus.env` reaches the same keyring.
+    echo "export DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" > /tmp/dbus.env
     printf '%s' "${FM_KEYRING_PASSWORD:-free-motion}" | gnome-keyring-daemon --unlock --components=secrets > /dev/null 2>&1 || true
     # The disguised Camoufox's config, with this machine's browser and add-on (the PC's copy names Windows paths).
     if [ -f /fm/fm-data/config/playwright-mcp-camoufox.json ]; then
