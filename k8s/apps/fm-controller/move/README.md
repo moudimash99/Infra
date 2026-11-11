@@ -24,8 +24,8 @@ The copy leaves behind:
 
 ## Before
 
-- [ ] Sign-ins done in fm-login. Recreate the pod, then `login-check.sh`: every line PASS.
-- [ ] The Claude account for the gateway is chosen: set `GATEWAY_CLAUDE_DIR` in `k8s/apps/llm-gateway`.
+- [x] Sign-ins done in fm-login. Recreate the pod, then `login-check.sh`: every line PASS. Done 2026-11-11 (2, 3 and agy were at their usage limits, so the login reached the account).
+- [x] The Claude account for the gateway is chosen: set `GATEWAY_CLAUDE_DIR` in `k8s/apps/llm-gateway`. Account 1 (0303ddd).
 - [x] fm-core, fm-orchestrator and fm-agent main hold the moved guard, the Windows-path guard and the codex fix. The server checkouts (`/srv/apps/freemotion/ws`) are pulled. Done 2026-11-11 06:11 (0e3fc2f, 06d3c2d, ccf7714).
 
 ## Cut-over
