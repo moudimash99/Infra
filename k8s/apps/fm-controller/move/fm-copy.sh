@@ -29,7 +29,13 @@ if [ "${1:-}" = --final ]; then
   ssh "$SERVER" "cd $DEST && rm -rf tmp/fm/night tmp/fm/scheduled tmp/fm/hub tmp/fm/loop tmp/fm/gate tmp/fm/burn* && mkdir -p .career-ops-locks && echo 'round state cleared on the server'"
 fi
 start=$SECONDS
+set +e
 tar -cf - "${EX[@]}" "${TOP[@]}" | gzip -1 | ssh -o Compression=no "$SERVER" "mkdir -p $DEST/.career-ops-locks && tar -xzf - -C $DEST && du -sm $DEST | cut -f1"
+st=("${PIPESTATUS[@]}")
+set -e
+# tar's 1 is "a file changed while it was read": expected while a round writes (the pre-copy); the final pass, drained, rereads it.
+[ "${st[0]}" -le 1 ] && [ "${st[1]}" -eq 0 ] && [ "${st[2]}" -eq 0 ] || { echo "copy failed: tar ${st[0]}, gzip ${st[1]}, ssh ${st[2]}"; exit 1; }
+[ "${st[0]}" -eq 1 ] && echo "note: some files changed while they were read"
 echo "copied in $(( SECONDS - start )) s (MB on the server above)"
 if [ "${1:-}" = --final ]; then
   # A file the PC deleted after the pre-copy is still on the server. Round state was cleared above; for data/ (the
