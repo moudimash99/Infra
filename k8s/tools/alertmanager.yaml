@@ -15,23 +15,39 @@ data:
       smtp_auth_username: "__USER__"
       smtp_auth_password_file: /etc/alertmanager/secret/password
       smtp_require_tls: true
+    templates: [/etc/alertmanager/templates/*.tmpl]
     route:
       receiver: email
-      group_by: [alertname, instance, namespace, job_name, pod]
+      # One email per kind of problem: three failed runs at once are one email listing three runs.
+      group_by: [alertname]
       group_wait: 1m
       group_interval: 10m
       repeat_interval: 12h
       routes:
+        # One-off events (a failed run, a kill for memory, an eviction): emailed once, no "over" email.
+        - matchers: [kind="event"]
+          receiver: email-once
         - matchers: [severity="critical"]
           repeat_interval: 3h
           receiver: email
     receivers:
+      # Subject and body come from homelab.tmpl (below): the problem in plain words, then what it means.
       - name: email
         email_configs:
           - to: "__TO__"
             send_resolved: true
             headers:
-              Subject: '[homelab {{ .Status | toUpper }}] {{ .CommonLabels.alertname }}{{ with .CommonLabels.instance }} on {{ . }}{{ end }}{{ with .CommonLabels.job_name }} ({{ . }}){{ end }}'
+              Subject: '{{ template "homelab.subject" . }}'
+            html: '{{ template "homelab.html" . }}'
+            text: '{{ template "homelab.text" . }}'
+      - name: email-once
+        email_configs:
+          - to: "__TO__"
+            send_resolved: false
+            headers:
+              Subject: '{{ template "homelab.subject" . }}'
+            html: '{{ template "homelab.html" . }}'
+            text: '{{ template "homelab.text" . }}'
     inhibit_rules:
       # a machine that's down explains everything else on it
       - source_matchers: [alertname="NodeDown"]
@@ -41,6 +57,56 @@ data:
       - source_matchers: [severity="critical"]
         target_matchers: [severity="warning"]
         equal: [alertname, instance]
+  # The emails' words. The subject is the first alert's summary (alert-rules.yml), with machines by their everyday
+  # names and pods by their app's name (the hashes Kubernetes adds dropped); the body lists each alert's summary and
+  # description. No times: Gmail shows when each email came, and this container's clock is UTC.
+  homelab.tmpl: |
+    {{ define "homelab.plain" -}}
+    {{ . | reReplaceAll `\bmoudimash99\b` "Server" | reReplaceAll `\bacer-laptop\b` "Acer" | reReplaceAll `(-[0-9]{8}|-[bcdfghjklmnpqrstvwxz2456789]{6,10})?-[bcdfghjklmnpqrstvwxz2456789]{5}\b` "" | reReplaceAll `-[0-9]{8}\b` "" }}
+    {{- end }}
+
+    {{ define "homelab.mark" }}{{ if eq . "critical" }}🔴{{ else }}🟠{{ end }}{{ end }}
+
+    {{ define "homelab.subject" -}}
+    {{ if eq .Status "firing" -}}
+    {{ template "homelab.mark" .CommonLabels.severity }} {{ template "homelab.plain" (index .Alerts.Firing 0).Annotations.summary }}
+    {{- if gt (len .Alerts.Firing) 1 }} (and others, {{ len .Alerts.Firing }} in all){{ end }}
+    {{- else -}}
+    ✅ Over: {{ template "homelab.plain" (index .Alerts.Resolved 0).Annotations.summary }}
+    {{- if gt (len .Alerts.Resolved) 1 }} ({{ len .Alerts.Resolved }} in all){{ end }}
+    {{- end }}
+    {{- end }}
+
+    {{ define "homelab.html" -}}
+    <div style="font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 15px; line-height: 1.45; color: #1f1f1f; max-width: 640px">
+    {{ range .Alerts.Firing -}}
+    <p style="margin: 0 0 2px"><b>{{ template "homelab.mark" .Labels.severity }} {{ template "homelab.plain" .Annotations.summary }}</b></p>
+    <p style="margin: 0 0 16px; color: #555">{{ .Annotations.description }}</p>
+    {{ end -}}
+    {{ if .Alerts.Resolved -}}
+    <p style="margin: 8px 0 4px; color: #2e7d32"><b>Over now</b></p>
+    {{ range .Alerts.Resolved -}}
+    <p style="margin: 0 0 6px; color: #555">✅ {{ template "homelab.plain" .Annotations.summary }}</p>
+    {{ end -}}
+    {{ end -}}
+    <p style="margin: 24px 0 0; font-size: 12px; color: #999">Homelab alert {{ .CommonLabels.alertname }}. To silence it: kubectl -n tools port-forward svc/alertmanager 9093:9093, then http://localhost:9093</p>
+    </div>
+    {{- end }}
+
+    {{ define "homelab.text" -}}
+    {{ range .Alerts.Firing -}}
+    {{ template "homelab.mark" .Labels.severity }} {{ template "homelab.plain" .Annotations.summary }}
+    {{ .Annotations.description }}
+
+    {{ end -}}
+    {{ if .Alerts.Resolved -}}
+    Over now:
+    {{ range .Alerts.Resolved -}}
+    ✅ {{ template "homelab.plain" .Annotations.summary }}
+    {{ end }}
+    {{ end -}}
+    Homelab alert {{ .CommonLabels.alertname }}. To silence it: kubectl -n tools port-forward svc/alertmanager 9093:9093, then http://localhost:9093
+    {{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -81,6 +147,7 @@ spec:
             - { name: http, containerPort: 9093 }
           volumeMounts:
             - { name: config, mountPath: /config }
+            - { name: email-template, mountPath: /etc/alertmanager/templates, readOnly: true }
             - { name: secret, mountPath: /etc/alertmanager/secret, readOnly: true }
             - { name: data, mountPath: /alertmanager }
           readinessProbe:
@@ -92,6 +159,10 @@ spec:
       volumes:
         - name: template
           configMap: { name: alertmanager-template }
+        - name: email-template
+          configMap:
+            name: alertmanager-template
+            items: [{ key: homelab.tmpl, path: homelab.tmpl }]
         - name: config
           emptyDir: {}
         - name: secret

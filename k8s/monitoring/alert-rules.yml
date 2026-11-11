@@ -1,6 +1,13 @@
 # Prometheus alert rules. Alertmanager (k8s/tools/alertmanager.yaml) emails them: critical every 3 h while firing,
-# warning every 12 h, and once more when resolved. kustomize puts this file next to prometheus.yml in the
-# prometheus-config ConfigMap. Thresholds are for this homelab: two old laptops, one 4 GB GPU, jobs that may run for hours.
+# warning every 12 h, and once more when over. One-off events (label kind: event: a failed run, a kill for memory, an
+# eviction) are emailed once, with no "over" email.
+# The summary is the email's subject: plain words, the machine or app first. The email turns moudimash99 into Server and
+# acer-laptop into Acer, and drops pod-name hashes, so the summaries can use the raw labels.
+# An event fires once: "unless max_over_time(...[6h] offset 5m)" means "not already so in the 6 hours before". Not
+# "unless ... offset 1h": that looks at one instant, and a short gap in kube-state-metrics there (a restart) made old
+# failures fire again (2026-11-11 21:44: three runs that had failed 18 to 43 hours before).
+# kustomize puts this file next to prometheus.yml in the prometheus-config ConfigMap.
+# Thresholds are for this homelab: two old laptops, one 4 GB GPU, jobs that may run for hours.
 groups:
   - name: machines
     rules:
@@ -16,55 +23,55 @@ groups:
         for: 5m
         labels: { severity: critical }
         annotations:
-          summary: "Kubernetes node {{ $labels.node }} is not Ready"
+          summary: "{{ $labels.node }}: Kubernetes reports it not ready"
           description: "k3s on {{ $labels.node }} has reported NotReady for 5 minutes; its pods won't be replaced elsewhere."
       - alert: NodeMemoryHigh
         expr: 1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes > 0.90
         for: 10m
         labels: { severity: warning }
         annotations:
-          summary: "{{ $labels.instance }} memory {{ $value | humanizePercentage }} used"
+          summary: "{{ $labels.instance }}: memory {{ $value | humanizePercentage }} used"
           description: "Over 90% of memory in use for 10 minutes. There is no swap: the kernel will start killing processes."
       - alert: NodeMemoryCritical
         expr: 1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes > 0.97
         for: 2m
         labels: { severity: critical }
         annotations:
-          summary: "{{ $labels.instance }} almost out of memory ({{ $value | humanizePercentage }})"
+          summary: "{{ $labels.instance }}: almost out of memory ({{ $value | humanizePercentage }} used)"
           description: "Over 97% of memory in use. Expect processes to be killed."
       - alert: NodeOOMKill
         expr: increase(node_vmstat_oom_kill[15m]) > 0
-        labels: { severity: warning }
+        labels: { severity: warning, kind: event }
         annotations:
-          summary: "The kernel killed a process for memory on {{ $labels.instance }}"
+          summary: "{{ $labels.instance }}: a process was killed for lack of memory"
           description: "{{ $value | humanize }} out-of-memory kill(s) in the last 15 minutes (whole machine or a container's limit). See ContainerOOMKilled for which pod."
       - alert: NodeCPUBusy
         expr: 1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) > 0.90
         for: 30m
         labels: { severity: warning }
         annotations:
-          summary: "{{ $labels.instance }} CPU {{ $value | humanizePercentage }} busy for 30 minutes"
+          summary: "{{ $labels.instance }}: CPU {{ $value | humanizePercentage }} busy for 30 minutes"
           description: "Everything on this machine will be slow, Frigate's detection included."
       - alert: NodeLoadHigh
         expr: node_load15 / on (instance) count by (instance) (node_cpu_seconds_total{mode="idle"}) > 2
         for: 30m
         labels: { severity: warning }
         annotations:
-          summary: "{{ $labels.instance }} load is {{ $value | humanize }}x its CPU threads"
+          summary: "{{ $labels.instance }}: overloaded ({{ $value | humanize }}x more work than CPU threads)"
           description: "More work waiting than the CPU can do, for 30 minutes (often disk or too many jobs at once)."
       - alert: NodeDiskSpaceLow
         expr: node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|nsfs|fuse.*"} / node_filesystem_size_bytes < 0.10
         for: 10m
         labels: { severity: warning }
         annotations:
-          summary: "{{ $labels.instance }} {{ $labels.mountpoint }} has {{ $value | humanizePercentage }} free"
+          summary: "{{ $labels.instance }}: disk {{ $labels.mountpoint }} has {{ $value | humanizePercentage }} free"
           description: "Under 10% free on {{ $labels.mountpoint }} ({{ $labels.device }})."
       - alert: NodeDiskSpaceCritical
         expr: node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|nsfs|fuse.*"} / node_filesystem_size_bytes < 0.04
         for: 5m
         labels: { severity: critical }
         annotations:
-          summary: "{{ $labels.instance }} {{ $labels.mountpoint }} nearly full ({{ $value | humanizePercentage }} free)"
+          summary: "{{ $labels.instance }}: disk {{ $labels.mountpoint }} nearly full ({{ $value | humanizePercentage }} free)"
           description: "Databases and recordings on {{ $labels.mountpoint }} will start failing to write."
       - alert: NodeDiskFillingUp
         expr: |
@@ -73,29 +80,29 @@ groups:
         for: 1h
         labels: { severity: warning }
         annotations:
-          summary: "{{ $labels.instance }} {{ $labels.mountpoint }} will be full within a day"
+          summary: "{{ $labels.instance }}: disk {{ $labels.mountpoint }} will be full within a day"
           description: "At the last 6 hours' rate, {{ $labels.mountpoint }} fills up in under 24 hours."
       - alert: NodeFilesystemReadOnly
         expr: node_filesystem_readonly{fstype!~"tmpfs|overlay|squashfs|ramfs|nsfs|fuse.*"} == 1
         for: 5m
         labels: { severity: critical }
         annotations:
-          summary: "{{ $labels.instance }} {{ $labels.mountpoint }} went read-only"
+          summary: "{{ $labels.instance }}: disk {{ $labels.mountpoint }} went read-only"
           description: "Usually a disk error. Nothing can write there."
       - alert: NodeHot
         expr: max by (instance) (node_hwmon_temp_celsius) > 90
         for: 5m
         labels: { severity: warning }
         annotations:
-          summary: "{{ $labels.instance }} at {{ $value | humanize }} °C"
+          summary: "{{ $labels.instance }}: running hot, {{ $value | humanize }} °C"
           description: "The hottest sensor has been above 90 °C for 5 minutes. Laptops throttle, then shut down, past this."
       - alert: NodeVeryHot
         expr: max by (instance) (node_hwmon_temp_celsius) > 97
         for: 2m
         labels: { severity: critical }
         annotations:
-          summary: "{{ $labels.instance }} at {{ $value | humanize }} °C"
-          description: "Close to a thermal shutdown."
+          summary: "{{ $labels.instance }}: very hot, {{ $value | humanize }} °C"
+          description: "The hottest sensor is above 97 °C: close to a thermal shutdown."
 
   - name: gpu
     rules:
@@ -104,34 +111,34 @@ groups:
         for: 10m
         labels: { severity: warning }
         annotations:
-          summary: "No GPU numbers from the Acer"
+          summary: "Acer: no GPU readings"
           description: "nvidia-gpu-exporter isn't reporting: the exporter pod is down, or the NVIDIA driver didn't load (after a kernel update, check linux-modules-nvidia-580-<kernel>). The GPU jobs will fail too."
       - alert: GPUMemoryHigh
         expr: nvidia_smi_memory_used_bytes / nvidia_smi_memory_total_bytes > 0.92
         for: 5m
         labels: { severity: warning }
         annotations:
-          summary: "GPU memory {{ $value | humanizePercentage }} used on the Acer"
+          summary: "Acer: GPU memory {{ $value | humanizePercentage }} used"
           description: "The 4 GB card is nearly full; the next GPU job will fail with CUDA out of memory. Two jobs may be on it at once despite the lock."
       - alert: GPUHot
         expr: nvidia_smi_temperature_gpu > 85
         for: 5m
         labels: { severity: warning }
         annotations:
-          summary: "GPU at {{ $value | humanize }} °C"
+          summary: "Acer: GPU running hot, {{ $value | humanize }} °C"
           description: "The GTX 1050 has been above 85 °C for 5 minutes."
       - alert: GPUVeryHot
         expr: nvidia_smi_temperature_gpu > 92
         for: 2m
         labels: { severity: critical }
         annotations:
-          summary: "GPU at {{ $value | humanize }} °C"
+          summary: "Acer: GPU very hot, {{ $value | humanize }} °C"
           description: "Near the card's slowdown point. Check the laptop's airflow."
       - alert: GPUBusyForDays
         expr: avg_over_time(nvidia_smi_utilization_gpu_ratio[2d]) > 0.95
         labels: { severity: warning }
         annotations:
-          summary: "GPU flat out for two days"
+          summary: "Acer: GPU flat out for two days"
           description: "Average GPU load above 95% for 48 hours: fine for a long Whisper backlog, but check nothing is stuck."
 
   - name: kubernetes
@@ -139,24 +146,24 @@ groups:
       - alert: ContainerOOMKilled
         expr: |
           (kube_pod_container_status_terminated_reason{reason="OOMKilled"} == 1
-           unless kube_pod_container_status_terminated_reason{reason="OOMKilled"} offset 30m == 1)
+           unless max_over_time(kube_pod_container_status_terminated_reason{reason="OOMKilled"}[6h] offset 5m) == 1)
           or
           (kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1
            and on (namespace, pod, container) increase(kube_pod_container_status_restarts_total[15m]) > 0)
-        labels: { severity: warning }
+        labels: { severity: warning, kind: event }
         annotations:
-          summary: "{{ $labels.namespace }}/{{ $labels.pod }} was killed for memory"
-          description: "Container {{ $labels.container }} went over its memory limit and was killed. Raise the limit, or find what grew."
+          summary: "{{ $labels.pod }}: killed for using too much memory"
+          description: "Its container {{ $labels.container }} went over its memory limit (pod {{ $labels.namespace }}/{{ $labels.pod }}). Raise the limit, or find what grew."
       - alert: PodEvicted
         # The kubelet pushed a pod out because its machine ran short (memory or disk): priority at work. An evicted
-        # pod stays listed until deleted, so this fires for 30 minutes after the eviction, not for as long as it stays.
+        # pod stays listed until deleted, so this fires once, right after the eviction, not for as long as it stays.
         expr: |
           (kube_pod_status_reason{reason="Evicted"} == 1
-           unless kube_pod_status_reason{reason="Evicted"} offset 30m == 1)
+           unless max_over_time(kube_pod_status_reason{reason="Evicted"}[6h] offset 5m) == 1)
           * on (namespace, pod) group_left (node) max by (namespace, pod, node) (kube_pod_info)
-        labels: { severity: warning }
+        labels: { severity: warning, kind: event }
         annotations:
-          summary: "{{ $labels.namespace }}/{{ $labels.pod }} was evicted from {{ $labels.node }}"
+          summary: "{{ $labels.pod }}: pushed off {{ $labels.node }} to free memory or disk"
           description: "{{ $labels.node }} ran short of memory or disk and pushed out its lowest-priority pods first. A job retries once; a service is restarted. kubectl -n {{ $labels.namespace }} describe pod {{ $labels.pod }} says why."
       - alert: ContainerMemoryNearLimit
         expr: |
@@ -166,48 +173,48 @@ groups:
         for: 10m
         labels: { severity: warning }
         annotations:
-          summary: "{{ $labels.namespace }}/{{ $labels.pod }} at {{ $value | humanizePercentage }} of its memory limit"
+          summary: "{{ $labels.pod }}: at {{ $value | humanizePercentage }} of its memory limit"
           description: "Container {{ $labels.container }} will be killed if it grows a bit more."
       - alert: PodCrashLooping
         expr: increase(kube_pod_container_status_restarts_total[30m]) > 3
         labels: { severity: warning }
         annotations:
-          summary: "{{ $labels.namespace }}/{{ $labels.pod }} restarted {{ $value | humanize }} times in 30 minutes"
+          summary: "{{ $labels.pod }}: keeps crashing ({{ $value | humanize }} restarts in 30 minutes)"
           description: "Container {{ $labels.container }} keeps crashing: kubectl -n {{ $labels.namespace }} logs {{ $labels.pod }} --previous"
       - alert: ContainerCannotStart
         expr: kube_pod_container_status_waiting_reason{reason=~"ErrImagePull|ImagePullBackOff|ErrImageNeverPull|CreateContainerConfigError|CreateContainerError|InvalidImageName|CrashLoopBackOff|RunContainerError"} == 1
         for: 10m
         labels: { severity: warning }
         annotations:
-          summary: "{{ $labels.namespace }}/{{ $labels.pod }} can't start: {{ $labels.reason }}"
+          summary: "{{ $labels.pod }}: can't start ({{ $labels.reason }})"
           description: "ErrImageNeverPull means the image was never imported on that node (no registry here: docker save, then k3s ctr images import)."
       - alert: PodPendingTooLong
         expr: kube_pod_status_phase{phase="Pending"} == 1
         for: 20m
         labels: { severity: warning }
         annotations:
-          summary: "{{ $labels.namespace }}/{{ $labels.pod }} pending for 20 minutes"
-          description: "Not scheduled or not starting: no node with room, a missing volume folder, or a missing image."
+          summary: "{{ $labels.pod }}: waiting over 20 minutes to start"
+          description: "Usually no machine has enough unreserved memory for it; else a missing volume folder or image. kubectl -n {{ $labels.namespace }} describe pod {{ $labels.pod }} says which, under Events."
       - alert: DeploymentUnavailable
         expr: kube_deployment_status_replicas_unavailable > 0
         for: 15m
         labels: { severity: warning }
         annotations:
-          summary: "{{ $labels.namespace }}/{{ $labels.deployment }} has {{ $value }} replica(s) down"
+          summary: "{{ $labels.deployment }}: {{ $value }} of its copies down"
           description: "For 15 minutes. The site or tool it serves is down or degraded."
       - alert: DaemonSetUnavailable
         expr: kube_daemonset_status_number_unavailable > 0
         for: 15m
         labels: { severity: warning }
         annotations:
-          summary: "{{ $labels.namespace }}/{{ $labels.daemonset }} missing on {{ $value }} node(s)"
+          summary: "{{ $labels.daemonset }}: missing on {{ $value }} machine(s)"
           description: "A per-machine agent (monitoring, Beszel, GPU exporter) isn't running everywhere it should."
       - alert: TargetDown
         expr: up{job!="node-exporter"} == 0
         for: 10m
         labels: { severity: warning }
         annotations:
-          summary: "Prometheus can't scrape {{ $labels.job }} {{ $labels.instance }}"
+          summary: "Monitoring can't read {{ $labels.job }} ({{ $labels.instance }})"
           description: "For 10 minutes. Its graphs have a gap and its alerts can't fire."
 
   - name: scheduled-jobs
@@ -215,29 +222,29 @@ groups:
       - alert: JobFailed
         # bg-taste-match's downloads fail whenever YouTube blocks the home address: BgTasteMatchDownloadsStalled covers them
         expr: |
-          (kube_job_status_failed > 0 unless kube_job_status_failed offset 1h > 0)
+          (kube_job_status_failed > 0 unless max_over_time(kube_job_status_failed[6h] offset 5m) > 0)
           unless on (namespace, job_name) kube_job_owner{owner_name="bg-taste-match-fetch"}
-        labels: { severity: warning }
+        labels: { severity: warning, kind: event }
         annotations:
-          summary: "Job {{ $labels.namespace }}/{{ $labels.job_name }} failed"
-          description: "kubectl -n {{ $labels.namespace }} logs job/{{ $labels.job_name }} (also when a job ran past its time limit)."
+          summary: "{{ $labels.job_name }}: a run failed"
+          description: "It stopped with an error or ran past its time limit. Its log: kubectl -n {{ $labels.namespace }} logs job/{{ $labels.job_name }}"
       - alert: BoardGameFinderMissed
         expr: time() - kube_cronjob_status_last_successful_time{cronjob="boardgamefinder"} > 26 * 3600
         labels: { severity: warning }
         annotations:
-          summary: "BoardGameFinder hasn't finished a run in over a day"
+          summary: "BoardGameFinder: no finished run in over a day"
           description: "Its daily 07:00 run failed or didn't start: no deal email today."
       - alert: CatMonitorMissed
         expr: time() - kube_cronjob_status_last_successful_time{cronjob="cat-monitor"} > 26 * 3600
         labels: { severity: warning }
         annotations:
-          summary: "No cat-monitor run has succeeded for over a day"
+          summary: "cat-monitor: no run has succeeded for over a day"
           description: "Its daily run failed (GPU busy past the 1-hour wait, no recordings, an error, or past its time limit)."
       - alert: BgTasteMatchDownloadsStalled
         expr: time() - kube_cronjob_status_last_successful_time{cronjob="bg-taste-match-fetch"} > 12 * 3600
         labels: { severity: warning }
         annotations:
-          summary: "bg-taste-match downloads haven't completed a pass in 12 hours"
+          summary: "bg-taste-match: downloads haven't completed a pass in 12 hours"
           description: "Every pass for 12 hours stopped on YouTube refusing downloads (HTTP 403/429), or failed otherwise: kubectl -n apps logs job/<latest bg-taste-match-fetch job>. Blocks usually lift within a day."
       - alert: JobRunningTooLong
         expr: |
@@ -246,7 +253,7 @@ groups:
           unless on (namespace, job_name) kube_job_owner{owner_name=~"bg-taste-match-(gpu|fetch|llm)"}
         labels: { severity: warning }
         annotations:
-          summary: "Job {{ $labels.namespace }}/{{ $labels.job_name }} running for {{ $value | humanizeDuration }}"
+          summary: "{{ $labels.job_name }}: still running after {{ $value | humanizeDuration }}"
           description: "Longer than any normal run (bg-taste-match's long passes are left out)."
 
   - name: apps
@@ -256,28 +263,28 @@ groups:
         for: 5m
         labels: { severity: critical }
         annotations:
-          summary: "Frigate camera {{ $labels.camera_name }} stopped ({{ $value | humanize }} fps)"
+          summary: "Frigate: camera {{ $labels.camera_name }} stopped ({{ $value | humanize }} fps)"
           description: "No frames for 5 minutes: nothing is recorded, and the cat monitor has nothing to read."
       - alert: FrigateMetricsMissing
         expr: absent(frigate_camera_fps)
         for: 10m
         labels: { severity: critical }
         annotations:
-          summary: "Frigate isn't reporting"
+          summary: "Frigate: not reporting"
           description: "Frigate is down or its metrics address changed."
       - alert: FrigateDetectorSlow
         expr: frigate_detector_inference_speed_seconds > 0.1
         for: 15m
         labels: { severity: warning }
         annotations:
-          summary: "Frigate's detector takes {{ $value | humanizeDuration }} per frame"
+          summary: "Frigate: detection slow ({{ $value | humanizeDuration }} per frame)"
           description: "Normally about 10 ms on the Intel GPU (OpenVINO). Slower means it fell back to the CPU or the GPU is busy."
       - alert: FrigateStorageLow
         expr: frigate_storage_free_bytes / frigate_storage_total_bytes < 0.10
         for: 30m
         labels: { severity: warning }
         annotations:
-          summary: "Frigate storage {{ $labels.storage }} under 10% free"
+          summary: "Frigate: storage {{ $labels.storage }} under 10% free"
           description: "Recordings are kept 14 days; less free space means Frigate will cut them shorter."
 
   - name: monitoring
@@ -286,18 +293,18 @@ groups:
         expr: increase(alertmanager_notifications_failed_total[30m]) > 0
         labels: { severity: critical }
         annotations:
-          summary: "Alertmanager can't send email"
+          summary: "Alerts: emails can't be sent"
           description: "Gmail refused or timed out. Alerts are only visible in Prometheus and Grafana until this is fixed (Secret tools/alert-smtp)."
       - alert: PrometheusRuleErrors
         expr: increase(prometheus_rule_evaluation_failures_total[30m]) > 0
         labels: { severity: warning }
         annotations:
-          summary: "Some alert rules fail to evaluate"
+          summary: "Alerts: some rules fail to run"
           description: "A rule in alert-rules.yml has an error: those alerts can't fire."
       - alert: PrometheusAlertmanagerUnreachable
         expr: prometheus_notifications_alertmanagers_discovered < 1
         for: 10m
         labels: { severity: critical }
         annotations:
-          summary: "Prometheus can't reach Alertmanager"
+          summary: "Alerts: Prometheus can't reach Alertmanager"
           description: "No alert emails will be sent. Is tools/alertmanager running?"
