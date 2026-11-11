@@ -98,7 +98,9 @@ spec:
                 - { name: audio, mountPath: /work/audio }
                 - { name: gpu-lock, mountPath: /gpu-lock }
               resources:
-                requests: { cpu: 500m, memory: 1536Mi }   # Whisper or pyannote with one video loaded
+                # Whisper or pyannote with one video loaded: peaks of 1.0-1.7 GiB seen (2026-11-11). Requested
+                # below that so it fits next to Free Motion's browser lanes; the limit covers the peak.
+                requests: { cpu: 500m, memory: 1400Mi }
                 limits: { memory: 4Gi }
           volumes:
             - name: work
