@@ -40,8 +40,9 @@ echo "copied in $(( SECONDS - start )) s (MB on the server above)"
 if [ "${1:-}" = --final ]; then
   # A file the PC deleted after the pre-copy is still on the server. Round state was cleared above; for data/ (the
   # records), list what only the server has, to look at before anything starts.
-  find data -type f ! -path '*.lock/*' | sort > /tmp/fm-pc-data.txt
-  ssh "$SERVER" "cd $DEST && find data -type f ! -path '*.lock/*' | sort" | comm -13 /tmp/fm-pc-data.txt - > /tmp/fm-server-only.txt
+  # One sort order on both sides (Git Bash and the server's locale differ, and comm needs the same).
+  find data -type f ! -path '*.lock/*' | LC_ALL=C sort > /tmp/fm-pc-data.txt
+  ssh "$SERVER" "cd $DEST && find data -type f ! -path '*.lock/*' | LC_ALL=C sort" | LC_ALL=C comm -13 /tmp/fm-pc-data.txt - > /tmp/fm-server-only.txt
   echo "files in data/ only on the server: $(wc -l < /tmp/fm-server-only.txt)"; head -20 /tmp/fm-server-only.txt
   ssh "$SERVER" "grep -o '\"enabled\": *[a-z]*' $DEST/data/burn-settings.json" | sed 's/^/auto-apply in the server copy: /'
 fi

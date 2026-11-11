@@ -26,7 +26,7 @@ printf '{"mcpServers":{"playwright":{"type":"http","url":"%s","tools":["*"]}}}\n
 ok() { if grep -q "$WORD" "$2"; then echo "PASS $1"; else echo "FAIL $1: $(tail -c 400 "$2" | tr '\n' ' ')"; fi; }
 for a in 1 2 3; do
   CLAUDE_CONFIG_DIR=$HOME/.claude-account$a timeout 300 claude -p "$P" --model sonnet --dangerously-skip-permissions \
-    --mcp-config $D/claude.json --strict-mcp-config --output-format json > $D/claude$a.out 2>&1
+    --mcp-config $D/claude.json --strict-mcp-config --output-format json < /dev/null > $D/claude$a.out 2>&1
   ok "claude account$a" $D/claude$a.out
 done
 timeout 300 codex exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check -C /fm/fm-data --json \
@@ -36,6 +36,6 @@ timeout 300 copilot -p "$P" --allow-all --no-ask-user --no-color --output-format
 ok copilot $D/copilot.out
 # agy: its global entry is the relay in remote mode (run.sh sets it); the relay reads FM_BROWSER_URL.
 agy mcp list 2>/dev/null | grep -qE '^playwright[[:space:]].*browser-relay' || agy mcp add playwright node "$FM_WS/fm-agent/freemotion-night/browser-relay.mjs" > /dev/null 2>&1
-FM_BROWSER_URL=$BURL timeout 300 agy -p "$P" --dangerously-skip-permissions --print-timeout 5m --output-format json > $D/agy.out 2>&1
+FM_BROWSER_URL=$BURL timeout 300 agy -p "$P" --dangerously-skip-permissions --print-timeout 5m --output-format json < /dev/null > $D/agy.out 2>&1
 ok agy $D/agy.out
 gh auth status > $D/gh.out 2>&1 && echo "PASS gh" || echo "FAIL gh: $(tail -c 200 $D/gh.out)"
