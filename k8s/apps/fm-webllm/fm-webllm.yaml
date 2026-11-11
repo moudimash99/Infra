@@ -87,5 +87,9 @@ spec:
     - from:
         - podSelector:
             matchLabels: { app: fm-controller }
+        # bg-taste-match's ratings and matching (its llm job, and the shell pod for stages run by hand): every Gemini
+        # call on the account through one pace and cap (2026-11-12). They ask with WEB_LLM_PRIORITY=low.
+        - podSelector:
+            matchLabels: { app: bg-taste-match }
       ports:
         - { port: 8933 }

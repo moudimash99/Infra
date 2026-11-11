@@ -2,7 +2,8 @@
 # scheduled stages on the Acer, sharing one working folder (code + SQLite + captions + speaker data) and the audio.
 #   fetch  every 2 hours audio downloads (yt-dlp, 30 s apart); a YouTube block ends the pass (see deploy/run_fetch.sh)
 #   gpu    every hour    Whisper captions/transcripts, then speaker separation (GTX 1050 through the nvidia runtime)
-#   llm    every hour    first rating pass through fm-llm on the control node; quiet until fm-llm answers /healthz
+#   llm    every hour at night  first rating pass and BGG matching, the Gemini website through Free Motion's fm-webllm
+#                        (one pace and cap for every Gemini call on the account); quiet while fm-webllm doesn't answer
 #   shell  always        an idle pod with the same mounts, for the stages run by hand (voice ID, matching, scoring)
 # The stage scripts run from the code folder (deploy/run_*.sh), so a change needs push_code.sh, not a new image.
 # Each stage skips finished work and concurrencyPolicy: Forbid keeps one run of each at a time. SQLite is shared by
@@ -117,7 +118,11 @@ metadata:
   namespace: apps
   labels: { app: bg-taste-match }
 spec:
-  schedule: "45 * * * *"
+  # Nights only, as the PC's night runner did (2026-11-11): the website is the day's writers' and the user's then.
+  # run_llm.sh starts no channel from RATE_UNTIL to 20:00, so a long run ends near 09:00 too.
+  schedule: "45 0-8,20-23 * * *"
+  timeZone: Europe/Paris
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 3
@@ -139,20 +144,32 @@ spec:
               imagePullPolicy: Never
               command: ["sh", "/work/deploy/run_llm.sh"]
               env:
-                - { name: RATE_CHANNELS, value: "hc" }
-                - { name: GEMINI_BACKEND, value: fm }
-                # fm-llm on the control node; the service doesn't exist yet (see Infra README, "LLM calls")
-                - { name: FM_LLM_URL, value: "http://192.168.1.116:8792" }
-                - { name: FM_LLM_MODEL, value: gemini-pro }
-                - { name: FM_LLM_PURPOSE, value: rating }
+                - name: RATE_CHANNELS
+                  value: "hc oscs rahdo bgco gbg tbm bgb dtg bower ttgg mvm tantrum amass 3mbg cotb nerdvana lobg slicker purge mu tdg liege dt"
+                - { name: RATE_UNTIL, value: "0900" }
+                - { name: TZ, value: Europe/Paris }
+                # The Gemini website through Free Motion's fm-webllm (k8s/apps/fm-webllm): gemini.py runs fm-llm's
+                # web-llm.py (the server's checkout, read over NFS), which sends each ask there. gemini.py asks with
+                # WEB_LLM_PRIORITY=low (at most 30 of the hour's 45 calls) and waits out a paced or capped turn.
+                - { name: GEMINI_BACKEND, value: web }
+                - { name: WEB_LLM_URL, value: "http://fm-webllm:8933" }
+                - { name: CAREER_OPS_DIR, value: /fm/ws/fm-llm }
+                # Long multi-game videos took up to 12 min on 2026-11-11; fm-webllm stops a call at 290 s otherwise.
+                - { name: WEB_LLM_SERVE_TIMEOUT, value: "900" }
+                - { name: FM_LLM_PROJECT, value: bg-taste-match }
+                - { name: FM_LLM_SPOOL, value: /work/fm-llm-spool }
               volumeMounts:
                 - { name: work, mountPath: /work }
+                - { name: fm-ws, mountPath: /fm/ws, readOnly: true }
               resources:
-                requests: { cpu: 50m, memory: 128Mi }
+                # Waits on the website most of the time; small, so it fits next to the GPU job and the browser lanes.
+                requests: { cpu: 50m, memory: 64Mi }
                 limits: { memory: 512Mi }
           volumes:
             - name: work
               hostPath: { path: /srv/apps/bg-taste-match, type: Directory }
+            - name: fm-ws
+              nfs: { server: 192.168.1.116, path: /srv/apps/freemotion/ws, readOnly: true }
 ---
 apiVersion: apps/v1
 kind: Deployment
