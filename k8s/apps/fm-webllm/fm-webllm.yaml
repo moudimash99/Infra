@@ -6,7 +6,7 @@
 # PC), cookies.json, the Gemini rest file and the profile lock. Firefox's files do not belong on NFS.
 # Code: the server's checkout over NFS, read-only (/srv/apps/freemotion/ws, exported to the Acer): a deploy is a git
 # pull there, then a restart of this pod. fm-data over NFS for .env (CHATGPT_EMAIL, used to sign in again).
-# Gemini stays off in the controller (WEB_LLM_OFF=gemini) until its pacing (one Google account, one home IP) is on main.
+# Gemini too (on since 2026-11-11 23:10): one place for the Google cookies and its rest file.
 apiVersion: v1
 kind: Service
 metadata:

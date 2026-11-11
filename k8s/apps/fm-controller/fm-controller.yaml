@@ -46,9 +46,8 @@ spec:
             - { name: FM_BROWSER_SERVICE, value: fm-browser.apps.svc.cluster.local }
             # The website writers: never a browser here (a ChatGPT one took 1.4 GB and, with the score loops, got the
             # controller OOM-killed on 2026-11-11 19:45). Every web-llm.py ask goes to the Acer's fm-webllm pod, which
-            # holds the signed-in ChatGPT browser. Gemini stays off until its pacing (one account, one IP) is on main.
+            # holds the signed-in ChatGPT browser and the Gemini cookies (Gemini on by the user, 2026-11-11 23:10).
             - { name: WEB_LLM_URL, value: "http://fm-webllm.apps.svc.cluster.local:8933" }
-            - { name: WEB_LLM_OFF, value: gemini }
           securityContext: { allowPrivilegeEscalation: false, privileged: false }
           volumeMounts:
             - { name: ws, mountPath: /fm/ws }
