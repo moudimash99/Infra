@@ -36,6 +36,8 @@ spec:
             - { name: GATEWAY_ENV_FILE, value: /fm/fm-data/.env }
             - { name: FM_LLM_SPOOL, value: /fm/home/.fm-llm/spool }
             - { name: FM_MACHINE, value: llm-gateway }
+            # Account 1, the user's main one; 2 and 3 are kept for applying (2026-11-11).
+            - { name: GATEWAY_CLAUDE_DIR, value: /fm/home/.claude-account1 }
           securityContext: { allowPrivilegeEscalation: false }
           ports:
             - { name: http, containerPort: 8792, hostPort: 8792 }
