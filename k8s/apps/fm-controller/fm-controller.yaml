@@ -9,8 +9,8 @@
 # Settings come from fm-data/.env as on the PC; HUB_URL is set here to the hub's Service, HUB_MACHINE stays "pc" so
 # the dashboard's records carry on as one machine.
 #
-# replicas: 0 until the cut-over (plan: the PC must never run Free Motion at the same time: two writers of the
-# never-apply-twice ledger). Memory: at most 3 GiB, leaving the server room for k3s and the sites (2 lanes).
+# replicas: 1 since the cut-over (2026-11-11). The PC must never run Free Motion at the same time (two writers of the
+# never-apply-twice ledger): it is blocked by ~/.fm-moved.json. Memory: at most 4 GiB (below).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -18,7 +18,7 @@ metadata:
   namespace: apps
   labels: { app: fm-controller }
 spec:
-  replicas: 0
+  replicas: 1
   strategy: { type: Recreate }   # one ledger, one set of locks: never two controllers
   selector:
     matchLabels: { app: fm-controller }
@@ -44,6 +44,10 @@ spec:
             # The lanes' browsers: run.sh gives each lane one ready fm-browser pod (fm-browser.yaml), and fm setup --machine
             # then writes no local browser for codex (it could not take a remote one over it).
             - { name: FM_BROWSER_SERVICE, value: fm-browser.apps.svc.cluster.local }
+            # The ChatGPT/Gemini website sessions stay on the PC (user's choice): writers skip them here at once. A
+            # ChatGPT browser with no login took 1.4 GB and, with the score loops, got the controller OOM-killed
+            # (2026-11-11 19:45).
+            - { name: WEB_LLM_OFF, value: "1" }
           securityContext: { allowPrivilegeEscalation: false, privileged: false }
           volumeMounts:
             - { name: ws, mountPath: /fm/ws }
@@ -52,7 +56,9 @@ spec:
             - { name: shm, mountPath: /dev/shm }
           resources:
             requests: { cpu: 500m, memory: 1Gi }
-            limits: { memory: 3Gi }
+            # 3 GiB was too little: a round's job list (~1.2 GB) with the hub agent (0.5 GB) and three score loops
+            # (1.3 GB) reached it (2026-11-11). An OOM kill takes the whole container, round and all.
+            limits: { memory: 4Gi }
       volumes:
         - name: ws
           hostPath: { path: /srv/apps/freemotion/ws, type: Directory }

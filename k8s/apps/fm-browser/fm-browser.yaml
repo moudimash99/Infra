@@ -6,7 +6,7 @@
 # owned by uid 1000 (sudo mkdir … && sudo chown -R 1000:1000 /srv/apps/freemotion-browser): one the kubelet makes is
 # root's, and Camoufox then cannot start ("Failed to launch the browser process"). Done on the Acer for -0 and -1.
 # Only the controller may connect (NetworkPolicy below). Same image as the controller (images/fm), role "browser".
-# replicas: 0 until the cut-over. The PC joins later as another node with its own StatefulSet (fm-browser-pc).
+# replicas: 2 since the cut-over (2026-11-11). The PC joins later as another node with its own StatefulSet (fm-browser-pc).
 apiVersion: v1
 kind: Service
 metadata:
@@ -26,7 +26,7 @@ metadata:
   labels: { app: fm-browser }
 spec:
   serviceName: fm-browser
-  replicas: 0
+  replicas: 2
   podManagementPolicy: Parallel
   selector:
     matchLabels: { app: fm-browser, node: acer }
