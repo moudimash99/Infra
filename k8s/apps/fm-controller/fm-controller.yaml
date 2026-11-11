@@ -41,6 +41,9 @@ spec:
             - { name: HOME, value: /fm/home }
             - { name: HUB_URL, value: "http://freemotion-hub.apps.svc.cluster.local:8791" }
             - { name: HUB_MACHINE, value: pc }
+            # The lanes' browsers: run.sh gives each lane one ready fm-browser pod (fm-browser.yaml), and fm setup --machine
+            # then writes no local browser for codex (it could not take a remote one over it).
+            - { name: FM_BROWSER_SERVICE, value: fm-browser.apps.svc.cluster.local }
           securityContext: { allowPrivilegeEscalation: false, privileged: false }
           volumeMounts:
             - { name: ws, mountPath: /fm/ws }
