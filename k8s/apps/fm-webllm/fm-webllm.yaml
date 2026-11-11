@@ -1,0 +1,91 @@
+# Free Motion's website writers (2026-11-11): the ChatGPT website in a Camoufox on the Acer, behind
+# fm-llm/lib/web-llm-serve.py on :8933. The writers run in fm-controller, which sets WEB_LLM_URL to this Service, so
+# every `web-llm.py ask` there comes here (same exit codes; the usage events go back to the controller's spool).
+# Why here: the browser takes ~1.4 GB, and the server has no room for it next to the controller (OOM on 2026-11-11).
+# State on the Acer's disk, /srv/apps/freemotion-webllm/web-llm (uid 1000): the profile (signed in, copied from the
+# PC), cookies.json, the Gemini rest file and the profile lock. Firefox's files do not belong on NFS.
+# Code: the server's checkout over NFS, read-only (/srv/apps/freemotion/ws, exported to the Acer): a deploy is a git
+# pull there, then a restart of this pod. fm-data over NFS for .env (CHATGPT_EMAIL, used to sign in again).
+# Gemini stays off in the controller (WEB_LLM_OFF=gemini) until its pacing (one Google account, one home IP) is on main.
+apiVersion: v1
+kind: Service
+metadata:
+  name: fm-webllm
+  namespace: apps
+spec:
+  selector: { app: fm-webllm }
+  ports:
+    - { name: http, port: 8933, targetPort: http }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fm-webllm
+  namespace: apps
+  labels: { app: fm-webllm }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }   # one browser on the profile at a time
+  selector:
+    matchLabels: { app: fm-webllm }
+  template:
+    metadata:
+      labels: { app: fm-webllm }
+    spec:
+      nodeSelector: { kubernetes.io/hostname: acer-laptop }
+      tolerations:
+        - { key: dedicated, value: worker, effect: NoSchedule }
+      priorityClassName: batch-high
+      automountServiceAccountToken: false
+      securityContext: { runAsUser: 1000, runAsGroup: 1000, fsGroup: 1000 }
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: webllm
+          image: docker.io/library/fm:2026-11-10a
+          imagePullPolicy: Never
+          args: [python, /fm/ws/fm-llm/lib/web-llm-serve.py, --port, "8933"]
+          env:
+            - { name: FM_WS, value: /fm/ws }
+            - { name: FM_DATA_DIR, value: /fm/fm-data }
+            - { name: WEB_LLM_DIR, value: /web-llm }
+            - { name: HOME, value: /web-llm/home }
+            - { name: PYTHONIOENCODING, value: utf-8 }
+          securityContext: { allowPrivilegeEscalation: false, privileged: false }
+          ports:
+            - { name: http, containerPort: 8933 }
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+          volumeMounts:
+            - { name: ws, mountPath: /fm/ws, readOnly: true }
+            - { name: data, mountPath: /fm/fm-data, readOnly: true }
+            - { name: state, mountPath: /web-llm }
+            - { name: shm, mountPath: /dev/shm }
+          resources:
+            requests: { cpu: 200m, memory: 1Gi }
+            limits: { memory: 2Gi }
+      volumes:
+        - name: ws
+          nfs: { server: 192.168.1.116, path: /srv/apps/freemotion/ws, readOnly: true }
+        - name: data
+          nfs: { server: 192.168.1.116, path: /srv/apps/freemotion/fm-data, readOnly: true }
+        - name: state
+          hostPath: { path: /srv/apps/freemotion-webllm/web-llm, type: Directory }
+        - name: shm
+          emptyDir: { medium: Memory, sizeLimit: 512Mi }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: fm-webllm
+  namespace: apps
+spec:
+  podSelector:
+    matchLabels: { app: fm-webllm }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: fm-controller }
+      ports:
+        - { port: 8933 }

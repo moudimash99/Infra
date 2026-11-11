@@ -44,10 +44,11 @@ spec:
             # The lanes' browsers: run.sh gives each lane one ready fm-browser pod (fm-browser.yaml), and fm setup --machine
             # then writes no local browser for codex (it could not take a remote one over it).
             - { name: FM_BROWSER_SERVICE, value: fm-browser.apps.svc.cluster.local }
-            # The ChatGPT/Gemini website sessions stay on the PC (user's choice): writers skip them here at once. A
-            # ChatGPT browser with no login took 1.4 GB and, with the score loops, got the controller OOM-killed
-            # (2026-11-11 19:45).
-            - { name: WEB_LLM_OFF, value: "1" }
+            # The website writers: never a browser here (a ChatGPT one took 1.4 GB and, with the score loops, got the
+            # controller OOM-killed on 2026-11-11 19:45). Every web-llm.py ask goes to the Acer's fm-webllm pod, which
+            # holds the signed-in ChatGPT browser. Gemini stays off until its pacing (one account, one IP) is on main.
+            - { name: WEB_LLM_URL, value: "http://fm-webllm.apps.svc.cluster.local:8933" }
+            - { name: WEB_LLM_OFF, value: gemini }
           securityContext: { allowPrivilegeEscalation: false, privileged: false }
           volumeMounts:
             - { name: ws, mountPath: /fm/ws }
