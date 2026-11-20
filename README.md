@@ -18,7 +18,14 @@ internet ─ Cloudflare (DNS, Access login) ─ tunnel ─ cloudflared ─ nginx
 
 ## Network
 
-The server runs on Wi-Fi (`wlo1`, 192.168.1.116, static on the router). The Ethernet cable (`eno2`,
+**The router** has been a Bouygues Bbox Wi-Fi 6E (https://mabbox.bytel.fr, 192.168.1.254) since about 2026-11-16,
+when it replaced the Free box. The swap cut the Acer off for three days. Its DHCP pool is .1–.200. Fixed addresses
+(Réglages avancés → DHCP IPv4 → Attribution d'adresse IP statique, set 2026-11-20): the server .116 (`8c:c6:81:c8:a0:5f`),
+the Acer .93 (`3c:95:09:a0:1e:b5`), the PC .26 (`d4:5d:64:f1:e7:61`). After any router or DNS change, restart CoreDNS
+(`kubectl -n kube-system rollout restart deploy/coredns`). It keeps the upstream DNS it started with, so until then pods
+can't resolve outside names: alert mail, Cloudflare login checks and the drivers' API calls all fail.
+
+The server runs on Wi-Fi (`wlo1`, 192.168.1.116, fixed on the router). The Ethernet cable (`eno2`,
 192.168.1.135) is bad since 2026-10-27 and waits to be replaced. k3s has `--node-ip 192.168.1.116`, so
 its database, its API and Traefik's outside address all follow that address. To change it: stop k3s,
 change the flag in `k3s.service`, run `k3s server --cluster-reset` with the same flags, start k3s.
@@ -32,9 +39,23 @@ forwards those ports to `.116`, so they keep working without that address on the
 k3s agent. It runs on Wi-Fi (`wlp2s0`, MAC `3c:95:09:a0:1e:b5`); Ethernet (`enp3s0`, MAC
 `fc:45:96:e7:c8:23`) is not plugged in.
 
-- **Disks:** Ubuntu is on the 1 TB hard drive, and `/` uses all of it (914 GB), including Frigate's
-  recordings in `/var/lib/frigate/media`. The 128 GB SSD is mounted at `/srv` (`nofail`, so the machine
-  boots without it): k3s data in `/srv/k3s`, app data in `/srv/apps/<app>`.
+- **Disks:** everything is on the 1 TB hard drive (SMR, `sdb`), and `/` uses all of it (914 GB): k3s data in
+  `/srv/k3s`, app data in `/srv/apps/<app>`, Frigate's recordings in `/var/lib/frigate/media`.
+  - **Until 2026-11-19, `/srv` was the 128 GB SSD** (`sda`, UUID `6d0b8651-…`). At the 2026-11-19 reboot its SATA link
+    kept dropping ("SATA link down", then detached), even though its SMART is clean. That points to the connector or
+    caddy, not the flash. Its fstab line is commented out (backup in `/etc/fstab.bak-2026-11-19`).
+  - On 2026-11-20 the SSD read fine after a cold start. A full image was taken (`/var/ssd-rescue/sda.img`, 128 GB),
+    its journal was replayed on the image, and `/srv/apps` and `/srv/k3s` were restored from it onto the hard drive.
+    Nothing was lost.
+  - Kept for now: the image, a plain copy at `/var/ssd-rescue/apps` (made without the journal), and the empty k3s
+    folder k3s made on 2026-11-19 (`/srv/k3s.fresh-2026-11-20`). Delete them once everything has run well for a week.
+  - Left in place: `/root/ssd-rescue.sh` and its service (disabled), and `libata.force=1:noncq,1:nolpm` in GRUB, which
+    only touches the SSD's port.
+  - The system disk's own check on 2026-11-20 needed a manual `fsck` (one damaged inode, nothing lost; SMART clean,
+    0 reallocated sectors).
+- **k3s-killall.sh misses containers here:** after it ran, the pods that had been running stayed up as orphans and
+  held their host ports. node-exporter then crash-looped with ":9110 address already in use". After a killall, check
+  `ps -eo pid,lstart,args | grep containerd-shim` and stop shims older than the agent's start.
 - **k3s:** `/etc/rancher/k3s/config.yaml` sets the data folder, the label `role=worker` and the taint
   `dedicated=worker:NoSchedule`. Only pods with that toleration run there, plus DaemonSets that
   tolerate everything. The join address and token are in `/etc/systemd/system/k3s-agent.service.env`.
