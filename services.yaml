@@ -426,6 +426,7 @@
     - "Whisper captions done on the PC on 2026-11-18 were pushed to the Acer on 2026-11-20 (231/231); the folder Documents/Coding/bg-taste-match-pending-captions stays as a spare copy."
     - "PC backup 2026-11-20: the PC's whole bg-taste-match folder (code, .git, audio 20.7 GB, captions, diar, DBs; not .venv-voice) and the pending-captions folder, copied to the server at /srv/backups/pc-2026-11-20 (read-only, MANIFEST.sha256 checked file by file)."
     - "The llm stage reaches fm-webllm through fm-webllm-waker (2026-11-20): run_llm.sh's minute of /health tries wakes the helper."
+    - "OPEN 2026-11-20 night: every Gemini website call from the rating (20:45, 21:00, 21:15...) hung until the helper's 900 s limit (web-llm-serve: 'ask gemini: exit 1, N chars in, 0 out'; the caller's subprocess times out at 900 s too), so nothing was rated. The helper pod reaches Google fine (DNS and HTTPS in under a second) and every call arrived through the waker, so it is the Gemini website session itself (cookies.json from 2026-11-11, or gemini-webapi). Not probed with extra calls, so as not to prolong any Google block."
 
 - name: cat-camera-jobs
   what: "Cat camera jobs from the Cat-Camera repo: cat-flash (flash of the day video) and cat-monitor (feeding monitor, YOLO on the GPU)."
@@ -831,7 +832,8 @@
   notes:
     - "Moved from the PC on 2026-11-20 (user: \"acer should be running jobs and pc not\"). Cut-over at 20:42: the PC task disabled right after its run, state copied, CronJob unsuspended. Going back: see MOVED-TO-ACER.txt in the PC folder."
     - "model_waits (2026-11-20): an email the classifier could not answer about is no longer cached as kept for good. It waits, and it is classified again once the classifier answers; while the classifier is down, waiting emails are not downloaded again. Unit test: test_model_waits.py. Replay: same classifier decisions as the old code on a day of mail (old on the PC, new on the Acer: the same 4 model archives, 129/129 answered)."
-    - "Catch-up at the move: 415 emails kept between 13 and 20 Nov without the classifier's answer (the Acer was down) were put back to be classified (account 1: 255, account 2: 41, account 3: 119)."
+    - "Catch-up at the move: 415 emails kept between 13 and 20 Nov without the classifier's answer (the Acer was down) were put back to be classified (account 1: 255, account 2: 41, account 3: 119). The first run (20:42) still had the old 15 min limit and stopped after archiving 10; the second (20:58, 30 min limit) finished with 20 more: 30 archived in all. Gemma's leftovers (2 min per account per run) cleared over the next runs."
+    - "Live test 2026-11-20 21:21: a stand-in pod with cat-flash's rank pushed out the classifier only (event Preempted); the archiver run meanwhile marked 37 emails as waiting; the classifier came back 22 s after the stand-in ended and the next run classified all 37."
     - "At 05:00 BoardGameFinder takes the classifier's memory for ~1 h, and the archiver itself may not fit then: a run or two is skipped; the next ones catch up."
     - "One-off checks \\EmailRemoveFirstDayCheck (2026-11-12 18:15) and \\EmailRemoveWeekCheck (2026-11-18 18:15) ran ml\\first_day_check.py, result 0, no next run: finished."
 
