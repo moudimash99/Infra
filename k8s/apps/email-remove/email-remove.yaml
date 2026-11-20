@@ -1,0 +1,70 @@
+# The Gmail archiver (Documents/Coding/Email-remove/Email-remove on the PC, no git): every 3 minutes it sorts new
+# inbox mail in the user's three Gmail accounts and archives job rejections, application confirmations and job-board
+# notices (labels Auto-*), asking the mail classifier (k8s/apps... Email-remove/ml/service) about what its rules keep.
+# Moved from the PC's Task Scheduler (\GmailRejectionArchiver, now disabled) on 2026-11-20 (user: "acer should be
+# running jobs and pc not").
+# Code and data live together on the Acer's disk, /srv/apps/email-remove (uid 1000, mode 700): the .py files, state.json
+# (kept / waiting emails), templates.json, approved.json, shadow.jsonl and gemma.jsonl (subjects, senders and email
+# excerpts: private, never in a repo or image) and archiver.log. A deploy is a copy of the changed .py files there,
+# staged and replayed first (see the user's archiver policy). The Gmail app passwords are the Secret email-remove,
+# made from the PC's .env: kubectl -n apps create secret generic email-remove --from-env-file=.env
+# The daily review email (daily_review.py, 17:00) still runs on the PC: it needs the PC's AI command-line logins. Its
+# task copies shadow.jsonl, gemma.jsonl and archiver.log from here first.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: email-remove
+  namespace: apps
+  labels: { app: email-remove }
+spec:
+  schedule: "*/3 * * * *"
+  suspend: false   # live since the cut-over of 2026-11-20 (the PC's \GmailRejectionArchiver is disabled)
+  timeZone: Europe/Paris
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 120   # a run that can't start in 2 min (no room on the Acer) is skipped; the next one comes
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 1800   # a normal run takes under a minute; a catch-up of hundreds of emails with Gemma, longer
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels: { app: email-remove }
+        spec:
+          restartPolicy: Never
+          nodeSelector: { kubernetes.io/hostname: acer-laptop }
+          tolerations:
+            - { key: dedicated, value: worker, effect: NoSchedule }
+          priorityClassName: batch-high   # waits for room, never pushes anyone out
+          automountServiceAccountToken: false
+          securityContext: { runAsUser: 1000, runAsGroup: 1000 }
+          containers:
+            - name: archiver
+              image: docker.io/library/python:3.13-slim   # standard library only; the PC ran Python 3.13 too
+              imagePullPolicy: IfNotPresent
+              command: [python, main.py]
+              workingDir: /app
+              envFrom:
+                - secretRef: { name: email-remove }
+              env:
+                - { name: TZ, value: Europe/Paris }
+                - { name: PYTHONDONTWRITEBYTECODE, value: "1" }
+                - { name: PYTHONIOENCODING, value: utf-8 }
+                # In the cluster: the classifier's Service (the PC used the server's NodePort 30880).
+                - { name: MAIL_CLASSIFIER_URL, value: "http://mail-classifier.apps.svc.cluster.local/classify" }
+                # Gemma through fm-llm's ask service on the control node (gemma.py's default, the same as on the PC).
+                - { name: FM_LLM_ASK, value: "http://192.168.1.116:8792/v1/ask" }
+              securityContext: { allowPrivilegeEscalation: false, privileged: false }
+              volumeMounts:
+                - { name: app, mountPath: /app }
+                - { name: zoneinfo, mountPath: /usr/share/zoneinfo, readOnly: true }
+              resources:
+                requests: { cpu: 50m, memory: 128Mi }
+                limits: { memory: 512Mi }
+          volumes:
+            - name: app
+              hostPath: { path: /srv/apps/email-remove, type: Directory }
+            - name: zoneinfo
+              hostPath: { path: /usr/share/zoneinfo, type: Directory }

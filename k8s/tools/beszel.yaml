@@ -27,6 +27,7 @@ spec:
     metadata:
       labels: { app: beszel }
     spec:
+      priorityClassName: homelab-critical   # the hub sends the alerts (2026-11-20)
       containers:
         - name: beszel
           image: henrygd/beszel:0.21.1
@@ -90,6 +91,7 @@ spec:
       labels: { app: beszel-agent }
     spec:
       hostNetwork: true  # the machine's own network numbers, and reachable at <node ip>:45876
+      priorityClassName: homelab-critical   # it sends the alerts: never the pod that makes room (2026-11-20)
       containers:
         - name: beszel-agent
           image: henrygd/beszel-agent:0.21.1
@@ -124,6 +126,7 @@ spec:
       nodeSelector: { role: worker }
       # The Acer's GTX 1050: the NVIDIA variant reads it with nvidia-smi, which the nvidia runtime mounts in.
       runtimeClassName: nvidia
+      priorityClassName: homelab-critical   # it sends the alerts: never the pod that makes room (2026-11-20)
       tolerations:
         - { key: dedicated, value: worker, effect: NoSchedule }
       containers:
@@ -136,5 +139,5 @@ spec:
             - name: KEY
               valueFrom: { secretKeyRef: { name: beszel-agent, key: KEY } }
           resources:
-            requests: { cpu: 5m, memory: 16Mi }
+            requests: { cpu: 5m, memory: 48Mi }   # it uses 30-45 MiB on the Acer
             limits: { memory: 128Mi }

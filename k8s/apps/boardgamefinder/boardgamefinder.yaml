@@ -3,6 +3,8 @@
 # there) and imported by hand (no registry). LLM steps go to fm-llm on the control node; until it exists they fail,
 # and the pipeline treats them as non-critical.
 # Secret (not in this repo), from the repo's .env: kubectl -n apps create secret generic boardgamefinder --from-env-file=.env
+# 05:00 since 2026-11-20 (was 07:00): its hour of memory then falls in the night, and it may stop the mail classifier
+# to get it (batch-make-room); the deal email arrives around 06:00.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -10,7 +12,7 @@ metadata:
   namespace: apps
   labels: { app: boardgamefinder }
 spec:
-  schedule: "0 7 * * *"
+  schedule: "0 5 * * *"
   timeZone: Europe/Paris
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
@@ -27,7 +29,7 @@ spec:
           nodeSelector: { kubernetes.io/hostname: acer-laptop }
           tolerations:
             - { key: dedicated, value: worker, effect: NoSchedule }
-          priorityClassName: batch-high
+          priorityClassName: batch-make-room
           containers:
             - name: pipeline
               image: docker.io/library/boardgamefinder:2026-11-10b

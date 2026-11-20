@@ -11,6 +11,9 @@ metadata:
   namespace: apps
   labels: { app: cat-monitor }
 spec:
+  # Paused on purpose (2026-11-11): the Acer's GPU runs hot. Resume only on a night the user allows GPU work, with a
+  # heat guard running, and pause it again in the morning.
+  suspend: true
   schedule: "16 3 * * *"
   timeZone: Europe/Paris
   concurrencyPolicy: Forbid
@@ -97,7 +100,7 @@ spec:
           nodeSelector: { kubernetes.io/hostname: acer-laptop }
           tolerations:
             - { key: dedicated, value: worker, effect: NoSchedule }
-          priorityClassName: batch-high
+          priorityClassName: batch-make-room   # may stop the mail classifier for its ~4 minutes (2026-11-20)
           containers:
             - name: flash
               image: docker.io/library/cat-monitor:2026-11-10a

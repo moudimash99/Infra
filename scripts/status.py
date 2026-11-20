@@ -3,6 +3,8 @@
 
 Reads Infra/services.yaml and checks each service's `probes` against what is really running:
   {k8s: ns/Kind/name}            Deployment / StatefulSet / DaemonSet: all replicas ready
+  {k8s: ns/Deployment/name, on_demand: true}   started and stopped by a waker: 0 copies is fine, a start
+                                 that takes over 10 minutes is a WARN (no room on the Acer?)
   {k8s: ns/CronJob/name, max_age_h: N}   last good run within N hours, and no run stuck longer than that
   {k8s: ns/CronJob/name, paused_on_purpose: true}   expected to be suspended
   {nodes: all}                   every k3s node Ready
@@ -113,6 +115,16 @@ def probe_k8s(p, s):
     st, spec = it.get("status", {}), it.get("spec", {})
     if kind in ("Deployment", "StatefulSet"):
         want, ready = spec.get("replicas", 1), st.get("readyReplicas", 0)
+        if p.get("on_demand"):
+            if want == 0:
+                return "OK", f"{name}: stopped (starts on demand)", keys
+            if ready >= want:
+                return "OK", f"{name}: running (on demand)", keys
+            avail = next((c for c in st.get("conditions", []) if c.get("type") == "Available"), {})
+            mins = ago(avail["lastTransitionTime"]) * 60 if avail.get("lastTransitionTime") else 0
+            if mins > 10:
+                return "WARN", f"{name}: not ready for {int(mins)} min after a start (no room on the Acer?)", keys
+            return "OK", f"{name}: starting (on demand)", keys
         if want == 0:
             return "WARN", f"{name}: scaled to 0", keys
         return ("OK" if ready >= want else "FAIL"), f"{name}: {ready}/{want} ready", keys

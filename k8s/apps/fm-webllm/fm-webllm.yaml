@@ -7,10 +7,26 @@
 # Code: the server's checkout over NFS, read-only (/srv/apps/freemotion/ws, exported to the Acer): a deploy is a git
 # pull there, then a restart of this pod. fm-data over NFS for .env (CHATGPT_EMAIL, used to sign in again).
 # Gemini too (on since 2026-11-11 23:10): one place for the Google cookies and its rest file.
+# On demand (2026-11-20, user: "website helper will be needed for freemotion ... we need it based on demand"): callers
+# keep using http://fm-webllm:8933, which is now fm-webllm-waker, a 20 MB gatekeeper. It starts this Deployment
+# (replicas 0 -> 1) when a call or a health check comes in, holds the call until the helper answers (up to 5 min;
+# then it answers 503 and the caller treats the website as busy), and stops it after 30 min without calls, so its
+# 1 GiB booking on the Acer is free the rest of the time. Its pace and cap live in files on /web-llm, so a restart
+# loses nothing. The helper itself is behind fm-webllm-backend. A start takes ~10-60 s.
 apiVersion: v1
 kind: Service
 metadata:
   name: fm-webllm
+  namespace: apps
+spec:
+  selector: { app: fm-webllm-waker }   # the gatekeeper, which starts the helper on demand
+  ports:
+    - { name: http, port: 8933, targetPort: http }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fm-webllm-backend
   namespace: apps
 spec:
   selector: { app: fm-webllm }
@@ -24,7 +40,8 @@ metadata:
   namespace: apps
   labels: { app: fm-webllm }
 spec:
-  replicas: 1
+  # No replicas here on purpose: fm-webllm-waker sets 1 when a call comes in and 0 after 30 min without calls, and
+  # an apply of this file must not stop a call in progress.
   strategy: { type: Recreate }   # one browser on the profile at a time
   selector:
     matchLabels: { app: fm-webllm }
@@ -89,6 +106,260 @@ spec:
             matchLabels: { app: fm-controller }
         # bg-taste-match's ratings and matching (its llm job, and the shell pod for stages run by hand): every Gemini
         # call on the account through one pace and cap (2026-11-12). They ask with WEB_LLM_PRIORITY=low.
+        - podSelector:
+            matchLabels: { app: bg-taste-match }
+        - podSelector:
+            matchLabels: { app: fm-webllm-waker }
+      ports:
+        - { port: 8933 }
+---
+# The gatekeeper's program (stdlib Python, run with the helper's own image).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fm-webllm-waker
+  namespace: apps
+data:
+  waker.py: |
+    """fm-webllm-waker: starts Free Motion's website helper (Deployment fm-webllm) when a call comes in and stops it
+    after IDLE_MIN minutes without calls. Callers use http://fm-webllm:8933 (this pod); the helper is fm-webllm-backend.
+    GET /health wakes the helper and answers 200 once it answers (503 "waking" after HEALTH_WAIT_S, so a caller that
+    retries, like bg-taste-match's run_llm.sh, gets through). Any other request is held until the helper answers (at
+    most ASK_WAIT_S, else 503: the caller treats the website as busy) and then passed on unchanged. GET /waker is this
+    pod's own probe and wakes nothing."""
+    import http.client, json, os, ssl, threading, time, urllib.request
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    HOST, PORT = os.environ.get("BACKEND_HOST", "fm-webllm-backend"), int(os.environ.get("BACKEND_PORT", "8933"))
+    DEPLOY = os.environ.get("DEPLOYMENT", "fm-webllm")
+    IDLE_S = int(float(os.environ.get("IDLE_MIN", "30")) * 60)
+    ASK_WAIT_S = int(os.environ.get("ASK_WAIT_S", "300"))
+    HEALTH_WAIT_S = int(os.environ.get("HEALTH_WAIT_S", "6"))   # under run_llm.sh's 10 s curl limit
+    CALL_TIMEOUT_S = int(os.environ.get("CALL_TIMEOUT_S", "1800"))   # the helper stops a call at 900 s at most
+    SA = "/var/run/secrets/kubernetes.io/serviceaccount/"
+    NS = open(SA + "namespace").read().strip()
+    SCALE = f"https://kubernetes.default.svc/apis/apps/v1/namespaces/{NS}/deployments/{DEPLOY}/scale"
+    CTX = ssl.create_default_context(cafile=SA + "ca.crt")
+    lock = threading.Lock()
+    state = {"last": time.time(), "busy": 0}
+
+
+    def log(msg):
+        print(time.strftime("%Y-%m-%d %H:%M:%S"), msg, flush=True)
+
+
+    def api(method, body=None):
+        req = urllib.request.Request(SCALE, method=method, data=None if body is None else json.dumps(body).encode(),
+                                     headers={"Authorization": "Bearer " + open(SA + "token").read().strip(),
+                                              "Content-Type": "application/merge-patch+json", "Accept": "application/json"})
+        with urllib.request.urlopen(req, context=CTX, timeout=10) as r:
+            return json.loads(r.read())
+
+
+    def replicas():
+        return api("GET").get("spec", {}).get("replicas", 0)
+
+
+    def scale(n, why):
+        api("PATCH", {"spec": {"replicas": n}})
+        log(f"{DEPLOY} -> {n}: {why}")
+
+
+    def backend_ok(timeout=3.0):
+        try:
+            c = http.client.HTTPConnection(HOST, PORT, timeout=timeout)
+            c.request("GET", "/health")
+            ok = c.getresponse().status == 200
+            c.close()
+            return ok
+        except Exception:
+            return False
+
+
+    def wake(why):
+        with lock:
+            state["last"] = time.time()
+            try:
+                if replicas() < 1:
+                    scale(1, why)
+            except Exception as e:
+                log(f"cannot start {DEPLOY}: {e}")
+
+
+    def ready_within(seconds):
+        end = time.time() + seconds
+        while not backend_ok(max(0.5, min(3.0, end - time.time()))):
+            if time.time() + 1 >= end:
+                return False
+            time.sleep(1)
+        return True
+
+
+    def sleeper():
+        while True:
+            time.sleep(30)
+            with lock:
+                idle = time.time() - state["last"]
+                if state["busy"] or idle < IDLE_S:
+                    continue
+                try:
+                    if replicas() > 0:
+                        scale(0, f"no call for {int(idle // 60)} min")
+                except Exception as e:
+                    log(f"cannot stop {DEPLOY}: {e}")
+
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def reply(self, code, body, ctype="text/plain"):
+            data = body.encode() if isinstance(body, str) else body
+            try:
+                self.send_response(code)
+                self.send_header("Content-Type", ctype)
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+            except (BrokenPipeError, ConnectionResetError):
+                pass   # the caller gave up waiting; it will ask again
+
+        def do_GET(self):
+            if self.path == "/waker":
+                return self.reply(200, "ok")
+            if self.path == "/health":
+                wake("health check")
+                return self.reply(200, "ok") if ready_within(HEALTH_WAIT_S) else self.reply(503, "waking")
+            self.forward("GET")
+
+        def do_POST(self):
+            self.forward("POST")
+
+        def forward(self, method):
+            length = int(self.headers.get("Content-Length") or 0)
+            body = self.rfile.read(length) if length else None
+            with lock:
+                state["busy"] += 1
+            try:
+                wake(f"{method} {self.path}")
+                if not ready_within(ASK_WAIT_S):
+                    log(f"{method} {self.path}: the helper did not answer within {ASK_WAIT_S} s (no room on the Acer?)")
+                    return self.reply(503, json.dumps({"code": 4, "out": "", "events": [],
+                                                       "err": "fm-webllm-waker: the website helper did not start in time\n"}),
+                                      "application/json")
+                c = http.client.HTTPConnection(HOST, PORT, timeout=CALL_TIMEOUT_S)
+                c.request(method, self.path, body=body,
+                          headers={"Content-Type": self.headers.get("Content-Type") or "application/json"})
+                r = c.getresponse()
+                data = r.read()
+                c.close()
+                self.reply(r.status, data, r.getheader("Content-Type") or "application/json")
+            except Exception as e:
+                log(f"{method} {self.path}: {type(e).__name__}: {e}")
+                try:
+                    self.reply(502, json.dumps({"code": 4, "out": "", "events": [], "err": f"fm-webllm-waker: {e}\n"}),
+                               "application/json")
+                except Exception:
+                    pass
+            finally:
+                with lock:
+                    state["busy"] -= 1
+                    state["last"] = time.time()
+
+
+    if __name__ == "__main__":
+        threading.Thread(target=sleeper, daemon=True).start()
+        log(f"fm-webllm-waker on :8933 for {DEPLOY} ({HOST}:{PORT}); stops it after {IDLE_S // 60} min without calls")
+        ThreadingHTTPServer(("0.0.0.0", 8933), Handler).serve_forever()
+---
+# The gatekeeper may only read and change the number of copies of fm-webllm.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fm-webllm-waker
+  namespace: apps
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: fm-webllm-waker
+  namespace: apps
+rules:
+  - apiGroups: [apps]
+    resources: [deployments/scale]
+    resourceNames: [fm-webllm]
+    verbs: [get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: fm-webllm-waker
+  namespace: apps
+subjects:
+  - { kind: ServiceAccount, name: fm-webllm-waker, namespace: apps }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: fm-webllm-waker }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fm-webllm-waker
+  namespace: apps
+  labels: { app: fm-webllm-waker }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: fm-webllm-waker }
+  template:
+    metadata:
+      labels: { app: fm-webllm-waker }
+    spec:
+      nodeSelector: { kubernetes.io/hostname: acer-laptop }
+      tolerations:
+        - { key: dedicated, value: worker, effect: NoSchedule }
+      priorityClassName: batch-high
+      serviceAccountName: fm-webllm-waker
+      securityContext: { runAsUser: 1000, runAsGroup: 1000 }
+      containers:
+        - name: waker
+          image: docker.io/library/fm:2026-11-10a   # the helper's own image (it has Python); same tag as fm-webllm
+          imagePullPolicy: Never
+          command: [python, -u, /waker/waker.py]
+          env:
+            - { name: IDLE_MIN, value: "30" }
+          securityContext: { allowPrivilegeEscalation: false, privileged: false, readOnlyRootFilesystem: true }
+          ports:
+            - { name: http, containerPort: 8933 }
+          readinessProbe:
+            httpGet: { path: /waker, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /waker, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          volumeMounts:
+            - { name: code, mountPath: /waker, readOnly: true }
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { memory: 128Mi }
+      volumes:
+        - name: code
+          configMap: { name: fm-webllm-waker }
+---
+# Who may call the website helper: the same callers as before, now through the gatekeeper.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: fm-webllm-waker
+  namespace: apps
+spec:
+  podSelector:
+    matchLabels: { app: fm-webllm-waker }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: fm-controller }
         - podSelector:
             matchLabels: { app: bg-taste-match }
       ports:

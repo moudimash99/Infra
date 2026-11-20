@@ -1,13 +1,22 @@
-# Who the cluster keeps when a machine runs short of memory (the Acer has 6.6 GiB and its pods may ask for more).
-# The kubelet evicts low priority first; a pod above its own memory limit is killed whatever its priority, so
-# priority protects against a full machine, not against one program outgrowing its limit.
-#   homelab-critical  Frigate's recordings, the websites, the lab sites, Homepage, monitoring
-#   homelab-normal    everything not tagged (the default)
-#   batch-high        daily or hourly jobs whose results are expected: cat flash, BoardGameFinder, cat monitor,
-#                     bg-taste-match rating
-#   batch-mid         long jobs that pick up where they stopped: Whisper and speakers
-#   batch-low         jobs that retry on their own and idle helpers: downloads, the bg-taste-match shell
-# Batch levels never push a running pod out to start (preemptionPolicy Never): they wait for room.
+# Who the cluster keeps when the Acer (6.6 GiB for pods) is booked full. Two separate things decide it:
+#  - Booking (the scheduler): a pod starts only where its memory request fits. A pod whose class may make room
+#    (preemptionPolicy PreemptLowerPriority) may stop pods with a strictly LOWER value to fit; every other pod waits.
+#  - Real memory: this k3s has no kubelet memory-eviction threshold (allocatable = capacity - reserves), so if the
+#    pods together really run out, the kernel's OOM killer picks a process by size and by a bonus Kubernetes sets
+#    from the request (small request = killed first). Priority does not count there. A pod above its own limit is
+#    killed whatever its class.
+#   homelab-critical  1000000  Frigate's recordings, the websites, the lab sites, Homepage, monitoring and its agents
+#   homelab-normal     100000  everything not tagged (the default)
+#   batch-high          30000  Free Motion's browsers and website helper, the bg-taste-match rating, cat monitor,
+#                              the Gmail archiver: never push anyone out, wait for room
+#   batch-make-room     25000  cat flash, BoardGameFinder (2026-11-20): short daily jobs that may stop lower pods to
+#                              start, which in practice means the mail classifier for their few minutes / hour
+#   steps-aside         22000  the mail classifier (2026-11-20): gives its room to batch-make-room jobs, comes back
+#                              when they end; the archiver asks again later about emails it couldn't classify
+#   batch-mid           20000  long jobs that pick up where they stopped: Whisper and speakers
+#   batch-low           10000  jobs that retry on their own and idle helpers: downloads, the bg-taste-match shell
+# Nothing that may make room ranks above Free Motion's pods, so nothing can push Free Motion out (user, 2026-11-12:
+# "Fm won't be cut").
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata: { name: homelab-critical }
@@ -26,7 +35,7 @@ kind: PriorityClass
 metadata: { name: batch-high }
 value: 30000
 preemptionPolicy: Never
-description: "Daily or hourly jobs whose results are expected (flash, deals, cat monitor, rating)."
+description: "Free Motion's browsers and website helper, hourly or daily jobs whose results are expected (rating, cat monitor, the archiver)."
 ---
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
@@ -41,3 +50,17 @@ metadata: { name: batch-low }
 value: 10000
 preemptionPolicy: Never
 description: "Jobs that retry on their own, idle helpers (downloads, shell)."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata: { name: batch-make-room }
+value: 25000
+preemptionPolicy: PreemptLowerPriority
+description: "Short daily jobs that may stop lower pods (the mail classifier) to start: cat flash, BoardGameFinder."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata: { name: steps-aside }
+value: 22000
+preemptionPolicy: Never
+description: "Services that give their room to batch-make-room jobs and come back after: the mail classifier."

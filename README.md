@@ -112,17 +112,22 @@ The Free Motion hub (dashboard) moved from Docker on 2026-11-10. Its image is al
 loaded only by fm-orchestrator's `freemotion-hub/test/deploy.mjs` after its tests; applying the manifest never changes the
 code. Going back to an earlier build, or to Docker, is at the top of `k8s/apps/freemotion-hub/freemotion-hub.yaml`.
 
-**Free Motion itself (being moved from the PC, plan on moudimash99/fm-orchestrator#1).** Not live yet: both start at
-0 replicas, and the PC still runs every round until the cut-over (never both: two writers of the never-apply-twice ledger).
+**Free Motion itself** (moved from the PC on 2026-11-11, plan on moudimash99/fm-orchestrator#1). The PC's copies are
+disabled and blocked by `%USERPROFILE%\.fm-moved.json`: never run both (two writers of the never-apply-twice ledger).
 - `fm-controller` (server): every script and every driver CLI in one container, run by fm-orchestrator's
   `scheduled.mjs daemon` (Task Scheduler's stand-in). One container keeps the code's process-id locks working. Code:
   the fm-* repos checked out in `/srv/apps/freemotion/ws` (pushed there from the PC into bare repos in
   `/srv/apps/freemotion/git` until the server can reach GitHub). Data: `/srv/apps/freemotion/fm-data`. Drivers' logins
-  and transcripts: `/srv/apps/freemotion/home`. At most 3 GiB.
+  and transcripts: `/srv/apps/freemotion/home`. Limit 4 GiB.
 - `fm-browser-acer` (Acer, priority batch-high): one pod per lane, Camoufox behind `@playwright/mcp` on :8931, only the
   controller may connect. fm-data reaches them by NFS at the controller's own path (`/fm/fm-data`), so file names and
   uploads mean the same file on both sides. The server exports it to the Acer only (`/etc/exports`). Each pod's
   browser profile stays on its node, `/srv/apps/freemotion-browser/<pod>`.
+- `fm-webllm` (Acer): the ChatGPT and Gemini websites behind `fm-llm/lib/web-llm-serve.py` on :8933, for the
+  controller's writers and bg-taste-match's night rating. **On demand since 2026-11-20:** callers use
+  `http://fm-webllm:8933`, which is `fm-webllm-waker`, a 20 MB gatekeeper that starts the helper when a call or a
+  `/health` comes in, holds the call until it answers (up to 5 min, else 503 = busy) and stops it after 30 min without
+  calls, so its 1 GiB is free the rest of the time. Its log shows each start and stop.
 - The image (`images/fm`, both roles): Node 24, Python 3.13 with RenderCV 2.8 and Camoufox (browser 152.0.4-beta.31,
   the one its disguise names), Chromium, claude, codex, copilot, agy, gh. Built on the server, about 6 GB; loaded into
   each node with `docker save fm:<tag> | ssh <node> sudo k3s ctr images import -` until the registry is in use.
@@ -134,9 +139,19 @@ of the code and data stopped updating that day.
 
 | Job | Schedule | Runs on | Data (hostPath) |
 |---|---|---|---|
-| boardgamefinder | daily 07:00 Paris | Acer | `/srv/apps/boardgamefinder/{data,Log}` |
-| cat-monitor | 02:16, 10:16, 18:16 Paris, GPU | Acer | `/srv/apps/cat-monitor`; reads `/var/lib/frigate/media/recordings` |
-| bg-taste-match-fetch / -gpu / -llm | every 30 / 60 / 60 min; gpu uses the GPU | Acer | `/srv/apps/bg-taste-match` (code + data), audio in `/var/lib/bg-taste-match/audio` (1 TB disk) |
+| boardgamefinder | daily 05:00 Paris (07:00 until 2026-11-20) | Acer | `/srv/apps/boardgamefinder/{data,Log}` |
+| cat-flash | 00:20 and 19:20 Paris, ~4 min, CPU | Acer | `/srv/apps/cat-monitor/flash`; reads `/var/lib/frigate/media/recordings` |
+| cat-monitor | 03:16 Paris, GPU; **paused on purpose** (GPU heat) | Acer | `/srv/apps/cat-monitor`; reads `/var/lib/frigate/media/recordings` |
+| bg-taste-match-fetch / -gpu / -llm | every 2 h / hourly, **paused on purpose** (GPU heat) / hourly 20:45-08:45 | Acer | `/srv/apps/bg-taste-match` (code + data), audio in `/var/lib/bg-taste-match/audio` (1 TB disk) |
+| email-remove (the Gmail archiver) | every 3 min (moved from the PC on 2026-11-20) | Acer | `/srv/apps/email-remove` (code + private data, mode 700); Secret `email-remove` |
+
+**Memory on the Acer** (6.6 GiB for pods): the scheduler places a pod only where its booking (memory request) fits,
+and the bookings are full long before the memory is (busiest normal hour ~4.7 GB used, 2026-11-20). Ranks
+(`k8s/cluster/priority.yaml`) decide who gives way: cat-flash and BoardGameFinder (`batch-make-room`) may stop lower
+pods to start, which in practice is the mail classifier (`steps-aside`) for their few minutes or hour; it comes back
+by itself, and the archiver asks again about the emails it could not classify. Free Motion (`batch-high`), Frigate,
+the sites and monitoring rank above them and are never pushed out. There is no kubelet memory eviction on this k3s:
+if the pods really ran out, the kernel would kill by size. The GPU jobs stay paused except on nights the user allows.
 
 bg-taste-match also has an idle `bg-taste-match-shell` pod with the same mounts, for stages run by hand
 (`kubectl -n apps exec deploy/bg-taste-match-shell -- python score.py <user>`). Its image holds only the environment:
@@ -246,7 +261,9 @@ phone first, so each reads top to bottom as answers, details in collapsed rows, 
 - **Scheduled jobs**: time since each job's last good run, what's paused or running, every run of the last 7 days
   (when, how long, result) read back from Prometheus, run times, memory against the limit, out-of-memory kills.
 - **PC jobs**: the Windows PC's scheduled tasks and its jobs' numbers (archived today, FreeMotion, Upwork), from the
-  reports `lab/pc-report/report.ps1` sends to the lab every 10 minutes (set up with `lab/pc-report/install.ps1`).
+  reports `lab/pc-report/report.ps1` sends to the lab every 10 minutes (set up with `lab/pc-report/install.ps1`; not
+  installed on the PC as of 2026-11-20, and its archiver numbers read the PC's archiver.log, which stopped growing when
+  the archiver moved to the Acer).
 
 `gpu-procs.yaml` is the per-process GPU collector: `nvidia-smi` per process plus each process's cgroup, which names
 its pod (`gpu_process_memory_bytes`, `gpu_process_sm_percent`; join `pod_uid` to `kube_pod_info`'s `uid`).
