@@ -140,6 +140,13 @@ data:
             namespace: apps
             podSelector: app=boardxplorer
             siteMonitor: http://boardxplorer.apps.svc
+        - Spirit Island:
+            href: https://spirit.machaka.net
+            description: spirit.machaka.net
+            icon: mdi-palm-tree
+            namespace: apps
+            podSelector: app=spirit-island
+            siteMonitor: http://spirit-island.apps.svc/healthz
         - Free Motion:
             href: https://freemotion.machaka.net
             description: Job applications dashboard (Docker)

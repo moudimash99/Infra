@@ -1,13 +1,32 @@
-# services.yaml: every service that runs at home, one entry per service (related workloads grouped).
-# Where it runs (k3s node, Docker on the server, the PC's Task Scheduler), its image, data, code, how it is deployed,
-# how to tell it is healthy, and where the repo, the README and the live state disagree ("drift").
+# services.yaml: the catalog of everything that runs at home, one entry per service (related workloads grouped).
+# Shaped loosely like Backstage's software catalog: an entry holds what only changes when someone changes the service
+# (what it is, where it runs, its code and data, how to deploy and check it). Live state is NOT written here:
+# scripts/status.py reads it each run (is it up, the image that runs, commits not deployed or not pushed, uncommitted
+# changes, anything running without an entry).
 #
-# Update this file in the same change as any deploy, move, schedule change or new service. A deploy that is not
-# written here is drift by definition.
+# Fields, in order:
+#   name, what
+#   kind        web-app | scheduled-job | tool | monitoring | cluster | pc-task
+#   system      the product it belongs to (website, board-games, cats, free-motion, gmail, job-scrapers, lab,
+#               monitoring, platform); menus and lists group by it
+#   lifecycle   production | experimental | deprecated
+#   depends_on  entries it needs in order to work, beyond what everything uses (k3s-system, edge-proxy)
+#   runs, manifest
+#   image       which image and how it is built, without the tag (status.py prints the one that runs)
+#   schedule, url, data
+#   code        repo (status.py cuts it at " (" and expands globs like fm-*), branch, version_check (see status.py),
+#               libs (library repos built into the image), and `deployed` ONLY where status.py cannot tell: no git,
+#               copied by hand, built from uncommitted files, or a tag that does not name the code
+#   deploy, check
+#   probes      what status.py checks
+#   drift       where the repo, the README and what runs disagree, dated
+#   notes
+# status.py also reports mistakes in system, lifecycle and depends_on.
 #
-# Snapshot: 2026-11-20 ~16:00-16:20 Paris, read-only (kubectl get, docker ps, git log/status, schtasks).
-# The Acer (acer-laptop) was NotReady at the start (being restored) and came back Ready during the survey;
-# its pods were Running again at the end, except node-exporter there (CrashLoopBackOff).
+# Update an entry in the same change as any move, schedule change, new service or change in how it is deployed. A
+# plain redeploy needs no edit, except where code.deployed is written by hand. Something running without an entry is
+# drift by definition. First survey: 2026-11-20 (read-only: kubectl, docker ps, git, schtasks); drift and notes carry
+# the date they were seen.
 # Machines: server = moudimash99, 192.168.1.116 (control plane, Docker). Acer = acer-laptop, 192.168.1.93
 # (worker, taint dedicated=worker:NoSchedule, label role=worker). PC = this Windows machine, 192.168.1.26.
 # Infra repo: the live cluster matches branch acer-jobs-and-alerts (a72c6cb, 2026-11-12), NOT main (see k3s-system).
@@ -20,9 +39,12 @@
 - name: website
   what: Personal website (Next.js) with the CV link tracking and its admin links dashboard.
   kind: web-app
+  system: website
+  lifecycle: production
+  depends_on: []
   runs: k8s apps/Deployment website on moudimash99 (server)
   manifest: Infra/k8s/apps/website/website.yaml
-  image: "docker.io/library/personal-website:2026-10-29 (pull Never; built 2026-10-29 00:02)"
+  image: "personal-website, built on the server from ~/Personal-Website (pull Never)"
   schedule: null
   url: [https://machaka.net, https://mohammad.machaka.net]
   data:
@@ -31,13 +53,10 @@
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\Personal-Website (github.com/moudimash99/Personal-Website)
     branch: main
-    latest: "4679940 2026-10-15 fix: French read-through polish"
     deployed: >-
       4679940 plus 4 uncommitted files (app/admin/links/page.tsx, lib/cvRedirect.ts, lib/linkInsights.ts,
       lib/tracking.ts) and untracked data/tracking-ignore.json. Same content on the PC and in ~/Personal-Website
       on the server (only CRLF differs).
-    uncommitted: 5
-    other_branches: "origin/copy/personal-text-refresh has 1 commit (2026-10-08) not in main; origin/desktop_format 1 (2026-02-25)"
   deploy: >-
     On the server: build from ~/Personal-Website, `docker save <image> | sudo k3s ctr images import -`, set the tag in
     website.yaml, kubectl apply. Back: set the older tag (2026-10-28, 2026-10-24 still in Docker on the server).
@@ -53,9 +72,12 @@
 - name: cat-weight
   what: Cat weight tracker (Flask + SQLite).
   kind: web-app
+  system: cats
+  lifecycle: production
+  depends_on: []
   runs: k8s apps/Deployment cat-weight on acer-laptop
   manifest: Infra/k8s/apps/cat-weight/cat-weight.yaml
-  image: "docker.io/library/cat-weight:b93165d (pull Never; built 2026-01-12)"
+  image: "cat-weight, built on the server from ~/Cat-Weight, tag = commit (pull Never)"
   schedule: null
   url: https://cat.machaka.net
   data:
@@ -63,10 +85,6 @@
   code:
     repo: C:\Users\Moudimash99\Documents\GitHub\Cat-Weight (github.com/moudimash99/Cat-Weight); server copy ~/Cat-Weight
     branch: main
-    latest: "144f3e5 2026-01-13 Add duration filter to index page and implement localStorage caching"
-    deployed: "b93165d 2026-01-12 (server ~/Cat-Weight is at b93165d, with tracked cat_data.db deleted in its working tree)"
-    newer_not_deployed: "1 commit (144f3e5)"
-    uncommitted: 0
   deploy: >-
     Build on the server from ~/Cat-Weight (tag = commit), docker save, copy to the Acer and
     `sudo k3s ctr images import` there (README "For an app on the Acer"), set the tag, apply.
@@ -77,14 +95,18 @@
     - "PC repo is 1 commit ahead of the deployed image (144f3e5, duration filter, 2026-01-13)."
     - "The repo is in Documents/GitHub, not Documents/Coding; Coding/Weight_Food_Tracker is an empty folder, not this app."
   notes:
+    - "The server's ~/Cat-Weight clone (the build source) is at b93165d, with the tracked cat_data.db deleted in its working tree."
     - "Docker fallback on the server: container `cat_weight` (image cat-weight-cat_weight), Exited (137) 3 weeks ago, restart unless-stopped; old data ~/Cat-Weight/data stopped updating 2026-11-02."
 
 - name: boardxplorer
   what: BoardGameGeek collection explorer (Django + SQLite).
   kind: web-app
+  system: board-games
+  lifecycle: production
+  depends_on: []
   runs: k8s apps/Deployment boardxplorer on acer-laptop
   manifest: Infra/k8s/apps/boardxplorer/boardxplorer.yaml
-  image: "docker.io/library/boardxplorer:2026-10-24 (pull Never; the image itself was built 2026-06-14, the tag is the move date)"
+  image: "boardxplorer, built on the server from ~/BoardXplorer (pull Never)"
   schedule: null
   url: https://boardxplorer.machaka.net
   data:
@@ -93,10 +115,7 @@
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\BoardXplorer (github.com/moudimash99/BoardXplorer); server copy ~/BoardXplorer
     branch: master
-    latest: "55e7ebe 2026-08-19 Merge pull request #50 (persist filters on back nav, mobile range controls)"
-    deployed: "89d7eb7 2026-06-11 (server ~/BoardXplorer master, image built 2026-06-14)"
-    newer_not_deployed: "3 commits (PR #50, 2026-08-19)"
-    uncommitted: 0
+    deployed: "89d7eb7 2026-06-11 (image built 2026-06-14; its tag 2026-10-24 is the move date, so status.py cannot compare it)"
   deploy: >-
     Build on the server from ~/BoardXplorer (first `git pull` there; it is at 89d7eb7), docker save, import on the
     Acer, set a new tag, apply.
@@ -111,9 +130,12 @@
 - name: unmatched
   what: Unmatched fighter matcher, strategy guides and tournaments (Flask + gunicorn).
   kind: web-app
+  system: board-games
+  lifecycle: production
+  depends_on: []
   runs: k8s apps/Deployment unmatched on acer-laptop
   manifest: Infra/k8s/apps/unmatched/unmatched.yaml
-  image: "docker.io/library/unmatched:2026-10-29-0739 (pull Never; tag = build time)"
+  image: "unmatched, built on the server by scripts/deploy.sh, tag = build time (pull Never)"
   schedule: null
   url: [https://unmatched.machaka.net, "unmatchedtournament.machaka.net (nginx 301 to /tournaments)"]
   data:
@@ -122,10 +144,6 @@
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\unmatched_matcher (github.com/moudimash99/unmatched_matcher); server copy ~/unmatched_matcher
     branch: "PC on guides-v2 (57ae03a 2026-10-29 05:10); server on main"
-    latest: "60a388f 2026-10-29 08:38 Merge pull request #52 from guides-v2 (server; contains the PC's 57ae03a)"
-    deployed: "60a388f (image built 08:39 the same morning by scripts/deploy.sh)"
-    newer_not_deployed: none
-    uncommitted: "10 untracked research drafts on the PC"
   deploy: >-
     scripts/deploy.sh on the server: git pull, docker build, import, `kubectl set image`, rollout status, then rewrites
     the tag in ~/Infra/k8s/apps/unmatched/unmatched.yaml (commit it in Infra).
@@ -143,9 +161,12 @@
 - name: frigate
   what: Frigate NVR for the living-room camera (recordings, detection on the Intel GPU).
   kind: web-app
+  system: cats
+  lifecycle: production
+  depends_on: []
   runs: k8s apps/Deployment frigate on acer-laptop (hostNetwork, privileged)
   manifest: Infra/k8s/apps/frigate/frigate.yaml
-  image: "ghcr.io/blakeblackshear/frigate@sha256:cf4305d9...a7ad02 (0.16.3, pinned by digest; pull IfNotPresent)"
+  image: "ghcr.io/blakeblackshear/frigate, pinned by digest in frigate.yaml (upstream)"
   schedule: null
   url: "http://192.168.1.93:5000 (home network only; 8554 RTSP, 8555 WebRTC tcp+udp on the Acer; also 192.168.1.135:5000 via tools/old-address)"
   data:
@@ -155,7 +176,6 @@
   code:
     repo: none (upstream image); config only on the Acer
     branch: null
-    deployed: "Frigate 0.16.3 (the image that ran in Docker)"
   deploy: "Change the digest in frigate.yaml and apply."
   check: "Liveness GET http://192.168.1.93:5000/api/version; Prometheus job frigate (alerts FrigateCameraDown <1 fps, FrigateMetricsMissing, FrigateDetectorSlow, FrigateStorageLow)"
   probes:
@@ -170,11 +190,12 @@
 - name: freemotion-hub
   what: Free Motion's dashboard server (fm-orchestrator/freemotion-hub/server.mjs with fm-web's page) and the agents' hub.
   kind: web-app
+  system: free-motion
+  lifecycle: production
+  depends_on: [tailscale]
   runs: k8s apps/Deployment freemotion-hub on moudimash99 (server)
   manifest: Infra/k8s/apps/freemotion-hub/freemotion-hub.yaml
-  image: >-
-    docker.io/library/freemotion-hub:live (pull Never). Running image = freemotion-hub:2026-11-01-docker (same image ID
-    as `live` in the server's Docker; built 2026-11-01 18:15, the old Docker hub's image)
+  image: "freemotion-hub:live, built and retagged only by fm-orchestrator's freemotion-hub/test/deploy.mjs (pull Never)"
   schedule: null
   url:
     - https://freemotion.machaka.net (Cloudflare Access, then the app's own check)
@@ -186,9 +207,7 @@
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\fm\fm-orchestrator (freemotion-hub/) + fm\fm-web (the page)
     branch: main
-    latest: "fm-orchestrator 06d3c2d 2026-11-11; freemotion-hub/ last changed de48033 2026-11-10 15:34"
     deployed: "the 2026-11-01 Docker build (before d487ac1 'hub: serve the page from fm-web', 2026-11-01 20:53)"
-    newer_not_deployed: "d487ac1 (2026-11-01), 02e1a50 and de48033 (2026-11-10) in freemotion-hub/"
   deploy: >-
     Only fm-orchestrator's freemotion-hub/test/deploy.mjs: e2e tests, builds freemotion-hub:<date>-<hash> and retags
     `live`, imports into k3s, rollout restart, checks the served files. Applying the manifest never changes the code.
@@ -204,9 +223,12 @@
 - name: lab-sites
   what: The lab, one process serving Taste Match, Deals and Cat cam (status sites for the jobs) plus the PC report intake.
   kind: web-app
+  system: lab
+  lifecycle: production
+  depends_on: [bg-taste-match, boardgamefinder, cat-camera-jobs, cat-weight, frigate, mail-classifier]
   runs: k8s tools/Deployment lab on acer-laptop
   manifest: Infra/k8s/tools/lab.yaml
-  image: "docker.io/library/lab:2026-11-10j (pull Never; built 2026-11-10 15:01)"
+  image: "lab, built by lab/build.sh (pull Never)"
   schedule: null
   url:
     - https://tastematch.machaka.net
@@ -220,10 +242,7 @@
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\Infra\lab
     branch: acer-jobs-and-alerts
-    latest: "lab/app 440ee02 2026-11-10 15:00 (multi-page sites on the shared design)"
-    deployed: "440ee02 (the commit that set 2026-11-10j; image built a minute later)"
-    newer_not_deployed: "none (only README/DESIGN.md 12792f4 after)"
-    uncommitted: 0
+    deployed: "440ee02 (tag 2026-11-10j; Infra/lab is a folder, not a repo of its own, so status.py does not compare it)"
   deploy: "From the PC, Infra root: `sh lab/build.sh TAG` (builds on the server, imports on the Acer through the PC), set the tag in lab.yaml, apply."
   check: "Readiness/liveness GET /healthz on :8080; Prometheus scrapes :8081/metrics (pod annotations); Homepage Pipelines tiles read /api/summary/*"
   probes:
@@ -235,9 +254,12 @@
 - name: mail-classifier
   what: "Trained mail classifier API for the Gmail archiver. Since 2026-11-11 it decides (archiver MODEL_DECIDES = True): it archives emails the rules keep when it is sure and no guard or block applies. If it does not answer within 3 s, the email stays in the inbox."
   kind: web-app
+  system: gmail
+  lifecycle: production
+  depends_on: []
   runs: "k8s apps/Deployment mail-classifier on acer-laptop (rank steps-aside since 2026-11-20, strategy Recreate; 0 or 1 copy at night since 2026-11-21, owned by apps/Deployment mail-classifier-waker)"
   manifest: Email-remove/ml/service/mail-classifier.yaml (NOT in Infra/k8s; image line holds the placeholder MODEL_TAG)
-  image: "docker.io/library/mail-classifier:both-20261110-r2 (pull Never; tag = model version; built 2026-11-10 00:51)"
+  image: "mail-classifier, tag = model version (pull Never)"
   schedule: null
   url: "http://mail-classifier.apps.svc.cluster.local/classify in the cluster (the archiver, the lab); NodePort 30880 on every node for the home network; both reach the waker, which passes calls to Service mail-classifier-backend; GET /waker answers without waking it; no Ingress, private email text"
   data:
@@ -246,7 +268,6 @@
     repo: C:\Users\Moudimash99\Documents\Coding\Email-remove\ml\service (app.py, Dockerfile, build-context.ps1); model from Email-remove\ml
     branch: "none: Email-remove is not a git repo (dated backup folders instead)"
     deployed: "both-20261110-r2 (files dated 2026-11-10 00:32-00:53)"
-    latest: unknown (no version control)
   deploy: >-
     build-context.ps1 on the PC, docker build on the server, import on the Acer, replace MODEL_TAG in
     mail-classifier.yaml, kubectl apply.
@@ -266,9 +287,12 @@
 - name: llm-gateway
   what: fm-llm's ask service, the one way the home's projects call a model (gemma, Gemini, Claude).
   kind: web-app
+  system: free-motion
+  lifecycle: production
+  depends_on: []
   runs: k8s apps/Deployment llm-gateway on moudimash99 (server)
   manifest: Infra/k8s/apps/llm-gateway/llm-gateway.yaml
-  image: "docker.io/library/fm:2026-11-10a (pull Never; the Free Motion image; code comes from the ws checkout)"
+  image: "fm, the Free Motion image (Infra/images/fm); the code comes from the ws checkout (pull Never)"
   schedule: null
   url: "http://192.168.1.116:8792 (hostPort, home network/pods/Tailscale only): POST /v1/ask, GET /healthz"
   data:
@@ -278,11 +302,7 @@
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\fm\fm-llm (gateway/server.mjs); deployed checkout /srv/apps/freemotion/ws/fm-llm
     branch: main
-    latest: "933c953 2026-11-12 00:47 web-llm-serve: longer limit per call, up to 900 s"
-    deployed: "933c953 (server ws checkout = PC main)"
     version_check: "checkout moudimash99@192.168.1.116:/srv/apps/freemotion/ws/fm-llm"
-    newer_not_deployed: none
-    uncommitted: 0
   deploy: "Push from the PC to the server's bare repo /srv/apps/freemotion/git/fm-llm.git, git pull in /srv/apps/freemotion/ws/fm-llm, restart the pod."
   check: "GET http://192.168.1.116:8792/healthz = 200 {ok:true} (checked 2026-11-20: models gemma, gemini-pro, gemini-flash, claude-haiku, claude-sonnet); pod Ready (tcpSocket :8792)"
   probes:
@@ -293,6 +313,40 @@
   notes:
     - "Callers: BoardGameFinder (FM_LLM_URL), bg-taste-match shell, Email-remove gemma.py, ml/gemma_test.py."
 
+- name: spirit-island
+  what: "Spirit Island Planner: setups for 1 to 6 players (spirits that work well together, with an adversary, level and scenario matched to skill). One static page."
+  kind: web-app
+  system: board-games
+  lifecycle: production
+  depends_on: []
+  runs: k8s apps/Deployment spirit-island on moudimash99 (server)
+  manifest: Infra/k8s/apps/spirit-island/spirit-island.yaml (Deployment, Service, Ingress; the page itself is not in it)
+  image: "nginx (upstream; the tag is in the manifest)"
+  schedule: null
+  url: "https://spirit.machaka.net (public on purpose, no Cloudflare login: user, 2026-11-22)"
+  data:
+    - "ConfigMap apps/spirit-island-site: index.html (~165 KB, generated) and nginx.conf, made from the planner project's site/ folder, not from this repo"
+  code:
+    repo: "C:\\Users\\Moudimash99\\Documents\\Coding\\spirit island on the laptop DESKTOP-D6PL75M (192.168.1.71, Tailscale 100.94.89.34), not this PC"
+    branch: "none: not a git repo, no GitHub remote (2026-11-22)"
+    version_check: none (the page goes out as a ConfigMap)
+  deploy: >-
+    Page, from the project folder on DESKTOP-D6PL75M (Git Bash): `python build_site.py` writes site/index.html, then
+    `./deploy.sh` copies site/index.html and site/nginx.conf to the server (SSH alias home-laptop, over Tailscale),
+    rebuilds ConfigMap apps/spirit-island-site (server-side apply), restarts the Deployment (nginx.conf is a subPath
+    mount) and checks the page through Traefik. It never applies the manifest. Deployment, Service, Ingress: kubectl
+    apply -f k8s/apps/spirit-island/spirit-island.yaml (this repo owns them).
+  check: "Readiness/liveness GET /healthz on :80; https://spirit.machaka.net/healthz answers 200; Homepage siteMonitor"
+  probes:
+    - {k8s: apps/Deployment/spirit-island}
+    - {http: "https://spirit.machaka.net/healthz", expect: [200]}
+  drift:
+    - "First applied by hand on 2026-11-22 ~01:40 from an untracked copy of the manifest in the server's ~/Infra (on main), with no entry here. That copy and its README row are still uncommitted there (see k3s-system)."
+    - "The page's source has no version control: the project folder on DESKTOP-D6PL75M is not a git repo (2026-11-22)."
+    - "No Uptime Kuma monitor yet (its monitors live in its own database)."
+  notes:
+    - "Brought to the house standard on 2026-11-22: rank homelab-critical like the other sites; server only (no toleration for the Acer, whose memory is booked full). Uses ~3 MB."
+
 # ---------------------------------------------------------------------------------------------------------------
 # Scheduled jobs
 # ---------------------------------------------------------------------------------------------------------------
@@ -300,6 +354,9 @@
 - name: free-motion
   what: Free Motion job-application automation (controller daemon, one browser per lane, the ChatGPT/Gemini website writer).
   kind: scheduled-job
+  system: free-motion
+  lifecycle: production
+  depends_on: [freemotion-hub, nfs-exports]
   runs: >-
     k8s apps/Deployment fm-controller on moudimash99; apps/StatefulSet fm-browser-acer (2 pods), apps/Deployment
     fm-webllm (0 or 1 copy, started on demand) and apps/Deployment fm-webllm-waker on acer-laptop. PC Task Scheduler
@@ -308,7 +365,7 @@
     - Infra/k8s/apps/fm-controller/fm-controller.yaml (+ move/ scripts)
     - Infra/k8s/apps/fm-browser/fm-browser.yaml (headless Service + NetworkPolicy, controller only)
     - Infra/k8s/apps/fm-webllm/fm-webllm.yaml (Service fm-webllm :8933 -> the waker; Service fm-webllm-backend -> the helper; the waker's ConfigMap, ServiceAccount/Role (scale fm-webllm only); NetworkPolicies, controller and bg-taste-match)
-  image: "docker.io/library/fm:2026-11-10a for all three (pull Never; built on the server 2026-11-10 20:14 from Infra/images/fm, ~8 GB)"
+  image: "fm for all three, built on the server from Infra/images/fm, ~8 GB (pull Never)"
   schedule: "fm-orchestrator `scheduled.mjs daemon` inside the controller (Task Scheduler's stand-in); rounds, burn, replies, scan, weekly, loops"
   url: "none of its own (dashboard = freemotion-hub); browsers at <pod>.fm-browser.apps.svc:8931/mcp, writer at fm-webllm.apps.svc:8933 (the waker, which starts the helper)"
   data:
@@ -319,14 +376,6 @@
     repo: C:\Users\Moudimash99\Documents\Coding\fm\fm-* (deployed checkouts in /srv/apps/freemotion/ws, fed from bare repos /srv/apps/freemotion/git)
     branch: main everywhere
     version_check: "checkout moudimash99@192.168.1.116:/srv/apps/freemotion/ws"
-    deployed_equals_pc_main: >-
-      fm-agent c6fcd21, fm-core 0e3fc2f, fm-docs 0ed0985, fm-llm 933c953, fm-mail 7c2d9b0, fm-orchestrator e98cca7,
-      fm-pool 940b886, fm-web 08e7197 (server ws = PC main for all eight; the memory-diet fix, fm-pool#7, deployed
-      2026-11-21 ~11:18 with fm/.worktrees/deploy-memory-fix.sh)
-    newer_not_deployed: >-
-      Image: Infra/images/fm b161c73 (2026-11-10 23:37) and b10d975 (2026-11-11 01:52) are not in fm:2026-11-10a.
-    uncommitted: "fm-pool 2 files (make-pool.mjs, its test); fm-web untracked package-lock.json (PC and server); fm-data 1150 (data repo)"
-    unpushed: "fm-pool main is 3 commits ahead of origin/main on GitHub (the server's bare repo has them)"
   deploy: >-
     Code: push from the PC to the server's bare repos, then `git pull` in /srv/apps/freemotion/ws between rounds
     (restart fm-webllm/llm-gateway after). Image: build images/fm on the server, `docker save fm:<tag> | ssh <node>
@@ -355,9 +404,12 @@
 - name: boardgamefinder
   what: Daily board game deal search (Okkazeo listings, BGG ranks, prices, deal email).
   kind: scheduled-job
+  system: board-games
+  lifecycle: production
+  depends_on: [llm-gateway]
   runs: "k8s apps/CronJob boardgamefinder on acer-laptop; PC Task Scheduler copy BoardGameFinder_DailyRun (disabled)"
   manifest: Infra/k8s/apps/boardgamefinder/boardgamefinder.yaml
-  image: "docker.io/library/boardgamefinder:2026-11-10b (pull Never; built 2026-11-10 10:25 from ~/build/boardgamefinder)"
+  image: "boardgamefinder, built on the server from ~/build/boardgamefinder (pull Never)"
   schedule: "0 5 * * * Europe/Paris since 2026-11-20 (was 07:00; activeDeadlineSeconds 21600 = 6 h, backoffLimit 0); rank batch-make-room: may stop the mail classifier to start"
   url: "none (results on https://deals.machaka.net through the lab)"
   data:
@@ -366,10 +418,7 @@
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\BoardGameFinder (github.com/moudimash99/BoardGameFinder)
     branch: okkazeo-link-review (master 9bec34e 2026-08-29)
-    latest: "7690e12 2026-11-18 15:42 Promote match-only names for French titles only"
     deployed: "an uncommitted working-tree copy from 2026-11-09/10 (the container Dockerfile itself was only committed on 2026-11-18 in d3abc7a)"
-    newer_not_deployed: "3 commits on okkazeo-link-review, all 2026-11-18 (d3abc7a, 16f51bb, 7690e12), not merged to master and not in the image"
-    uncommitted: "53 (5 modified data/Output files, 48 untracked scratch/test scripts)"
   deploy: "Copy the repo to ~/build/boardgamefinder on the server, docker build, import on the Acer, set the tag, apply."
   check: "Last good run within 48 h (daily x 2); alert BoardGameFinderMissed fires at 26 h"
   probes:
@@ -385,9 +434,12 @@
 - name: bg-taste-match
   what: Board game YouTube reviewers matched to a BGG profile (downloads, Whisper captions, speaker separation, LLM rating).
   kind: scheduled-job
+  system: board-games
+  lifecycle: production
+  depends_on: [free-motion, llm-gateway, nfs-exports]
   runs: "k8s apps/CronJob bg-taste-match-fetch, -gpu, -llm and apps/Deployment bg-taste-match-shell, all on acer-laptop"
   manifest: Infra/k8s/apps/bg-taste-match/bg-taste-match.yaml
-  image: "docker.io/library/bg-taste-match:2026-11-10a for all four (pull Never; environment only, built 2026-11-10 00:29)"
+  image: "bg-taste-match for all four: the environment only (the code goes out with push_code.sh), built by deploy/build.sh (pull Never)"
   schedule:
     fetch: "5 */2 * * * (no timeZone, so UTC; every 2 h)"
     gpu: "15 * * * * (UTC, hourly; SUSPENDED live)"
@@ -403,11 +455,10 @@
   code:
     repo: C:\Users\Moudimash99\bg-taste-match (github.com/moudimash99/bg-taste-match)
     branch: main
-    latest: "ce7becb 2026-11-12 00:50 run_llm.sh: try the LLM service for a minute"
+    libs:
+      - "C:\\Users\\Moudimash99\\Documents\\Coding\\bgg-core (github.com/moudimash99/bgg-core; deploy/build.sh copies the PC's working tree into the image, not a pinned commit)"
     deployed: "ce7becb, checked 2026-11-20: all 70 tracked code files in /srv/apps/bg-taste-match match the PC's HEAD (ignoring CRLF); only the live bgtaste.db differs, as it should"
-    newer_not_deployed: none
     version_check: "none (code goes out with push_code.sh, not in the image; compare file hashes by hand as on 2026-11-20)"
-    uncommitted: "4 untracked helper files"
   deploy: "Code: deploy/push_code.sh from the PC (never sends bgtaste.db). Image: deploy/build.sh, import on the Acer, set the tag, apply."
   check: >-
     fetch: good run within 4 h (alert BgTasteMatchDownloadsStalled at 12 h); llm: a good run every night (within 24 h,
@@ -432,9 +483,12 @@
 - name: cat-camera-jobs
   what: "Cat camera jobs from the Cat-Camera repo: cat-flash (flash of the day video) and cat-monitor (feeding monitor, YOLO on the GPU)."
   kind: scheduled-job
+  system: cats
+  lifecycle: production
+  depends_on: [frigate]
   runs: "k8s apps/CronJob cat-flash and apps/CronJob cat-monitor on acer-laptop; PC Task Scheduler copy CatCameraFeedingMonitor (disabled)"
   manifest: Infra/k8s/apps/cat-monitor/cat-monitor.yaml
-  image: "docker.io/library/cat-monitor:2026-11-10a for both (pull Never; Python/PyTorch/model only, built 2026-11-10 00:30 from ~/build/cat-monitor)"
+  image: "cat-monitor for both: Python, PyTorch and the model only, built on the server from ~/build/cat-monitor (pull Never)"
   schedule:
     cat-flash: "20 0,19 * * * Europe/Paris (1 h limit, backoffLimit 1)"
     cat-monitor: "16 3 * * * Europe/Paris (3 h limit; GPU, waits on the GPU lock; SUSPENDED live)"
@@ -447,10 +501,7 @@
   code:
     repo: C:\Users\Moudimash99\Documents\GitHub\Cat-Camera (github.com/moudimash99/Cat-Camera)
     branch: main
-    latest: "29e6646 2026-11-10 17:36 daily_flash: a camera that holds still"
     deployed: "unknown: the scripts are copied by hand to /srv/apps/cat-monitor/code on the Acer (Acer not read)"
-    unpushed: "6 daily_flash commits of 2026-11-10 are on the PC only (origin/main is 2026-08-30)"
-    uncommitted: "54 (7 tracked files modified/deleted, 47 untracked)"
   deploy: "Scripts: copy to /srv/apps/cat-monitor/code on the Acer (no script found). Image: build Dockerfile.monitor on the server, import on the Acer, set the tag, apply."
   check: >-
     cat-flash: good run within 38 h (longest gap 19 h x 2); cat-monitor: suspended, no expectation (but alert
@@ -475,9 +526,12 @@
 - name: portainer
   what: Web UI for the cluster and for Docker on the server.
   kind: tool
+  system: platform
+  lifecycle: production
+  depends_on: []
   runs: "k8s tools/Deployment portainer (no nodeSelector, on moudimash99); docker container portainer-agent on the server"
   manifest: Infra/k8s/tools/portainer.yaml (agent from ~/portainer-agent compose on the server, not in this repo)
-  image: "portainer/portainer-ce:2.45.3 (IfNotPresent); agent portainer/agent:2.45.3 (Docker, Up, restart unless-stopped)"
+  image: "portainer/portainer-ce; the agent portainer/agent runs in Docker on the server (upstream)"
   schedule: null
   url: ["https://portainer.machaka.net", "agent 192.168.1.116:9001 (and 192.168.1.135:9001 via tools/old-address)"]
   data:
@@ -496,11 +550,14 @@
 - name: beszel
   what: Light monitoring with history and alerts per machine (hub + one agent per node).
   kind: tool
+  system: monitoring
+  lifecycle: production
+  depends_on: []
   runs: >-
     k8s tools/Deployment beszel (on moudimash99); tools/DaemonSet beszel-agent (server only, hostNetwork, Docker socket);
     tools/DaemonSet beszel-agent-worker (acer-laptop, NVIDIA variant)
   manifest: Infra/k8s/tools/beszel.yaml
-  image: "henrygd/beszel:0.21.1, henrygd/beszel-agent:0.21.1, henrygd/beszel-agent-nvidia:0.21.1 (all IfNotPresent)"
+  image: "henrygd/beszel, henrygd/beszel-agent, henrygd/beszel-agent-nvidia (upstream)"
   schedule: null
   url: ["https://beszel.machaka.net", "agents on <node>:45876 (hostNetwork)"]
   data:
@@ -522,9 +579,12 @@
 - name: uptime-kuma
   what: Checks each site every minute and emails when one is down; status page `homelab` feeds Homepage.
   kind: tool
+  system: monitoring
+  lifecycle: production
+  depends_on: []
   runs: k8s tools/Deployment uptime-kuma (no nodeSelector, on moudimash99)
   manifest: Infra/k8s/tools/uptime-kuma.yaml
-  image: "louislam/uptime-kuma:2.5.7 (IfNotPresent)"
+  image: "louislam/uptime-kuma (upstream)"
   schedule: null
   url: https://status.machaka.net
   data:
@@ -541,9 +601,12 @@
 - name: homepage
   what: lab.machaka.net, one page with every site and tool and their live numbers.
   kind: tool
+  system: lab
+  lifecycle: production
+  depends_on: [lab-sites, uptime-kuma, portainer, prometheus]
   runs: k8s tools/Deployment homepage (no nodeSelector, on moudimash99)
   manifest: Infra/k8s/tools/homepage.yaml (config in its ConfigMap)
-  image: "ghcr.io/gethomepage/homepage:v2.5.0 (IfNotPresent)"
+  image: "ghcr.io/gethomepage/homepage (upstream)"
   schedule: null
   url: https://lab.machaka.net
   data:
@@ -563,9 +626,12 @@
 - name: prometheus
   what: Collects metrics every 30 s, keeps 15 days (max 4 GB), evaluates the alert rules; with kube-state-metrics.
   kind: monitoring
+  system: monitoring
+  lifecycle: production
+  depends_on: [node-exporters, gpu-metrics, docker-monitoring, alertmanager]
   runs: "k8s monitoring/Deployment prometheus and monitoring/Deployment kube-state-metrics (no nodeSelector, on moudimash99)"
   manifest: Infra/k8s/monitoring/prometheus.yaml, kube-state-metrics.yaml, prometheus.yml, alert-rules.yml (kustomization.yaml)
-  image: "prom/prometheus:v3.15.0; registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.20.0 (IfNotPresent)"
+  image: "prom/prometheus; registry.k8s.io/kube-state-metrics/kube-state-metrics (upstream)"
   schedule: null
   url: "none (no login): kubectl -n monitoring port-forward svc/prometheus 9090:80"
   data:
@@ -584,9 +650,12 @@
 - name: grafana
   what: Dashboards over Prometheus (Homelab folder made by dashboards/make.py, More detail from grafana.com).
   kind: monitoring
+  system: monitoring
+  lifecycle: production
+  depends_on: [prometheus]
   runs: k8s monitoring/Deployment grafana (no nodeSelector, on moudimash99)
   manifest: Infra/k8s/monitoring/grafana.yaml (+ dashboards/, provisioning/)
-  image: "grafana/grafana:13.2.3 (IfNotPresent)"
+  image: "grafana/grafana (upstream)"
   schedule: null
   url: https://grafana.machaka.net
   data:
@@ -605,9 +674,12 @@
 - name: alertmanager
   what: Turns Prometheus alerts into plain-word emails through Gmail SMTP.
   kind: monitoring
+  system: monitoring
+  lifecycle: production
+  depends_on: []
   runs: k8s tools/Deployment alertmanager (no nodeSelector, on moudimash99)
   manifest: Infra/k8s/tools/alertmanager.yaml
-  image: "prom/alertmanager:v0.35.0, init busybox:1.36 (IfNotPresent)"
+  image: "prom/alertmanager, init busybox (upstream)"
   schedule: null
   url: "none: kubectl -n tools port-forward svc/alertmanager 9093:9093"
   data:
@@ -623,9 +695,12 @@
 - name: node-exporters
   what: Machine metrics (node-exporter, port 9110) and per-program memory outside containers (process-exporter, 9256) on every node.
   kind: monitoring
+  system: monitoring
+  lifecycle: production
+  depends_on: []
   runs: "k8s monitoring/DaemonSet node-exporter (hostNetwork) and monitoring/DaemonSet process-exporter, on both nodes"
   manifest: Infra/k8s/monitoring/node-exporter.yaml, process-exporter.yaml
-  image: "prom/node-exporter:v1.12.1; ncabatoff/process-exporter:0.8.7 (IfNotPresent)"
+  image: "prom/node-exporter; ncabatoff/process-exporter (upstream)"
   schedule: null
   url: "<node>:9110/metrics"
   data:
@@ -643,9 +718,12 @@
 - name: gpu-metrics
   what: The Acer's GTX 1050 for Prometheus (nvidia_gpu_exporter) and per-process GPU use with the owning pod (gpu-procs).
   kind: monitoring
+  system: monitoring
+  lifecycle: production
+  depends_on: []
   runs: "k8s monitoring/DaemonSet nvidia-gpu-exporter and monitoring/DaemonSet gpu-procs on acer-laptop (runtimeClass nvidia)"
   manifest: Infra/k8s/monitoring/gpu-exporter.yaml, gpu-procs.yaml
-  image: "utkuozdemir/nvidia_gpu_exporter:1.18.0; python@sha256:e48f59cd... (3.13-slim) + script in a ConfigMap (IfNotPresent)"
+  image: "utkuozdemir/nvidia_gpu_exporter; python 3.13-slim pinned by digest, with a script in a ConfigMap (upstream)"
   schedule: null
   url: "pod :9835 and :9837 /metrics (scraped through pod annotations)"
   data: []
@@ -661,6 +739,9 @@
 - name: docker-monitoring
   what: cAdvisor for the server's Docker containers (scraped by Prometheus) and the old Docker node-exporter (no longer read).
   kind: monitoring
+  system: monitoring
+  lifecycle: production
+  depends_on: []
   runs: "docker on server (compose project `infra` from ~/Infra): cadvisor Up (healthy), node-exporter Up"
   manifest: Infra/docker-compose.yml
   image: "gcr.io/cadvisor/cadvisor:latest, prom/node-exporter:latest (unpinned; restart unless-stopped)"
@@ -684,6 +765,9 @@
 - name: edge-proxy
   what: "The way in from the internet: Cloudflare tunnel (cloudflared) to nginx, which sends names to Traefik or Docker."
   kind: cluster
+  system: platform
+  lifecycle: production
+  depends_on: [k3s-system]
   runs: "docker on server (compose project `infra` from ~/Infra): cloudflared Up, nginx Up"
   manifest: Infra/docker-compose.yml, Infra/nginx/conf.d/site.conf
   image: "cloudflare/cloudflared:latest (unpinned), nginx:1.27-alpine (restart unless-stopped)"
@@ -708,13 +792,16 @@
 - name: k3s-system
   what: "The k3s cluster itself: k3s server, Traefik ingress, CoreDNS, metrics-server, local-path storage, priority classes, old-address forward."
   kind: cluster
+  system: platform
+  lifecycle: production
+  depends_on: []
   runs: >-
     k3s.service on moudimash99 (control plane, v1.36.5+k3s1), k3s-agent on acer-laptop; kube-system Deployments
     traefik (3.7.13), coredns, metrics-server, local-path-provisioner, DaemonSet svclb-traefik (server only)
   manifest: >-
     k3s built-ins (no manifests) plus Infra/k8s/cluster/traefik-config.yaml (HelmChartConfig), priority.yaml
     (PriorityClasses), old-address.yaml (tools/old-address: 192.168.1.135:5000/9001/45876 to .116/.93)
-  image: "rancher/mirrored-library-traefik:3.7.13, rancher/klipper-lb:v0.4.17, rancher/mirrored-coredns-coredns:1.14.7, rancher/mirrored-metrics-server:v0.9.0, rancher/local-path-provisioner:v0.0.37"
+  image: "k3s's own (Traefik, klipper-lb, CoreDNS, metrics-server, local-path-provisioner); versions come with k3s"
   schedule: "k3s etcd snapshots every 12 h, 5 kept (/var/lib/rancher/k3s/server/db/snapshots; per the README, not checked)"
   url: "Traefik LoadBalancer 192.168.1.116:80/443"
   data:
@@ -722,10 +809,6 @@
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\Infra (github.com/moudimash99/Infra)
     branch: acer-jobs-and-alerts (PC checkout)
-    latest: "a72c6cb 2026-11-12 00:52 bg-taste-match: ratings on the Acer through fm-webllm's Gemini website"
-    deployed: "the cluster matches acer-jobs-and-alerts except the items marked drift in each service"
-    newer_not_deployed: "branch HEAD is applied except fm-controller (WEB_LLM_URL) and the bg-taste-match-gpu request; main is 41 commits behind the branch"
-    uncommitted: 0
   deploy: "From the PC: kubectl apply -f k8s/cluster/; apply -R -f k8s/apps/; apply -f k8s/tools/; apply -k k8s/monitoring/ --server-side."
   check: "kubectl get nodes: both Ready; Traefik readiness GET /ping :8080"
   probes:
@@ -738,16 +821,21 @@
   drift:
     - "Everything deployed since 2026-11-02 (Acer jobs, Free Motion, lab, alerts, registry) is on branch acer-jobs-and-alerts, 41 commits not merged to main; the server's ~/Infra clone is on main (2026-11-02), so applying from the server would roll the cluster back."
     - "Live-only objects not in Infra/k8s: apps/Deployment+Service mail-classifier (manifest in Email-remove)."
+    - "The server's ~/Infra also holds uncommitted work from 2026-11-22: untracked k8s/apps/spirit-island/ (the first version of the manifest) and a README row for it. Move them aside before pulling the branch there; the branch has the current version."
     - "old-address uses externalIPs, deprecated in Kubernetes 1.36 (manifest comment)."
   notes:
     - "Remote branch origin/frigate-on-acer is fully contained in acer-jobs-and-alerts."
+    - "Planned: Flux applies the cluster from main (moudimash99/Infra#7); its prerequisites are this file's 'manifest says X, live says Y' drift lines."
 
 - name: registry
   what: The cluster's own image registry, so images reach every node without docker save/import.
   kind: cluster
+  system: platform
+  lifecycle: experimental
+  depends_on: []
   runs: k8s kube-system/Deployment registry on moudimash99 (hostPort 5000)
   manifest: Infra/k8s/cluster/registry.yaml
-  image: "registry:2.8.3 (IfNotPresent)"
+  image: "registry (upstream)"
   schedule: null
   url: "http://192.168.1.116:5000 (plain HTTP, no login, home network)"
   data:
@@ -764,6 +852,9 @@
 - name: nfs-exports
   what: NFS server on the server, sharing Free Motion's data and code with the Acer.
   kind: cluster
+  system: platform
+  lifecycle: production
+  depends_on: []
   runs: "systemd nfs-server.service on the server (enabled)"
   manifest: "/etc/exports on the server (not in a repo)"
   image: null
@@ -784,6 +875,9 @@
 - name: tailscale
   what: Tailscale on the server; Free Motion's agents reach the hub at 100.111.127.103:8791 through it.
   kind: cluster
+  system: platform
+  lifecycle: production
+  depends_on: []
   runs: "systemd tailscaled.service on the server (enabled, running); the PC also has Tailscale installed"
   manifest: null
   image: null
@@ -809,9 +903,12 @@
     accounts (labels Auto-*). It asks the mail-classifier about the emails its rules keep (the classifier decides since
     2026-11-11) and Gemma (llm-gateway) about the unsure ones.
   kind: scheduled-job
+  system: gmail
+  lifecycle: production
+  depends_on: [mail-classifier, llm-gateway]
   runs: "k8s apps/CronJob email-remove on acer-laptop since 2026-11-20; the PC task \\GmailRejectionArchiver is disabled (moved)"
   manifest: Infra/k8s/apps/email-remove/email-remove.yaml
-  image: "docker.io/library/python:3.13-slim (IfNotPresent; standard library only; the code comes from the hostPath)"
+  image: "python:3.13-slim (upstream; standard library only, the code comes from the hostPath)"
   schedule: "*/3 * * * * Europe/Paris (Forbid, startingDeadlineSeconds 120, activeDeadlineSeconds 1800); rank batch-high: waits for room, never pushes anyone out"
   url: null
   data:
@@ -842,6 +939,9 @@
 - name: gmail-daily-review
   what: Daily review email of the archiver's decisions (Email-remove daily_review.py, with ml/audit.py's model check).
   kind: pc-task
+  system: gmail
+  lifecycle: production
+  depends_on: [gmail-archiver]
   runs: "PC Task Scheduler \\GmailDailyReview (Ready): pythonw review_with_acer_files.py"
   manifest: null
   image: null
@@ -866,6 +966,9 @@
 - name: job-scrapers
   what: Upwork job scan four times a day (plus two finished keyword/search test tasks).
   kind: pc-task
+  system: job-scrapers
+  lifecycle: production
+  depends_on: []
   runs: "PC Task Scheduler \\job-scrapers upwork round (Ready); \\job-scrapers keyword test and \\job-scrapers new search test (Disabled)"
   manifest: null
   image: null
@@ -876,9 +979,7 @@
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\job-scrapers (github.com/moudimash99/job-scrapers)
     branch: main
-    latest: "3a6fd2a 2026-11-01 04:35 Add the daily keyword test against the IT lists"
     deployed: "runs in place from the working tree"
-    uncommitted: "20 (17 untracked)"
   deploy: "Edit in place."
   check: "Good run within 28 h (longest gap 13 h 45 x 2). Halted since 2026-11-10 08:46: every run prints \"halted\" and returns 1."
   probes:

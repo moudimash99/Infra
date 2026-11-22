@@ -13,8 +13,10 @@ Reads Infra/services.yaml and checks each service's `probes` against what is rea
   {pc_task: "\\Task"}            Windows scheduled task enabled, last result 0
   {file_age: path, max_age_min: N}   file on this PC written within N minutes
   {http: url, expect: [200]}     answers with one of those codes (from this PC)
-Then lists what runs but is not in the catalog, what the catalog names but is missing, and code that is newer than
-the image that runs (the image tag's date against the repo's commits). Exit code 1 when anything FAILs.
+Then lists what runs but is not in the catalog, what the catalog names but is missing, code that is newer than
+the image that runs (the image tag's date against the repo's commits, also for code.libs), commits not pushed, and
+mistakes in the catalog's own fields (system, lifecycle, depends_on). The full output shows each service's running
+images (services.yaml no longer keeps tags). Exit code 1 when anything FAILs.
 
 Run on the PC: python Infra/scripts/status.py   (--json for machine output, --quiet to show only problems)
 """
@@ -221,29 +223,53 @@ def git(path, *args):
     return run(["git", "-C", path, *args])[1].strip()
 
 
+def images(keys, s):
+    """Image tags of the workloads a service's probes found, as they run now."""
+    out = set()
+    for k in keys:
+        spec = s["k8s"][k]["spec"]
+        pod = (spec.get("jobTemplate", {}).get("spec", {}).get("template", {}).get("spec")
+               or spec.get("template", {}).get("spec", {}))
+        out.update(c.get("image", "") for c in pod.get("containers", []))
+    return sorted(out)
+
+
 def code_check(svc, s, keys):
     """How the PC's repo compares with what runs, by the service's code.version_check:
       (default) image: the code is built into the image; compare the image tag (a date or a commit) with the
                 repo's current branch (HEAD), never other branches.
       checkout <ssh-host>:<path>: the service runs from a git checkout there; compare its HEAD with the PC's HEAD
                 (a path ending in a folder of checkouts is matched per repo by folder name, for repo globs like fm-*).
-      none ...: no automatic comparison (e.g. code pushed as files); only uncommitted changes are reported."""
+      none ...: no automatic comparison (e.g. code pushed as files); only uncommitted changes are reported.
+    code.libs: library repos built into the image (e.g. bgg-core), always compared the image way.
+    Every repo: commits on its branch not pushed to origin (its upstream, or origin/<branch>)."""
     code = svc.get("code") or {}
-    repo = code.get("repo") if isinstance(code, dict) else None
-    if not repo:
+    if not isinstance(code, dict):
         return None
-    pattern = repo.split(" (")[0].strip()
-    paths = [p for p in (__import__("glob").glob(pattern) if "*" in pattern else [pattern]) if is_repo(p)]
-    if not paths:
-        return None
+    glob = __import__("glob").glob
     how = str(code.get("version_check") or "image").strip()
+    def repos(entry):
+        pat = str(entry or "").split(" (")[0].strip()
+        return [p for p in (glob(pat) if "*" in pat else [pat]) if pat and is_repo(p)]
+
+    pattern = str(code.get("repo") or "").split(" (")[0].strip()
+    own = repos(code.get("repo"))
+    todo = [(p, how) for p in own] + [(p, "image") for lib in code.get("libs") or [] for p in repos(lib)]
+    if not todo:
+        return None
     notes = []
-    for path in paths:
-        label = os.path.basename(path) + ": " if len(paths) > 1 else ""
+    for path, check in todo:
+        label = os.path.basename(path) + ": " if len(todo) > 1 else ""
         n_dirty = len([x for x in git(path, "status", "--porcelain").splitlines() if x.strip()])
-        if how.startswith("checkout "):
-            host, _, where = how.split(None, 1)[1].partition(":")
-            remote = where if len(paths) == 1 else f"{where.rstrip('/')}/{os.path.basename(path)}"
+        unpushed = git(path, "rev-list", "--count", "@{upstream}..HEAD")
+        if not unpushed.isdigit():   # no upstream set: compare with origin's branch of the same name
+            branch = git(path, "branch", "--show-current")
+            unpushed = git(path, "rev-list", "--count", f"origin/{branch}..HEAD") if branch else ""
+        if unpushed.isdigit() and unpushed != "0":
+            notes.append(f"{label}{unpushed} commit(s) not pushed to origin")
+        if check.startswith("checkout "):
+            host, _, where = check.split(None, 1)[1].partition(":")
+            remote = where if len(own) == 1 else f"{where.rstrip('/')}/{os.path.basename(path)}"
             rc, out, _ = run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", host,
                               f"git -C '{remote}' rev-parse HEAD 2>/dev/null"])
             there, here = out.strip(), git(path, "rev-parse", "HEAD")
@@ -252,14 +278,8 @@ def code_check(svc, s, keys):
                 behind = git(path, "rev-list", "--count", f"HEAD..{there}")
                 notes.append(f"{label}runs {there[:7]}; the PC is {ahead or '?'} commit(s) ahead"
                              + (f", {behind} behind" if behind not in ("", "0") else ""))
-        elif how == "image":
-            tags = set()
-            for k in keys:
-                spec = s["k8s"][k]["spec"]
-                pod = (spec.get("jobTemplate", {}).get("spec", {}).get("template", {}).get("spec")
-                       or spec.get("template", {}).get("spec", {}))
-                for c in pod.get("containers", []):
-                    tags.add(c.get("image", "").rsplit(":", 1)[-1])
+        elif check == "image":
+            tags = {i.rsplit(":", 1)[-1] for i in images(keys, s)}
             for t in sorted(tags):
                 if re.fullmatch(r"[0-9a-f]{7,40}", t) and git(path, "cat-file", "-t", t) == "commit":
                     newer = git(path, "rev-list", "--count", f"{t}..HEAD")
@@ -272,6 +292,22 @@ def code_check(svc, s, keys):
         if n_dirty:
             notes.append(f"{label}{n_dirty} uncommitted change(s)")
     return {"repo": pattern, "check": how.split(" (")[0], "notes": notes}
+
+
+LIFECYCLES = {"production", "experimental", "deprecated"}
+
+
+def catalog_problems(services):
+    """The catalog's own fields: every entry has a system and a known lifecycle, and depends_on names entries."""
+    names, out = {svc["name"] for svc in services}, []
+    for svc in services:
+        n = svc["name"]
+        if not svc.get("system"):
+            out.append(f"{n}: no system")
+        if svc.get("lifecycle") not in LIFECYCLES:
+            out.append(f"{n}: lifecycle {svc.get('lifecycle')!r} is not one of {', '.join(sorted(LIFECYCLES))}")
+        out += [f"{n}: depends_on {d!r} is not an entry" for d in svc.get("depends_on") or [] if d not in names]
+    return out
 
 
 # ---------------------------------------------------------------- main
@@ -290,12 +326,14 @@ def main():
         worst = max((r[0] for r in rows), key=SEV.get, default="WARN")
         results.append({"name": svc["name"], "status": worst if rows else "WARN",
                         "checks": [{"status": a, "detail": b} for a, b in rows] or [{"status": "WARN", "detail": "no probes"}],
+                        "images": images(keys, s),
                         "code": code_check(svc, s, keys)})
     named_docker = {p["docker"] for svc in services for p in (svc.get("probes") or []) if "docker" in p}
     unknown = sorted(k for k in s["k8s"] if k not in covered)
     stopped_docker = sorted(n for n, st in (s["docker"] or {}).items() if n not in named_docker and st == "running")
     report = {"time": NOW.astimezone().strftime("%Y-%m-%d %H:%M"), "services": results,
-              "not_in_catalog": unknown + [f"docker/{n}" for n in stopped_docker], "errors": s["errors"]}
+              "not_in_catalog": unknown + [f"docker/{n}" for n in stopped_docker],
+              "catalog_problems": catalog_problems(services), "errors": s["errors"]}
     if as_json:
         print(json.dumps(report, indent=1))
     else:
@@ -308,6 +346,8 @@ def main():
             for c in r["checks"]:
                 if not quiet or c["status"] != "OK":
                     print(f"        {'' if c['status'] == 'OK' else c['status'] + ': '}{c['detail']}")
+            if r["images"] and not quiet:
+                print(f"        runs {', '.join(r['images'])}")
         stale = [(r["name"], r["code"]) for r in results if r["code"] and r["code"]["notes"]]
         if stale:
             print("\nCode on the PC that is not what runs (newer commits, or changes never committed):")
@@ -316,6 +356,10 @@ def main():
         if report["not_in_catalog"]:
             print("\nRunning but not in services.yaml (add them):")
             for k in report["not_in_catalog"]:
+                print("  " + k)
+        if report["catalog_problems"]:
+            print("\nMistakes in services.yaml:")
+            for k in report["catalog_problems"]:
                 print("  " + k)
         for e in report["errors"]:
             print("\nCould not check: " + e)

@@ -1,0 +1,77 @@
+# spirit.machaka.net: Spirit Island Planner, a static single-page app (no data on the server). Public on purpose:
+# no Cloudflare Access login (user, 2026-11-22), like unmatched and machaka.net.
+# The page and its nginx.conf live in the ConfigMap spirit-island-site, made from the planner project's site/ folder
+# (not in this repo: the page is ~165 KB of generated HTML). The project is C:\Users\Moudimash99\Documents\Coding\
+# spirit island on the laptop DESKTOP-D6PL75M: `python build_site.py`, then `./deploy.sh` rebuilds the ConfigMap and
+# restarts this Deployment (nginx.conf is a subPath mount). deploy.sh never applies this file; this repo owns it.
+# Stock nginx image, nothing to build or load. Uses ~3 MB of memory.
+# Rank homelab-critical like the other sites. Server only: no toleration for the Acer, whose memory is booked full.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spirit-island
+  namespace: apps
+  labels: { app: spirit-island }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: spirit-island }
+  template:
+    metadata:
+      labels: { app: spirit-island }
+    spec:
+      priorityClassName: homelab-critical
+      containers:
+        - name: nginx
+          image: docker.io/library/nginx:1.27-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: http, containerPort: 80 }
+          volumeMounts:
+            - { name: site, mountPath: /usr/share/nginx/html, readOnly: true }
+            - { name: conf, mountPath: /etc/nginx/nginx.conf, subPath: nginx.conf, readOnly: true }
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 5m, memory: 8Mi }
+            limits: { memory: 32Mi }
+      volumes:
+        - name: site
+          configMap:
+            name: spirit-island-site
+            items: [{ key: index.html, path: index.html }]
+        - name: conf
+          configMap:
+            name: spirit-island-site
+            items: [{ key: nginx.conf, path: nginx.conf }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spirit-island
+  namespace: apps
+spec:
+  selector: { app: spirit-island }
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: spirit-island
+  namespace: apps
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: spirit.machaka.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: spirit-island, port: { name: http } }

@@ -97,6 +97,10 @@ kubectl apply -f k8s/tools/
 kubectl apply -k k8s/monitoring/ --server-side   # --server-side: the dashboards are too big otherwise
 ```
 
+**For now, apply single files, not `k8s/apps/` as a whole:** some live objects differ from their manifests on
+purpose. The GPU jobs are paused, and fm-controller has `WEB_LLM_OFF`. Applying the folder would undo that (see the
+drift lines in `services.yaml`; moudimash99/Infra#7 fixes it before Flux takes over).
+
 `k8s/cluster/traefik-config.yaml` makes Traefik keep the X-Forwarded-For / X-Real-IP /
 X-Forwarded-Proto that nginx sets; without it every visitor looks like 10.42.0.1 to the apps.
 
@@ -110,6 +114,7 @@ X-Forwarded-Proto that nginx sets; without it every visitor looks like 10.42.0.1
 | website | machaka.net, mohammad.machaka.net | server | `~/Personal-Website/tracking-data` |
 | frigate | http://192.168.1.93:5000 (home network only) | Acer | `/srv/apps/frigate/config`, `/var/lib/frigate/media` |
 | freemotion-hub | freemotion.machaka.net; agents on port 8791 of the server (hostPort, over Tailscale) | server | `/srv/apps/freemotion-hub` |
+| spirit-island | spirit.machaka.net (public, no login) | server | none: a static page in ConfigMap `spirit-island-site`, published by `deploy.sh` in the planner project on the laptop DESKTOP-D6PL75M (see the manifest) |
 
 The Free Motion hub (dashboard) moved from Docker on 2026-11-10. Its image is always `freemotion-hub:live`, built and
 loaded only by fm-orchestrator's `freemotion-hub/test/deploy.mjs` after its tests; applying the manifest never changes the
