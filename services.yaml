@@ -374,26 +374,28 @@
   schedule: null
   url: "https://spirit.machaka.net (public on purpose, no Cloudflare login: user, 2026-11-22)"
   data:
-    - "ConfigMap apps/spirit-island-site: index.html (~165 KB, generated) and nginx.conf, made from the planner project's site/ folder, not from this repo"
+    - "ConfigMap apps/spirit-island-site: index.html (~165 KB, generated) and nginx.conf, made from site/ in the spirit-island repo, not from this repo"
   code:
-    repo: "the spirit island planner project on another laptop, not this PC (which laptop, and its folder: Infra/local/machines.yaml, kept out of git)"
-    branch: "none: not a git repo, no GitHub remote (2026-11-22)"
+    repo: "github.com/moudimash99/spirit-island (private), checked out on another laptop, not this PC (which laptop, and its folder: Infra/local/machines.yaml, kept out of git)"
+    branch: main
     version_check: none (the page goes out as a ConfigMap)
+    deployed: "main 458aa31: the live index.html is site/index.html of 458aa31 with CRLF line endings (from the laptop's Windows checkout), nginx.conf byte for byte (checked 2026-11-22). That page went live before the repo existed."
   deploy: >-
-    Page, from the project folder on that laptop (Git Bash): `python build_site.py` writes site/index.html, then
+    Page, from the repo's checkout on that laptop (Git Bash): `python build_site.py` writes site/index.html, then
     `./deploy.sh` copies site/index.html and site/nginx.conf to the server (SSH alias home-laptop, over Tailscale),
     rebuilds ConfigMap apps/spirit-island-site (server-side apply), restarts the Deployment (nginx.conf is a subPath
-    mount) and checks the page through Traefik. It never applies the manifest. Deployment, Service, Ingress: kubectl
-    apply -f k8s/apps/spirit-island/spirit-island.yaml (this repo owns them).
+    mount) and checks the page through Traefik (curl http://localhost/ on the server, Host spirit.machaka.net). It
+    never applies the manifest. Deployment, Service, Ingress: kubectl apply -f k8s/apps/spirit-island/spirit-island.yaml
+    (this repo owns them).
   check: "Readiness/liveness GET /healthz on :80; https://spirit.machaka.net/healthz answers 200; Homepage siteMonitor; Uptime Kuma check 11 \"Spirit Island\" (group Sites on status page homelab, since 2026-11-22)"
   probes:
     - {k8s: apps/Deployment/spirit-island}
     - {http: "https://spirit.machaka.net/healthz", expect: [200]}
   drift:
     - "First applied by hand on 2026-11-22 ~01:40 from an untracked copy of the manifest in the server's ~/Infra; that copy was put aside (git stash) when the clone moved to main the same day."
-    - "The page's source has no version control: the project folder on that laptop is not a git repo (2026-11-22)."
   notes:
     - "Brought to the house standard on 2026-11-22: rank homelab-critical like the other sites; server only (no toleration for the Acer, whose memory is booked full). Uses ~3 MB."
+    - "In git since 2026-11-22 (58eb2a1, then the README in 458aa31), main the only branch. Nothing in the repo names that laptop or gives an address."
   menu:
     title: Spirit Island
     icon: mdi-palm-tree
