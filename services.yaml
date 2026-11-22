@@ -609,7 +609,7 @@
     repo: C:\Users\Moudimash99\Documents\GitHub\Cat-Camera (github.com/moudimash99/Cat-Camera)
     branch: main
     version_check: "none (the image holds only Python, PyTorch and the model; compare the Acer's /srv/apps/cat-monitor/code with the PC's files)"
-    deployed: "main: the Acer's /srv/apps/cat-monitor/code (automated_feeder_monitor.py, daily_flash.py, feeding_pipeline.py) matches the PC's files, committed on 2026-11-22 (3aa82d3); copied by hand"
+    deployed: "main 05a2324 (2026-11-22): the Acer's /srv/apps/cat-monitor/code (automated_feeder_monitor.py, daily_flash.py, feeding_pipeline.py) matches the PC's files (md5 checked); copied by hand, previous feeding_pipeline.py kept as feeding_pipeline.py.bak-2026-11-22"
   deploy: "Scripts: copy to /srv/apps/cat-monitor/code on the Acer (no script found). Image: build Dockerfile.monitor on the server, import on the Acer, set the tag, apply."
   check: >-
     cat-flash: good run within 38 h (longest gap 19 h x 2); cat-monitor: suspended, no expectation (alert
@@ -625,6 +625,8 @@
     - "cat-flash rank batch-make-room since 2026-11-20: it may stop the mail classifier for its ~4 minutes. The 2026-11-20 19:20 run started at 20:13 when the classifier restarted and finished at 20:14."
     - "cat-flash last good run 2026-11-11 19:24; runs of 2026-11-19 00:20, 19:20 and 2026-11-20 00:20 failed with DeadlineExceeded (1 h)."
     - "cat-monitor last good run 2026-11-10 04:27; 11-11 and 11-12 hit the 3 h limit, then it was suspended."
+    - "2026-11-22: every result before 05a2324 is suspect. Batched FP16 on the PC's GTX 1660 found no cats at all (Nala at the bowl 21 Nov 12:51 counted 0 s), and one misnamed frame gave a cat the other's whole session. Both fixed in 05a2324 (FP32 unless CATCAM_HALF=1; sessions per cat). Whether FP16 batches also failed on the Acer's GTX 1050 was not checked."
+    - "2026-11-22: the 21 Nov blocks were run on the PC (night-gpu/rerun.sh, 3 streams, about 2.4 h per 8-hour block) and pushed to the Acer's rolling_runs. The CronJob's 'once 1' looks at only the last hour, and its 2560Mi request does not fit on the Acer as booked now."
     - "PC task CatCameraFeedingMonitor (Documents\\GitHub\\Cat-Camera\\automated_feeder_monitor.py once 8, every 8 h): Disabled since 2026-09-13."
   menu:
     title: Cat cam
