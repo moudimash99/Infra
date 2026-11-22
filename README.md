@@ -104,9 +104,10 @@ kubectl apply -f k8s/tools/
 kubectl apply -k k8s/monitoring/ --server-side   # --server-side: the dashboards are too big otherwise
 ```
 
-**For now, apply single files, not `k8s/apps/` as a whole:** some live objects differ from their manifests on
-purpose. The GPU jobs are paused, and fm-controller has `WEB_LLM_OFF`. Applying the folder would undo that (see the
-drift lines in `services.yaml`; moudimash99/Infra#7 fixes it before Flux takes over).
+**Run `kubectl diff` before applying a folder.** Since 2026-11-22 `kubectl diff -R -f k8s/apps/` is empty: what
+is off on purpose (the GPU jobs, fm-controller's website writers with `WEB_LLM_OFF`) is off in its manifest too, so
+an apply keeps it off. Anything a diff shows is drift: write it in `services.yaml` (moudimash99/Infra#7 is the move
+to Flux).
 
 `k8s/cluster/traefik-config.yaml` makes Traefik keep the X-Forwarded-For / X-Real-IP /
 X-Forwarded-Proto that nginx sets; without it every visitor looks like 10.42.0.1 to the apps.

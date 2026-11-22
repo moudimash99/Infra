@@ -237,7 +237,7 @@
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\fm\fm-orchestrator (freemotion-hub/) + fm\fm-web (the page)
     branch: main
-    deployed: "the 2026-11-01 Docker build (before d487ac1 'hub: serve the page from fm-web', 2026-11-01 20:53)"
+    deployed: "the 2026-11-01 Docker build: the same page as main byte for byte, and main's server.mjs but for a comment and the page-folder fallback (checked 2026-11-22)"
   deploy: >-
     Only fm-orchestrator's freemotion-hub/test/deploy.mjs: e2e tests, builds freemotion-hub:<date>-<hash> and retags
     `live`, imports into k3s, rollout restart, checks the served files. Applying the manifest never changes the code.
@@ -245,8 +245,8 @@
   probes:
     - {k8s: apps/Deployment/freemotion-hub}
   drift:
-    - "`live` is the 2026-11-01 Docker image, not a deploy.mjs build: freemotion-hub:2026-11-10-a168f5d8 (deploy.mjs, 2026-11-10 14:10) and 2026-11-10a exist on the server but are not live, so `live` was retagged back by hand. The README's 'built and loaded only by deploy.mjs' is not true right now."
-    - "Hub commits after the 2026-11-01 Docker build (d487ac1, 02e1a50, de48033) are not running. Not redeployed in the 2026-11-22 sync to main: why `live` was put back by hand is not written down."
+    - "`live` is the Docker hub's own image (2026-11-01), not a deploy.mjs build: the move to k3s on 2026-11-10 kept it on purpose so the move changed no code (2026-11-10-a168f5d8 was a trial of deploy.mjs's new step 2 on a copy of the data, then `live` was put back), and that day's deploy.mjs run stopped on a flaky test (fixed in de48033). What it serves is main: public/ is byte for byte fm-web's, and server.mjs differs only in a comment and in also finding fm-web's folder when run on a machine (checked 2026-11-22). The next deploy.mjs run replaces it; not redeployed on 2026-11-22 because nothing would change."
+    - "deploy.mjs step 3 still moves the PC's agent (writes the PC's fm-data/tmp/fm/hub/agent-release and waits for the PC's agent.log). Since 2026-11-11 the agent runs inside fm-controller on the server (code ac8416e063 = the server's checkout, 2026-11-22) and the PC's FreeMotion agent task is disabled, so step 3 will report NOT deployed after the hub is already deployed, until the script follows the server's agent."
   notes:
     - "Docker fallback on the server: container `freemotion` (image freemotion-hub-freemotion, ~/freemotion-hub compose), Exited (137) 10 days ago, restart no. Never start it while the pod runs."
   menu:
@@ -444,14 +444,14 @@
     - {k8s: apps/Deployment/fm-webllm-waker}
     - {k8s: apps/Deployment/fm-webllm, on_demand: true}
   drift:
-    - "fm-controller live has WEB_LLM_OFF=1 (applied 2026-11-11 21:57); the manifest has WEB_LLM_URL=http://fm-webllm...:8933 (commits 1625f9c, 4ae8ac5) and was never re-applied, so the controller does not use fm-webllm although fm-webllm runs."
     - "The image predates two images/fm commits (b161c73 shared browser context, b10d975 dbus env); fm-browser.yaml spells the browser args out until the next build."
   notes:
     - "Memory fix (fm-pool#7) live since 2026-11-21 ~11:18: score loops run with --max-old-space-size=384 under a bash keeper (each end logged in fm-data/tmp/fm/scheduled/loop-<name>.err; a heap abort restarts in 5 min), the hub agent with a 384 MB cap. Before it, the loops reached 0.7 and 1.2 GB RSS (11:15). Check after each 06:00 scan: controller restarts, the .err files for 'heap limit'."
     - "fm-controller was OOMKilled on 2026-11-13 05:00 (2 restarts)."
     - "fm-webllm on demand since 2026-11-20 (user: the website helper \"will be needed for freemotion ... we need it based on demand\", not a timer): fm-webllm-waker starts it when a call or /health comes in, holds the call until it answers (up to 5 min, else 503 = busy, the caller's next writer takes the job) and stops it after 30 min without calls. Its Gemini pace and cap are files on /web-llm, so restarts lose nothing. The manifest has no replicas on purpose. Rank stays batch-high (never pushes anyone out): with no room, it waits."
     - "PC tasks \\career-ops\\FreeMotion agent/burn/loops/night/replies/scan/weekly: all Disabled (last runs 2026-11-09..11); the PC is also blocked by %USERPROFILE%\\.fm-moved.json (present, 2026-11-11 19:22). Never run both (one never-apply-twice ledger)."
-    - "Applying k8s/apps now would replace WEB_LLM_OFF with WEB_LLM_URL and restart the controller with the websites on: decide that before the next apply."
+    - "The controller's website writers are OFF (WEB_LLM_OFF=1), live since 2026-11-11 21:57 and in the manifest since 2026-11-22: fm-webllm's Gemini step hangs (every bg-taste-match rating ask timed out at 900 s on the nights of 11-20 and 11-21), so turning them on would hold rounds up. Turn them on with the manifest's comment once an ask answers; fm-webllm itself still runs on demand for bg-taste-match."
+    - "fm-data (/srv/apps/freemotion/fm-data, github.com/moudimash99/fm-data, private) is a git repo that the apps write all day, so it is never clean and is kept by snapshots: on the server `git add -A` and commit 'data: snapshot of the live folder, <UTC time>'; on the PC fetch that, merge, push to GitHub and to the server's refs/remotes/origin/main, then `git merge --ff-only origin/main` there. Last: 5d9d06a (snapshot 2026-11-22 13:30Z), merged with the PC's copy, which stopped at the move (2026-11-11 19:15) and held nothing the server lacked (in all 33 files changed on both, the server's had the PC's lines or newer states). Never copy the PC's files over the live ones."
     - "\\career-ops-test\\night test (Disabled) points at a deleted Claude scratchpad from 2026-10-11: a stale leftover."
   menu:
     title: Free Motion jobs
@@ -549,10 +549,10 @@
     - {k8s: apps/CronJob/bg-taste-match-gpu, paused_on_purpose: true}
     - {k8s: apps/Deployment/bg-taste-match-shell}
   drift:
-    - "bg-taste-match-gpu asks 1536Mi live; the manifest says 1400Mi (commit a585e7d, never applied)."
     - "README says every 30/60/60 min; the manifest says fetch every 2 h, gpu hourly, llm hourly at night only."
   notes:
     - "bg-taste-match-gpu is suspend: true live ON PURPOSE: the Acer's GPU runs hot, so the GPU jobs (this one and cat-monitor) stay paused except on nights the user allows GPU work. No guard is installed: on 2026-11-10 a one-night heat-guard script (heatwatch.sh, run from the PC by the bg-taste-match session) resumed them and was to pause them at 08:00, but it died at 06:29, Whisper ran all day up to GPU 85 C / CPU 92 C, and both were paused by hand on 2026-11-11. They stay paused until someone resumes them by hand. The manifest says suspend: true too (since 2026-11-22), so an apply keeps them paused."
+    - "bg-taste-match-gpu asks 1400Mi (commit a585e7d, so it fits next to Free Motion's browser lanes; the 4Gi limit covers the 1.0-1.7 GiB peaks). Applied 2026-11-22 to that CronJob alone, still suspended (it asked 1536Mi before); the other three were not touched."
     - "All-reviews step started 2026-11-22 (user: download every relevant review, not only games the user rated): round 1's picks were all downloaded (about 2,500 videos, 728 h, 38 GB). 3mbg released and sorted by hand; /work/sort_all.sh (nohup in the shell pod, log /work/sort_all.log) releases and sorts 19 more channels with claude-haiku through the gateway (the Gemini API key was out of quota). Then /work/sort_rest.sh (same pod, log /work/sort_rest.log) waits for it and does rahdo and dt (user: all 25 channels). The fetch job's CHANNELS put rahdo and dt last (live and manifest, 2026-11-22), so they only fill the room the other 21 leave: all 25 sorted is roughly 13,000+ h, ~700 GB at 0.052 GB/h, more than the ~440 GB above the 150 GB guard. The fetch job downloads whatever is released, at 30 s between videos. Only one sorter: the gateway runs one Claude call at a time. The Gemini website (fm-webllm) could not help: on 2026-11-22 14:30 even a 30-character ask got no answer (gemini-webapi init gets HTTP 400 from batchexecute, then hangs), while `web-llm.py check` says both sites are signed in."
     - "Last good runs: fetch 2026-11-20 16:13 (after the Acer came back), llm 2026-11-16 07:15, gpu 2026-11-10 08:15."
     - "The 4-day gap is a stuck Job, not the code: fetch-29913605 stayed active from 2026-11-16 09:05 to 2026-11-20 and concurrencyPolicy Forbid skipped every run behind it; likewise llm-29913465 stayed unfinished until 2026-11-20 13:29, so llm has not been scheduled since 2026-11-16 06:45."
@@ -789,9 +789,9 @@
   probes:
     - {k8s: monitoring/Deployment/prometheus}
     - {k8s: monitoring/Deployment/kube-state-metrics}
-  drift:
-    - "The live ConfigMap prometheus-config-9m8mcffkbh holds prometheus.yml with CRLF line endings (applied once from a Windows checkout); the repo now always makes LF (.gitattributes), so the next apply -k makes a new ConfigMap and restarts Prometheus once, with the same settings (kubectl diff, 2026-11-22)."
+  drift: []
   notes:
+    - "2026-11-22: applied with LF line endings (ConfigMap prometheus-config-fh54mf9f49; the CRLF one from a Windows checkout was 9m8mcffkbh). After it: ready, 16/16 targets up, 39 rules, history kept; kubectl diff -k is clean."
     - "Scrapes the Docker cAdvisor on 192.168.1.116:8081 and Frigate on 192.168.1.93:5000 directly."
     - "kube-state-metrics shows 120 restarts (last 4 days ago); watch it."
   menu:
