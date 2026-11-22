@@ -228,7 +228,7 @@ groups:
         annotations:
           summary: "{{ $labels.job_name }}: a run failed"
           description: "It stopped with an error or ran past its time limit. Its log: kubectl -n {{ $labels.namespace }} logs job/{{ $labels.job_name }}"
-      # The two "Missed" rules stay quiet while their CronJob is paused on purpose (suspend: true) and come back by
+      # The "Missed" rules stay quiet while their CronJob is paused on purpose (suspend: true) and come back by
       # themselves when it is resumed: until its next good run, a resumed job still shows as missed.
       - alert: BoardGameFinderMissed
         expr: |
@@ -237,7 +237,15 @@ groups:
         labels: { severity: warning }
         annotations:
           summary: "BoardGameFinder: no finished run in over a day"
-          description: "Its daily 07:00 run failed or didn't start: no deal email today."
+          description: "Its nightly 04:30 run failed or didn't start: no deal email today."
+      - alert: BoardGameFinderFetchMissed
+        expr: |
+          time() - kube_cronjob_status_last_successful_time{cronjob="boardgamefinder-fetch"} > 26 * 3600
+          unless on (namespace, cronjob) kube_cronjob_spec_suspend == 1
+        labels: { severity: warning }
+        annotations:
+          summary: "BoardGameFinder's page fetcher: no full day in over a day"
+          description: "Its 10:00-04:00 run stopped early (Okkazeo refused 5 pages in a row, or it was killed) or didn't start, so the nightly run had few or no fresh prices. Its log: kubectl -n apps get jobs | grep boardgamefinder-fetch, then kubectl -n apps logs job/<the last one>"
       - alert: CatMonitorMissed
         expr: |
           time() - kube_cronjob_status_last_successful_time{cronjob="cat-monitor"} > 26 * 3600

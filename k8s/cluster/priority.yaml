@@ -8,7 +8,8 @@
 #   homelab-critical  1000000  Frigate's recordings, the websites, the lab sites, Homepage, monitoring and its agents
 #   homelab-normal     100000  everything not tagged (the default)
 #   batch-high          30000  Free Motion's browsers and website helper, the bg-taste-match rating, cat monitor,
-#                              the Gmail archiver: never push anyone out, wait for room
+#                              the Gmail archiver, BoardGameFinder's all-day fetcher (2026-11-22): never push
+#                              anyone out, wait for room
 #   batch-make-room     25000  cat flash, BoardGameFinder (2026-11-20): short daily jobs that may stop lower pods to
 #                              start, which in practice means the mail classifier for their few minutes / hour
 #   steps-aside         22000  the mail classifier (2026-11-20): gives its room to batch-make-room jobs, comes back

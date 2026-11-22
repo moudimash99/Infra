@@ -3,8 +3,13 @@
 # there) and imported by hand (no registry). LLM steps go to fm-llm on the control node; until it exists they fail,
 # and the pipeline treats them as non-critical.
 # Secret (not in this repo), from the repo's .env: kubectl -n apps create secret generic boardgamefinder --from-env-file=.env
-# 05:00 since 2026-11-20 (was 07:00): its hour of memory then falls in the night, and it may stop the mail classifier
-# to get it (batch-make-room); the deal email arrives around 06:00.
+#
+# Two CronJobs since 2026-11-22 (the user's design). Okkazeo has served the Acer a bare page since 2026-11-21, after
+# about 1,100 page loads in 40 minutes, so Okkazeo is no longer read in one burst:
+#   boardgamefinder-fetch  10:00-04:00  one page load at a time, spread over the window (one every ~35 s), saved under
+#                                       data/fetch; never writes Games.db. 384 MiB booked.
+#   boardgamefinder        04:30        the nightly pipeline: reads the saved pages into Games.db (parse_pages), BGG,
+#                                       deals, the deal email around 05:30. Loads no Okkazeo page (BGF_NO_OKKAZEO=1).
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -12,10 +17,12 @@ metadata:
   namespace: apps
   labels: { app: boardgamefinder }
 spec:
-  schedule: "0 5 * * *"
+  schedule: "30 4 * * *"
   timeZone: Europe/Paris
-  # Paused on purpose from 2026-11-22 for 3 days (the user's call): Okkazeo serves the Acer's Chrome a bare page
-  # since 11-21. A PC scheduled task resumes it on 2026-11-25 (first run 11-26 05:00) and emails a report.
+  # A run that can't start within the hour is skipped, so resuming the job never starts a run in the daytime.
+  startingDeadlineSeconds: 3600
+  # Paused on purpose from 2026-11-22 for 3 days (the user's call), to let Okkazeo's block lapse. A PC scheduled task
+  # resumes both jobs on 2026-11-25 15:00 (fetch starts at once, first nightly run 11-26 04:30) and emails a report.
   suspend: true
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
@@ -23,7 +30,7 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 0
-      activeDeadlineSeconds: 21600
+      activeDeadlineSeconds: 18000   # 5 h; it takes about 1
       template:
         metadata:
           labels: { app: boardgamefinder }
@@ -32,23 +39,73 @@ spec:
           nodeSelector: { kubernetes.io/hostname: acer-laptop }
           tolerations:
             - { key: dedicated, value: worker, effect: NoSchedule }
+          # May stop the mail classifier to start; at 04:30 the fetcher has ended, so 512 MiB usually fits without.
           priorityClassName: batch-make-room
           containers:
             - name: pipeline
-              image: docker.io/library/boardgamefinder:2026-11-22b
+              image: docker.io/library/boardgamefinder:2026-11-22c
               imagePullPolicy: Never
               envFrom:
                 - secretRef: { name: boardgamefinder }
               env:
                 - { name: FM_LLM_URL, value: "http://192.168.1.116:8792" }
+                - { name: BGF_NO_OKKAZEO, value: "1" }   # any Okkazeo page load raises; Okkazeo hosts don't resolve
               volumeMounts:
                 - { name: data, mountPath: /app/data }
                 - { name: log, mountPath: /app/Log }
               resources:
-                requests: { cpu: 200m, memory: 1Gi }   # Chromium tabs
+                requests: { cpu: 200m, memory: 512Mi }   # one Chromium, for the deal screenshot only
                 limits: { memory: 2Gi }
           volumes:
             - name: data
               hostPath: { path: /srv/apps/boardgamefinder/data, type: Directory }
             - name: log
               hostPath: { path: /srv/apps/boardgamefinder/Log, type: DirectoryOrCreate }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: boardgamefinder-fetch
+  namespace: apps
+  labels: { app: boardgamefinder-fetch }
+spec:
+  schedule: "0 10 * * *"
+  timeZone: Europe/Paris
+  # Started late (a reboot, the resume) it still ends at 04:00 and spreads what is left over the time left, never
+  # faster than one load per 20 s. Later than 16:00 the day is skipped.
+  startingDeadlineSeconds: 21600
+  suspend: true   # paused with the nightly job, see above
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 66600   # 18.5 h; it stops itself at 04:00
+      template:
+        metadata:
+          labels: { app: boardgamefinder-fetch }
+        spec:
+          restartPolicy: Never
+          nodeSelector: { kubernetes.io/hostname: acer-laptop }
+          tolerations:
+            - { key: dedicated, value: worker, effect: NoSchedule }
+          # batch-high, not batch-mid: cat flash (batch-make-room, 1 GiB at 19:20 and 00:20) stops the lowest pods
+          # first, and a fetcher stopped mid-day loses the rest of its day. batch-high is never stopped and never
+          # stops anyone; it waits for room.
+          priorityClassName: batch-high
+          containers:
+            - name: fetch
+              image: docker.io/library/boardgamefinder:2026-11-22c
+              imagePullPolicy: Never
+              command: ["python", "scripts/fetch_pages.py"]
+              volumeMounts:
+                - { name: data, mountPath: /app/data }
+              resources:
+                # One Chromium without images, restarted every 50 loads: ~310 MB fresh. It reads the database
+                # read-only, once, at the start.
+                requests: { cpu: 100m, memory: 384Mi }
+                limits: { memory: 1Gi }
+          volumes:
+            - name: data
+              hostPath: { path: /srv/apps/boardgamefinder/data, type: Directory }

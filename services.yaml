@@ -462,15 +462,15 @@
     pods: apps/app in (fm-controller,fm-browser)
 
 - name: boardgamefinder
-  what: Daily board game deal search (Okkazeo listings, BGG ranks, prices, deal email).
+  what: "Daily board game deal search (Okkazeo listings, BGG ranks, prices, deal email). Two CronJobs since 2026-11-22: an all-day Okkazeo page fetcher and the nightly pipeline that reads its pages."
   kind: scheduled-job
   system: board-games
   lifecycle: production
   depends_on: [llm-gateway]
-  runs: "k8s apps/CronJob boardgamefinder on acer-laptop; PC Task Scheduler copy BoardGameFinder_DailyRun (disabled)"
+  runs: "k8s apps/CronJob boardgamefinder (nightly pipeline) and apps/CronJob boardgamefinder-fetch (Okkazeo pages, all day) on acer-laptop; PC Task Scheduler copy BoardGameFinder_DailyRun (disabled)"
   manifest: Infra/k8s/apps/boardgamefinder/boardgamefinder.yaml
-  image: "boardgamefinder:2026-11-22b, built on the server in ~/build/boardgamefinder-20261122b from a git archive of master b4f9e55 (pull Never)"
-  schedule: "0 5 * * * Europe/Paris since 2026-11-20 (was 07:00; activeDeadlineSeconds 21600 = 6 h, backoffLimit 0); rank batch-make-room: may stop the mail classifier to start"
+  image: "boardgamefinder:2026-11-22c, built on the server in ~/build/boardgamefinder-20261122c from a git archive of master f43875d (pull Never)"
+  schedule: "boardgamefinder-fetch 0 10 * * * Europe/Paris, stops itself at 04:00 (startingDeadlineSeconds 6 h, activeDeadlineSeconds 18.5 h, batch-high, 384Mi). boardgamefinder 30 4 * * * Europe/Paris (startingDeadlineSeconds 1 h, activeDeadlineSeconds 5 h, batch-make-room, 512Mi). Before 2026-11-22: one job at 05:00 (07:00 until 11-20)."
   url: "none (results on https://deals.machaka.net through the lab)"
   data:
     - "hostPath /srv/apps/boardgamefinder/data and /srv/apps/boardgamefinder/Log on the Acer"
@@ -478,16 +478,20 @@
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\BoardGameFinder (github.com/moudimash99/BoardGameFinder)
     branch: master (okkazeo-link-review merged into it on 2026-11-22)
-    deployed: "b4f9e55 on master: image 2026-11-22b, on the CronJob since 2026-11-22 13:15"
+    deployed: "f43875d on master: image 2026-11-22c, on both CronJobs since 2026-11-22 20:30 (both suspended until the resume on 11-25)"
   deploy: "git archive master into a new ~/build/boardgamefinder-<date> on the server, docker build, docker save | ssh acer sudo k3s ctr -n k8s.io images import - (through the PC), set the tag in the manifest, apply."
-  check: "Last good run within 48 h (daily x 2); alert BoardGameFinderMissed fires at 26 h"
+  check: "Each CronJob: last good run within 48 h (daily x 2); alerts BoardGameFinderMissed and BoardGameFinderFetchMissed fire at 26 h. The fetcher exits 1 (a failed Job, alert JobFailed) when Okkazeo refuses 5 pages in a row."
   probes:
     - {k8s: apps/CronJob/boardgamefinder, paused_on_purpose: true}   # until the resume on 2026-11-25; then back to max_age_h: 26
+    - {k8s: apps/CronJob/boardgamefinder-fetch, paused_on_purpose: true}   # until the resume on 2026-11-25; then max_age_h: 26
   drift:
-    - "None: the CronJob runs image 2026-11-22b, built from master b4f9e55."
+    - "None: both CronJobs run image 2026-11-22c, built from master f43875d."
   notes:
-    - "suspend: true ON PURPOSE, live and in the manifest, from 2026-11-22 for 3 days (the user's call, to let Okkazeo's block lapse). The PC scheduled task bgf-resume-after-pause resumes it on 2026-11-25 (first run 11-26 05:00), and bgf-report-after-resume emails the user how that run went. BoardGameFinderMissed is quiet while it is suspended (rule changed 2026-11-22) and fires again from the resume until a run succeeds. The user's longer-term fix: spread the Okkazeo requests over the day instead of ~1,650 page loads in about an hour."
-    - "From 2026-11-20 it starts at 05:00 and may stop the mail classifier (rank batch-make-room) for its hour, so it no longer waits for memory that is booked but unused."
+    - "suspend: true ON PURPOSE, live and in the manifest, from 2026-11-22 for 3 days (the user's call, to let Okkazeo's block lapse). The PC scheduled task bgf-resume-after-pause resumes both CronJobs on 2026-11-25 15:00 (the fetcher starts at once and ends at 04:00; first nightly run 11-26 04:30), and bgf-report-after-resume emails the user how that run went. BoardGameFinderMissed is quiet while it is suspended (rule changed 2026-11-22) and fires again from the resume until a run succeeds. The user's longer-term fix, built the same day: spread the Okkazeo requests over the day (the fetcher, below) instead of ~1,650 page loads in about an hour."
+    - "From 2026-11-22 (the user's design, after Okkazeo's block): boardgamefinder-fetch loads one Okkazeo page at a time from 10:00 to 04:00, spread over the window (about one every 35 s, never under 20 s), and saves each under data/fetch/cycle-*; it opens Games.db read-only once, at the start, to plan the day. The nightly job reads the saved pages in (scripts/parse_pages.py), deletes them, and loads no Okkazeo page (BGF_NO_OKKAZEO=1: Okkazeo hosts don't resolve, so the deal screenshot has no game pictures; the email has them). A game's unseen ads are marked gone only when all its pages loaded that day. Bundle reviews use descriptions the fetcher saved the day before, so they lag a day."
+    - "The fetcher is batch-high, not batch-mid (the user's choice, 2026-11-22): cat flash (batch-make-room, 1Gi at 19:20 and 00:20) stops the lowest pods first, and a fetcher stopped mid-day loses the rest of its day."
+    - "Smoke test 2026-11-22 20:10 (pod bgf-fetch-smoke on the Acer, deleted): with BGF_NO_OKKAZEO=1 and no Secret it planned 1,206 loads from the live DB read-only (1,149 games, 11 searches, 46 ads), the guard failed all 5 loads before any request, and it stopped as blocked (exit 1). The same Chrome loading the PC test's 11 saved Okkazeo pages 50 times from disk (images off): working set peak 637 MiB (Prometheus), cgroup peak 754 MiB with page cache. So it books 384Mi but may use ~640; the Acer had 2.1 GiB or more available all of the past 7 days."
+    - "From 2026-11-20 to 11-22 the single job started at 05:00 and could stop the mail classifier (rank batch-make-room) for its hour; the nightly job still can, but at 512Mi it usually fits without."
     - "No good run since 2026-11-11 07:59. Runs of 2026-11-18, 11-19 and 11-20 failed with DeadlineExceeded (6 h limit; the 11-20 one ended before the Acer went NotReady). Outcomes of 11-12..11-17 unknown (failed Jobs beyond the last 3 are pruned). 11-21 and 11-22 ran and failed at price_finder (Okkazeo, below)."
     - "Why the runs fail (BoardGameFinder session, 2026-11-22): since 2026-11-21 05:40 Okkazeo answers the container's Chrome (HeadlessChrome/156, Linux) with a bare page, 'Aucune annonce pour le moment', with no ads and no search results; a test pod with image 2026-11-22b confirmed it. The PC's headless Chrome gets the full pages. Whether both use the same public address is unverified (the Acer goes out via 192.168.1.254, the PC also has a route via 192.168.1.1). Not to be worked around: the user decides between running the scrape from the PC, slowing it down, asking Okkazeo, or pausing the job. Until a run gets through, every ad on the Acer is marked offline (by the old image's last run), so prices and deals are stale; the new code fails without marking ads gone."
     - "2026-11-22: the PC's hand review (2026-11-12..18) was merged into the Acer's Games.db: 1,149 approved pages (was 404), French titles for all 716 games, the Search_Names table. Backup from before it: /srv/apps/boardgamefinder/data/Games.db.bak-20261122-123352. How: BoardGameFinder KNOWN_ISSUES.md and scripts/scratch/merge_pc_review_into_acer_20261122.py."
