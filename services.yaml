@@ -172,7 +172,7 @@
     - "Older duplicate clone in Documents/GitHub/unmatched_matcher (branch loser-player, 2026-10-14); not the one deployed."
   notes:
     - "The PC clone's origin URL embeds a GitHub token that GitHub refuses (403); fetch and push name https://github.com/moudimash99/unmatched_matcher.git instead."
-    - "The weekly workflow refresh-stats.yml pushes stats/refresh-<date> but cannot open its PR, so the refreshes pile up as branches; merge the newest by hand (2026-11-16 merged and deployed on 2026-11-22)."
+    - "The weekly workflow refresh-stats.yml (Mondays 06:00 UTC) commits the new stats and prices straight to main when they changed, after the tests pass on them (since 2026-11-22; before, it pushed a stats/refresh-<date> branch and could not open its PR). The site shows them only after deploy.sh, so status.py reports unmatched as newer than what runs from each Monday until a deploy. Branches stats/refresh-2026-10-19..11-09 are left over, superseded by 11-16 (merged and deployed 2026-11-22)."
     - "unmatched-tournament is retired (images unmatched-tournament:latest and unmatched_matcher-unmatched:latest still in Docker on the server; no container)."
   menu:
     title: Unmatched

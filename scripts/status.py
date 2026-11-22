@@ -280,9 +280,9 @@ def code_check(svc, s, keys):
                              + (f", {behind} behind" if behind not in ("", "0") else ""))
         elif check == "image":
             tags = {i.rsplit(":", 1)[-1] for i in images(keys, s)}
-            # Commits that change only README.md (e.g. its "Where it runs" section, scripts/readmes.py) or .gitignore
-            # don't count: neither changes what is built.
-            code_only = ["--", ".", ":(exclude)README.md", ":(exclude).gitignore"]
+            # Commits that change only README.md (e.g. its "Where it runs" section, scripts/readmes.py), .gitignore or
+            # .github/ (GitHub's workflows) don't count: none of them changes what is built.
+            code_only = ["--", ".", ":(exclude)README.md", ":(exclude).gitignore", ":(exclude).github"]
             for t in sorted(tags):
                 if re.fullmatch(r"[0-9a-f]{7,40}", t) and git(path, "cat-file", "-t", t) == "commit":
                     newer = git(path, "rev-list", "--count", f"{t}..HEAD", *code_only)
