@@ -526,7 +526,7 @@
   url: "none (status on https://tastematch.machaka.net through the lab)"
   data:
     - "hostPath /srv/apps/bg-taste-match on the Acer (code + bgtaste.db + captions; never copy bgtaste.db over)"
-    - "hostPath /var/lib/bg-taste-match/audio on the Acer 1 TB disk"
+    - "hostPath /var/lib/bg-taste-match/audio on the Acer: the system volume (ubuntu-vg/ubuntu-lv, 914 GB, shared with k3s), not a separate disk; get_audio.py stops downloads below MIN_FREE_GB (150) free"
     - "hostPath /srv/apps/gpu-lock (shared GPU lock with cat-monitor)"
     - "NFS 192.168.1.116:/srv/apps/freemotion/ws read-only (llm job runs fm-llm's web-llm.py)"
     - "Secret apps/bg-taste-match (HF_TOKEN)"
@@ -535,7 +535,7 @@
     branch: main
     libs:
       - "C:\\Users\\Moudimash99\\Documents\\Coding\\bgg-core (github.com/moudimash99/bgg-core; deploy/build.sh copies the PC's working tree into the image, not a pinned commit)"
-    deployed: "ce7becb, checked 2026-11-20: all 70 tracked code files in /srv/apps/bg-taste-match match the PC's HEAD (ignoring CRLF); only the live bgtaste.db differs, as it should"
+    deployed: "199af0d, sent with push_code.sh 2026-11-22 11:45 (disk guard); ce7becb before, checked 2026-11-20 file by file"
     version_check: "none (code goes out with push_code.sh, not in the image; compare file hashes by hand as on 2026-11-20)"
   deploy: "Code: deploy/push_code.sh from the PC (never sends bgtaste.db). Image: deploy/build.sh, import on the Acer, set the tag, apply."
   check: >-
@@ -551,6 +551,7 @@
     - "bg-taste-match-gpu asks 1536Mi live; the manifest says 1400Mi (commit a585e7d, never applied)."
     - "README says every 30/60/60 min; the manifest says fetch every 2 h, gpu hourly, llm hourly at night only."
   notes:
+    - "All-reviews step started 2026-11-22 (user: download every relevant review, not only games the user rated): round 1's picks were all downloaded (about 2,500 videos, 728 h, 38 GB). 3mbg released and sorted by hand; /work/sort_all.sh (nohup in the shell pod, log /work/sort_all.log) releases and sorts 19 more channels with claude-haiku through the gateway (the Gemini API key was out of quota). Held back on purpose: dt (~4,600 h) and rahdo (~2,600 h), about 380 GB more than the disk can hold with the rest; still category_override 'later'. The fetch job downloads whatever is released, at 30 s between videos."
     - "Last good runs: fetch 2026-11-20 16:13 (after the Acer came back), llm 2026-11-16 07:15, gpu 2026-11-10 08:15."
     - "The 4-day gap is a stuck Job, not the code: fetch-29913605 stayed active from 2026-11-16 09:05 to 2026-11-20 and concurrencyPolicy Forbid skipped every run behind it; likewise llm-29913465 stayed unfinished until 2026-11-20 13:29, so llm has not been scheduled since 2026-11-16 06:45."
     - "Whisper captions done on the PC on 2026-11-18 were pushed to the Acer on 2026-11-20 (231/231); the folder Documents/Coding/bg-taste-match-pending-captions stays as a spare copy."
