@@ -3,3 +3,6 @@
 # Run on Linux (the server, the images): always LF, whatever the checkout machine
 *.sh text eol=lf
 images/** text eol=lf
+# kustomize puts these in the prometheus-config ConfigMap, whose name is a hash of the bytes: LF on every machine,
+# so a Windows and a Linux checkout make the same ConfigMap
+k8s/monitoring/*.yml text eol=lf

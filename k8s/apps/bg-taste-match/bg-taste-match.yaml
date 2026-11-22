@@ -60,6 +60,9 @@ metadata:
   namespace: apps
   labels: { app: bg-taste-match }
 spec:
+  # Paused on purpose, like cat-monitor: the Acer's GPU runs hot. Resume only on a night the user allows GPU work,
+  # with a heat guard running, and pause it again in the morning (written here 2026-11-22; paused live since 11-11).
+  suspend: true
   schedule: "15 * * * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 2

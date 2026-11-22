@@ -170,8 +170,8 @@
     - {k8s: apps/Deployment/unmatched}
   drift:
     - "Older duplicate clone in Documents/GitHub/unmatched_matcher (branch loser-player, 2026-10-14); not the one deployed."
-    - "The PC clone's origin URL embeds a GitHub token that GitHub refuses (403); fetch and push name https://github.com/moudimash99/unmatched_matcher.git instead."
   notes:
+    - "The PC clone's origin URL embeds a GitHub token that GitHub refuses (403); fetch and push name https://github.com/moudimash99/unmatched_matcher.git instead."
     - "The weekly workflow refresh-stats.yml pushes stats/refresh-<date> but cannot open its PR, so the refreshes pile up as branches; merge the newest by hand (2026-11-16 merged and deployed on 2026-11-22)."
     - "unmatched-tournament is retired (images unmatched-tournament:latest and unmatched_matcher-unmatched:latest still in Docker on the server; no container)."
   menu:
@@ -451,7 +451,7 @@
     - "fm-controller was OOMKilled on 2026-11-13 05:00 (2 restarts)."
     - "fm-webllm on demand since 2026-11-20 (user: the website helper \"will be needed for freemotion ... we need it based on demand\", not a timer): fm-webllm-waker starts it when a call or /health comes in, holds the call until it answers (up to 5 min, else 503 = busy, the caller's next writer takes the job) and stops it after 30 min without calls. Its Gemini pace and cap are files on /web-llm, so restarts lose nothing. The manifest has no replicas on purpose. Rank stays batch-high (never pushes anyone out): with no room, it waits."
     - "PC tasks \\career-ops\\FreeMotion agent/burn/loops/night/replies/scan/weekly: all Disabled (last runs 2026-11-09..11); the PC is also blocked by %USERPROFILE%\\.fm-moved.json (present, 2026-11-11 19:22). Never run both (one never-apply-twice ledger)."
-    - "Applying k8s/apps from the PC branch now would replace WEB_LLM_OFF with WEB_LLM_URL and restart the controller with the websites on: decide that before the next apply."
+    - "Applying k8s/apps now would replace WEB_LLM_OFF with WEB_LLM_URL and restart the controller with the websites on: decide that before the next apply."
     - "\\career-ops-test\\night test (Disabled) points at a deleted Claude scratchpad from 2026-10-11: a stale leftover."
   menu:
     title: Free Motion jobs
@@ -547,10 +547,10 @@
     - {k8s: apps/CronJob/bg-taste-match-gpu, paused_on_purpose: true}
     - {k8s: apps/Deployment/bg-taste-match-shell}
   drift:
-    - "bg-taste-match-gpu is suspend: true live ON PURPOSE: the Acer's GPU runs hot, so the GPU jobs (this one and cat-monitor) stay paused except on nights the user allows GPU work. No guard is installed: on 2026-11-10 a one-night heat-guard script (heatwatch.sh, run from the PC by the bg-taste-match session) resumed them and was to pause them at 08:00, but it died at 06:29, Whisper ran all day up to GPU 85 C / CPU 92 C, and both were paused by hand on 2026-11-11. They stay paused until someone resumes them by hand. The manifest does not say so, so `kubectl apply` would un-pause it."
     - "bg-taste-match-gpu asks 1536Mi live; the manifest says 1400Mi (commit a585e7d, never applied)."
     - "README says every 30/60/60 min; the manifest says fetch every 2 h, gpu hourly, llm hourly at night only."
   notes:
+    - "bg-taste-match-gpu is suspend: true live ON PURPOSE: the Acer's GPU runs hot, so the GPU jobs (this one and cat-monitor) stay paused except on nights the user allows GPU work. No guard is installed: on 2026-11-10 a one-night heat-guard script (heatwatch.sh, run from the PC by the bg-taste-match session) resumed them and was to pause them at 08:00, but it died at 06:29, Whisper ran all day up to GPU 85 C / CPU 92 C, and both were paused by hand on 2026-11-11. They stay paused until someone resumes them by hand. The manifest says suspend: true too (since 2026-11-22), so an apply keeps them paused."
     - "All-reviews step started 2026-11-22 (user: download every relevant review, not only games the user rated): round 1's picks were all downloaded (about 2,500 videos, 728 h, 38 GB). 3mbg released and sorted by hand; /work/sort_all.sh (nohup in the shell pod, log /work/sort_all.log) releases and sorts 19 more channels with claude-haiku through the gateway (the Gemini API key was out of quota). Held back on purpose: dt (~4,600 h) and rahdo (~2,600 h), about 380 GB more than the disk can hold with the rest; still category_override 'later'. The fetch job downloads whatever is released, at 30 s between videos."
     - "Last good runs: fetch 2026-11-20 16:13 (after the Acer came back), llm 2026-11-16 07:15, gpu 2026-11-10 08:15."
     - "The 4-day gap is a stuck Job, not the code: fetch-29913605 stayed active from 2026-11-16 09:05 to 2026-11-20 and concurrencyPolicy Forbid skipped every run behind it; likewise llm-29913465 stayed unfinished until 2026-11-20 13:29, so llm has not been scheduled since 2026-11-16 06:45."
@@ -610,7 +610,7 @@
     - {k8s: apps/CronJob/cat-flash, max_age_h: 38}
     - {k8s: apps/CronJob/cat-monitor, paused_on_purpose: true}
   drift:
-    - "cat-monitor is suspend: true live ON PURPOSE (GPU heat: GPU jobs only on nights the user allows, see bg-taste-match). The manifest does not suspend it, so `kubectl apply` would un-pause it. The CatMonitorMissed alert (26 h) keeps firing for a job that is paused on purpose."
+    - "cat-monitor is suspend: true ON PURPOSE, live and in the manifest (GPU heat: GPU jobs only on nights the user allows, see bg-taste-match). The CatMonitorMissed alert (26 h) keeps firing for a job that is paused on purpose."
     - "README says cat-monitor runs 02:16, 10:16, 18:16 and alerts after 17 h; the manifest runs it once a day at 03:16, and the rule is 26 h."
   notes:
     - "The server's ~/Cat-Camera clone is on main (its commit '19' of 2026-02-07 merged on 2026-11-22); its data folders cat/, benchmark_results/ and output/ (~9 GB) are gitignored."
@@ -787,7 +787,8 @@
   probes:
     - {k8s: monitoring/Deployment/prometheus}
     - {k8s: monitoring/Deployment/kube-state-metrics}
-  drift: []
+  drift:
+    - "The live ConfigMap prometheus-config-9m8mcffkbh holds prometheus.yml with CRLF line endings (applied once from a Windows checkout); the repo now always makes LF (.gitattributes), so the next apply -k makes a new ConfigMap and restarts Prometheus once, with the same settings (kubectl diff, 2026-11-22)."
   notes:
     - "Scrapes the Docker cAdvisor on 192.168.1.116:8081 and Frigate on 192.168.1.93:5000 directly."
     - "kube-state-metrics shows 120 restarts (last 4 days ago); watch it."
