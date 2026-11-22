@@ -31,7 +31,9 @@
 # the date they were seen.
 # Machines: server = moudimash99, 192.168.1.116 (control plane, Docker). Acer = acer-laptop, 192.168.1.93
 # (worker, taint dedicated=worker:NoSchedule, label role=worker). PC = this Windows machine, 192.168.1.26.
-# Infra repo: the live cluster matches branch acer-jobs-and-alerts (a72c6cb, 2026-11-12), NOT main (see k3s-system).
+# Repos: one branch each, main (master for BoardXplorer and BoardGameFinder), the same on the PC, GitHub and the
+# server's clones since 2026-11-22. Each repo's README has a "Where it runs" section made from its entry here
+# (scripts/readmes.py).
 # Times are Paris unless marked UTC. "pull Never" = the image was imported by hand onto that node's containerd.
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -55,19 +57,15 @@
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\Personal-Website (github.com/moudimash99/Personal-Website)
     branch: main
-    deployed: >-
-      4679940 plus 4 uncommitted files (app/admin/links/page.tsx, lib/cvRedirect.ts, lib/linkInsights.ts,
-      lib/tracking.ts) and untracked data/tracking-ignore.json. Same content on the PC and in ~/Personal-Website
-      on the server (only CRLF differs).
   deploy: >-
-    On the server: build from ~/Personal-Website, `docker save <image> | sudo k3s ctr images import -`, set the tag in
-    website.yaml, kubectl apply. Back: set the older tag (2026-10-28, 2026-10-24 still in Docker on the server).
+    On the server: build from ~/Personal-Website (tag = commit), `docker save <image> | sudo k3s ctr images import -`,
+    set the tag in website.yaml, kubectl apply. Back: set the older tag (2026-10-29, 2026-10-28, 2026-10-24 are still
+    on the server).
   check: "Pod Ready (tcpSocket :3000 readiness/liveness); https://machaka.net answers 200 (checked 2026-11-20)"
   probes:
     - {k8s: apps/Deployment/website}
     - {http: "https://machaka.net", expect: [200]}
-  drift:
-    - "The deployed code (links dashboard with the Opened list, 2026-10-28/29) is not in git: 4 files uncommitted on both the PC and the server since 2026-10-28."
+  drift: []
   notes:
     - "Docker fallback on the server: container `web` (image personal-website-perso-web, ~/Personal-Website compose), Exited (0) 3 weeks ago, restart unless-stopped. Never start it while the pod runs."
   menu:
@@ -99,10 +97,11 @@
   probes:
     - {k8s: apps/Deployment/cat-weight}
   drift:
-    - "PC repo is 1 commit ahead of the deployed image (144f3e5, duration filter, 2026-01-13)."
     - "The repo is in Documents/GitHub, not Documents/Coding; Coding/Weight_Food_Tracker is an empty folder, not this app."
   notes:
-    - "The server's ~/Cat-Weight clone (the build source) is at b93165d, with the tracked cat_data.db deleted in its working tree."
+    - "144f3e5 (the duration filter, 2026-01-13) deployed on 2026-11-22: the page shows the last 2 months unless ?duration= says otherwise."
+    - "The server's ~/Cat-Weight clone (the build source) is on main; its working tree still has the tracked, unused cat_data.db deleted (the app uses data/cat_data.db, the Acer's hostPath)."
+    - "app.py holds the login (USERS) in the code, and the repo is public."
     - "Docker fallback on the server: container `cat_weight` (image cat-weight-cat_weight), Exited (137) 3 weeks ago, restart unless-stopped; old data ~/Cat-Weight/data stopped updating 2026-11-02."
   menu:
     title: Cat weight
@@ -127,17 +126,18 @@
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\BoardXplorer (github.com/moudimash99/BoardXplorer); server copy ~/BoardXplorer
     branch: master
-    deployed: "89d7eb7 2026-06-11 (image built 2026-06-14; its tag 2026-10-24 is the move date, so status.py cannot compare it)"
   deploy: >-
-    Build on the server from ~/BoardXplorer (first `git pull` there; it is at 89d7eb7), docker save, import on the
-    Acer, set a new tag, apply.
+    Build on the server from ~/BoardXplorer (tag = commit), docker save, import on the Acer, set the tag, apply. The
+    server cannot pull this private repo from GitHub: from the PC, `git push
+    ssh://moudimash99@192.168.1.116/home/moudimash99/BoardXplorer master:refs/remotes/origin/master`, then `git merge
+    --ff-only origin/master` in ~/BoardXplorer.
   check: "Pod Ready (tcpSocket :8000, liveness after 60 s); Homepage siteMonitor http://boardxplorer.apps.svc"
   probes:
     - {k8s: apps/Deployment/boardxplorer}
   drift:
-    - "Deployed code is from 2026-06-11; master has 3 newer commits (PR #50, 2026-08-19) never deployed, and the server clone was never pulled."
   notes:
     - "Docker fallback on the server: container `boardxplorer` (image boardxplorer-boardxplorer), Exited (137) 3 weeks ago, restart no."
+    - "55e7ebe (PR #50: filters kept on back navigation, phone range controls) deployed on 2026-11-22. 6 of the 27 games tests fail, on 89d7eb7 too: they expect pages without a login (302 != 200)."
   menu:
     title: BoardXplorer
     icon: mdi-dice-multiple
@@ -160,19 +160,19 @@
     - "Secret apps/unmatched-env (SECRET_KEY, TOURNAMENT_PASSWORD_HASH)"
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\unmatched_matcher (github.com/moudimash99/unmatched_matcher); server copy ~/unmatched_matcher
-    branch: "PC on guides-v2 (57ae03a 2026-10-29 05:10); server on main"
+    branch: main
   deploy: >-
-    scripts/deploy.sh on the server: git pull, docker build, import, `kubectl set image`, rollout status, then rewrites
-    the tag in ~/Infra/k8s/apps/unmatched/unmatched.yaml (commit it in Infra).
+    scripts/deploy.sh on the server, in a terminal: git pull, docker build, copies the image to the Acer and loads it
+    there (asks for the Acer's passwords), `kubectl set image`, rollout status, then rewrites the tag in
+    ~/Infra/k8s/apps/unmatched/unmatched.yaml (copy it to the PC's Infra and commit it).
   check: "Pod Ready (tcpSocket :8001); Homepage siteMonitor http://unmatched.apps.svc"
   probes:
     - {k8s: apps/Deployment/unmatched}
   drift:
-    - "scripts/deploy.sh is stale since the 2026-11-02 move: it imports the image into the server's containerd only, but the pod runs on the Acer with pull Never, so a new deploy would fail (ErrImageNeverPull) until it also imports on the Acer."
-    - "PC's local main/origin refs are from 2026-10-26 (no fetch since); the deployed merge 60a388f exists only on the server and GitHub."
     - "Older duplicate clone in Documents/GitHub/unmatched_matcher (branch loser-player, 2026-10-14); not the one deployed."
-    - "The PC clone's origin URL embeds a GitHub token (value not copied here); it should be moved to a credential helper."
+    - "The PC clone's origin URL embeds a GitHub token that GitHub refuses (403); fetch and push name https://github.com/moudimash99/unmatched_matcher.git instead."
   notes:
+    - "The weekly workflow refresh-stats.yml pushes stats/refresh-<date> but cannot open its PR, so the refreshes pile up as branches; merge the newest by hand (2026-11-16 merged and deployed on 2026-11-22)."
     - "unmatched-tournament is retired (images unmatched-tournament:latest and unmatched_matcher-unmatched:latest still in Docker on the server; no container)."
   menu:
     title: Unmatched
@@ -246,7 +246,7 @@
     - {k8s: apps/Deployment/freemotion-hub}
   drift:
     - "`live` is the 2026-11-01 Docker image, not a deploy.mjs build: freemotion-hub:2026-11-10-a168f5d8 (deploy.mjs, 2026-11-10 14:10) and 2026-11-10a exist on the server but are not live, so `live` was retagged back by hand. The README's 'built and loaded only by deploy.mjs' is not true right now."
-    - "Hub commits after the 2026-11-01 Docker build (d487ac1, 02e1a50, de48033) are not running."
+    - "Hub commits after the 2026-11-01 Docker build (d487ac1, 02e1a50, de48033) are not running. Not redeployed in the 2026-11-22 sync to main: why `live` was put back by hand is not written down."
   notes:
     - "Docker fallback on the server: container `freemotion` (image freemotion-hub-freemotion, ~/freemotion-hub compose), Exited (137) 10 days ago, restart no. Never start it while the pod runs."
   menu:
@@ -275,7 +275,7 @@
     - "read-only hostPaths on the Acer: /srv/apps/bg-taste-match, /var/lib/bg-taste-match/audio, /srv/apps/boardgamefinder/data, /srv/apps/cat-monitor, /srv/apps/cat-weight"
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\Infra\lab
-    branch: acer-jobs-and-alerts
+    branch: main
     deployed: "440ee02 (tag 2026-11-10j; Infra/lab is a folder, not a repo of its own, so status.py does not compare it)"
   deploy: "From the PC, Infra root: `sh lab/build.sh TAG` (builds on the server, imports on the Acer through the PC), set the tag in lab.yaml, apply."
   check: "Readiness/liveness GET /healthz on :8080; Prometheus scrapes :8081/metrics (pod annotations); Homepage Pipelines tiles read /api/summary/*"
@@ -304,8 +304,8 @@
   data:
     - "none (model baked into the image)"
   code:
-    repo: C:\Users\Moudimash99\Documents\Coding\Email-remove\ml\service (app.py, Dockerfile, build-context.ps1); model from Email-remove\ml
-    branch: "none: Email-remove is not a git repo (dated backup folders instead)"
+    repo: C:\Users\Moudimash99\Documents\Coding\Email-remove\ml\service (app.py, Dockerfile, build-context.ps1; repo github.com/moudimash99/Email-remove, private, since 2026-11-22); model from Email-remove\ml (not in git)
+    branch: main
     deployed: "both-20261110-r2 (files dated 2026-11-10 00:32-00:53)"
   deploy: >-
     build-context.ps1 on the PC, docker build on the server, import on the Acer, replace MODEL_TAG in
@@ -316,7 +316,7 @@
     - {k8s: apps/Deployment/mail-classifier, on_demand: true}
     - {http: "http://192.168.1.116:30880/waker", expect: [200]}
   drift:
-    - "Live in the cluster but not in Infra/k8s and not in the README; its manifest lives in Email-remove, which has no version control."
+    - "Live in the cluster but not in Infra/k8s and not in the README; its manifest lives in Email-remove (in git since 2026-11-22)."
   notes:
     - "Called by the Gmail archiver (CronJob apps/email-remove on the Acer since 2026-11-20; shadow.py)."
     - "Rank steps-aside (22000, 2026-11-20): cat flash (00:20, 19:20, ~4 min) and BoardGameFinder (05:00, ~1 h) may stop it to get its memory; its Deployment brings it back when they end. The archiver keeps the emails it could not classify in state.json model_waits and asks again once it answers (user: off at night is fine \"as long as by time i wake up it ran\")."
@@ -390,7 +390,7 @@
     - {k8s: apps/Deployment/spirit-island}
     - {http: "https://spirit.machaka.net/healthz", expect: [200]}
   drift:
-    - "First applied by hand on 2026-11-22 ~01:40 from an untracked copy of the manifest in the server's ~/Infra (on main), with no entry here. That copy and its README row are still uncommitted there (see k3s-system)."
+    - "First applied by hand on 2026-11-22 ~01:40 from an untracked copy of the manifest in the server's ~/Infra; that copy was put aside (git stash) when the clone moved to main the same day."
     - "The page's source has no version control: the project folder on that laptop is not a git repo (2026-11-22)."
   notes:
     - "Brought to the house standard on 2026-11-22: rank homelab-critical like the other sites; server only (no toleration for the Acer, whose memory is booked full). Uses ~3 MB."
@@ -475,17 +475,18 @@
     - "Secret apps/boardgamefinder (from the repo's .env); FM_LLM_URL=http://192.168.1.116:8792"
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\BoardGameFinder (github.com/moudimash99/BoardGameFinder)
-    branch: okkazeo-link-review (master 9bec34e 2026-08-29)
+    branch: master (okkazeo-link-review merged into it on 2026-11-22, with everything uncommitted)
     deployed: "an uncommitted working-tree copy from 2026-11-09/10 (the container Dockerfile itself was only committed on 2026-11-18 in d3abc7a)"
   deploy: "Copy the repo to ~/build/boardgamefinder on the server, docker build, import on the Acer, set the tag, apply."
   check: "Last good run within 48 h (daily x 2); alert BoardGameFinderMissed fires at 26 h"
   probes:
     - {k8s: apps/CronJob/boardgamefinder, max_age_h: 26}
   drift:
-    - "Image built from an uncommitted copy; 3 commits from 2026-11-18 on okkazeo-link-review are not deployed and not merged."
+    - "Image built from an uncommitted copy of 2026-11-09/10. master's 2026-11-18 work (d3abc7a, 16f51bb, 7690e12: hand-verified links, French titles, the pipeline in a container; 163 tests pass) was not deployed until 2026-11-22 13:15, when the BoardGameFinder session put image 2026-11-22b on the CronJob (its manifest change is that session's to commit, and it updates this entry). The runs fail because Okkazeo pages stop loading in the container (below)."
   notes:
     - "From 2026-11-20 it starts at 05:00 and may stop the mail classifier (rank batch-make-room) for its hour, so it no longer waits for memory that is booked but unused."
     - "No good run since 2026-11-11 07:59. Runs of 2026-11-18, 11-19 and 11-20 failed with DeadlineExceeded (6 h limit; the 11-20 one ended before the Acer went NotReady). Outcomes of 11-12..11-17 unknown (failed Jobs beyond the last 3 are pruned)."
+    - "Why the runs fail (BoardGameFinder session, 2026-11-22): on 11-21, 'could not locate games box' 8 times in a row from game 298 of 404; on 11-22 the search box was missing at once. The same pages load from the PC, so likely Okkazeo throttling or blocking the home's address (or the container's network or Chrome). Next: save one page's title and source from inside the container; if throttled, slow the scraper down."
     - "Leftover Job apps/bgf-test-1 (2026-11-10, complete)."
     - "PC task BoardGameFinder_DailyRun (scripts\\weeklyscript.bat, 07:00 daily): Disabled, last ran 2026-11-09."
   menu:
@@ -534,7 +535,7 @@
     branch: main
     libs:
       - "C:\\Users\\Moudimash99\\Documents\\Coding\\bgg-core (github.com/moudimash99/bgg-core; deploy/build.sh copies the PC's working tree into the image, not a pinned commit)"
-    deployed: "199af0d, sent with push_code.sh 2026-11-22 11:45 (disk guard); ce7becb before, checked 2026-11-20 file by file"
+    deployed: "199af0d, sent with push_code.sh 2026-11-22 11:45 (disk guard); ce7becb before, checked 2026-11-20 file by file. main has since added only the PC-era re-rate helpers (31ba14b, not used), not sent"
     version_check: "none (code goes out with push_code.sh, not in the image; compare file hashes by hand as on 2026-11-20)"
   deploy: "Code: deploy/push_code.sh from the PC (never sends bgtaste.db). Image: deploy/build.sh, import on the Acer, set the tag, apply."
   check: >-
@@ -599,7 +600,8 @@
   code:
     repo: C:\Users\Moudimash99\Documents\GitHub\Cat-Camera (github.com/moudimash99/Cat-Camera)
     branch: main
-    deployed: "unknown: the scripts are copied by hand to /srv/apps/cat-monitor/code on the Acer (Acer not read)"
+    version_check: "none (the image holds only Python, PyTorch and the model; compare the Acer's /srv/apps/cat-monitor/code with the PC's files)"
+    deployed: "main: the Acer's /srv/apps/cat-monitor/code (automated_feeder_monitor.py, daily_flash.py, feeding_pipeline.py) matches the PC's files, committed on 2026-11-22 (3aa82d3); copied by hand"
   deploy: "Scripts: copy to /srv/apps/cat-monitor/code on the Acer (no script found). Image: build Dockerfile.monitor on the server, import on the Acer, set the tag, apply."
   check: >-
     cat-flash: good run within 38 h (longest gap 19 h x 2); cat-monitor: suspended, no expectation (but alert
@@ -610,8 +612,8 @@
   drift:
     - "cat-monitor is suspend: true live ON PURPOSE (GPU heat: GPU jobs only on nights the user allows, see bg-taste-match). The manifest does not suspend it, so `kubectl apply` would un-pause it. The CatMonitorMissed alert (26 h) keeps firing for a job that is paused on purpose."
     - "README says cat-monitor runs 02:16, 10:16, 18:16 and alerts after 17 h; the manifest runs it once a day at 03:16, and the rule is 26 h."
-    - "6 commits and 54 changed files exist only on the PC; the server's ~/Cat-Camera clone is from 2026-02-07."
   notes:
+    - "The server's ~/Cat-Camera clone is on main (its commit '19' of 2026-02-07 merged on 2026-11-22); its data folders cat/, benchmark_results/ and output/ (~9 GB) are gitignored."
     - "cat-flash rank batch-make-room since 2026-11-20: it may stop the mail classifier for its ~4 minutes. The 2026-11-20 19:20 run started at 20:13 when the classifier restarted and finished at 20:14."
     - "cat-flash last good run 2026-11-11 19:24; runs of 2026-11-19 00:20, 19:20 and 2026-11-20 00:20 failed with DeadlineExceeded (1 h)."
     - "cat-monitor last good run 2026-11-10 04:27; 11-11 and 11-12 hit the 3 h limit, then it was suspended."
@@ -779,7 +781,7 @@
   url: "none (no login): kubectl -n monitoring port-forward svc/prometheus 9090:80"
   data:
     - "PVC prometheus-data (local-path on the server)"
-  code: { repo: Infra (k8s/monitoring), branch: acer-jobs-and-alerts }
+  code: { repo: Infra (k8s/monitoring), branch: main }
   deploy: "kubectl apply -k k8s/monitoring/ --server-side (check rules with promtool first, see README)."
   check: "GET /-/ready and /-/healthy; kube-state-metrics /readyz (:8081) and /livez"
   probes:
@@ -811,7 +813,7 @@
   data:
     - "PVC grafana-data (local-path on the server); dashboards from generated ConfigMaps"
     - "Secret monitoring/grafana-admin"
-  code: { repo: Infra (k8s/monitoring/dashboards/make.py), branch: acer-jobs-and-alerts }
+  code: { repo: Infra (k8s/monitoring/dashboards/make.py), branch: main }
   deploy: "Edit make.py, run it, kubectl apply -k k8s/monitoring/ --server-side."
   check: "Readiness/liveness GET /api/health"
   probes:
@@ -870,7 +872,7 @@
   url: "none: kubectl -n tools port-forward svc/alertmanager 9093:9093"
   data:
     - "emptyDir (silences are lost on restart); Secret tools/alert-smtp (user, password, to)"
-  code: { repo: Infra, branch: acer-jobs-and-alerts }
+  code: { repo: Infra, branch: main }
   deploy: "Edit alertmanager.yaml and apply."
   check: "Readiness GET /-/ready; alert AlertEmailsFailing"
   probes:
@@ -905,7 +907,7 @@
   url: "<node>:9110/metrics"
   data:
     - "hostPath / (read-only) and /run/udev on each node"
-  code: { repo: Infra, branch: acer-jobs-and-alerts }
+  code: { repo: Infra, branch: main }
   deploy: "kubectl apply -k k8s/monitoring/ --server-side"
   check: "Both pods Ready; alerts NodeDown / TargetDown"
   probes:
@@ -931,7 +933,7 @@
   schedule: null
   url: "pod :9835 and :9837 /metrics (scraped through pod annotations)"
   data: []
-  code: { repo: Infra, branch: acer-jobs-and-alerts }
+  code: { repo: Infra, branch: main }
   deploy: "kubectl apply -k k8s/monitoring/ --server-side"
   check: "nvidia-gpu-exporter Ready (GET /metrics :9835); GPU 'no metrics' alert"
   probes:
@@ -977,7 +979,7 @@
   schedule: null
   url: "192.168.1.116:8081 (cAdvisor, Prometheus job cadvisor-docker); 192.168.1.116:9100 (unused)"
   data: []
-  code: { repo: "Infra (server clone ~/Infra on main 51466a4, 2026-11-02)", branch: main }
+  code: { repo: "Infra (server clone ~/Infra, on main)", branch: main }
   deploy: "On the server: cd ~/Infra && docker compose up -d <service>"
   check: "docker ps shows Up; Prometheus target cadvisor-docker up"
   probes:
@@ -1010,15 +1012,13 @@
     - "~/Infra/.env on the server (TUNNEL_TOKEN), nginx/conf.d mounted read-only"
   code:
     repo: Infra (server clone ~/Infra)
-    branch: main on the server
-    deployed: "main 51466a4 (2026-11-02) + uncommitted site.conf (freemotion.machaka.net to Traefik), identical to the PC's acer-jobs-and-alerts version"
+    branch: main
   deploy: "Edit site.conf in the repo, update ~/Infra on the server, `docker exec nginx nginx -s reload`."
   check: "docker ps Up; https://machaka.net 200"
   probes:
     - {docker: cloudflared}
     - {docker: nginx}
-  drift:
-    - "The server's ~/Infra runs an uncommitted site.conf on main; the committed version is only on the unmerged branch acer-jobs-and-alerts."
+  drift: []
   notes:
     - "Every name in site.conf now goes to Traefik (192.168.1.116:80); unmatchedtournament.machaka.net is a 301."
   menu:
@@ -1045,7 +1045,7 @@
     - "/var/lib/rancher/k3s on the server (state, snapshots, local-path volumes); /srv/k3s on the Acer"
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\Infra (github.com/moudimash99/Infra)
-    branch: acer-jobs-and-alerts (PC checkout)
+    branch: main
   deploy: "From the PC: kubectl apply -f k8s/cluster/; apply -R -f k8s/apps/; apply -f k8s/tools/; apply -k k8s/monitoring/ --server-side."
   check: "kubectl get nodes: both Ready; Traefik readiness GET /ping :8080"
   probes:
@@ -1056,12 +1056,10 @@
     - {k8s: kube-system/Deployment/local-path-provisioner}
     - {k8s: "kube-system/DaemonSet/svclb-traefik-*"}
   drift:
-    - "Everything deployed since 2026-11-02 (Acer jobs, Free Motion, lab, alerts, registry) is on branch acer-jobs-and-alerts, 41 commits not merged to main; the server's ~/Infra clone is on main (2026-11-02), so applying from the server would roll the cluster back."
     - "Live-only objects not in Infra/k8s: apps/Deployment+Service mail-classifier (manifest in Email-remove)."
-    - "The server's ~/Infra also holds uncommitted work from 2026-11-22: untracked k8s/apps/spirit-island/ (the first version of the manifest) and a README row for it. Move them aside before pulling the branch there; the branch has the current version."
     - "old-address uses externalIPs, deprecated in Kubernetes 1.36 (manifest comment)."
   notes:
-    - "Remote branch origin/frigate-on-acer is fully contained in acer-jobs-and-alerts."
+    - "2026-11-22: main took in acer-jobs-and-alerts (fast-forward); the PC, GitHub and the server's ~/Infra are on main. The old branches (acer-jobs-and-alerts, homepage-alerts, k8s-homelab, move-to-wifi-ip) are fully merged and can be deleted. The server's ~/Infra keeps two stashes: that day's leftovers (superseded by main) and an older WIP on 9b5e1ae."
     - "Planned: Flux applies the cluster from main (moudimash99/Infra#7); its prerequisites are this file's 'manifest says X, live says Y' drift lines."
   menu:
     title: k3s cluster
@@ -1170,10 +1168,10 @@
     - "Secret apps/email-remove (ACCOUNT_1..3_EMAIL / _PASSWORD, Gmail app passwords), made from the PC's .env"
     - "PC copy Email-remove\\Email-remove: staging and fallback (MOVED-TO-ACER.txt; main.py refuses a live run there while that file exists)"
   code:
-    repo: C:\Users\Moudimash99\Documents\Coding\Email-remove\Email-remove (no git; dated backups beside it, latest Email-remove.backup-2026-11-20; staging Email-remove.staging-2026-11-20)
-    branch: "none: not a git repo"
+    repo: C:\Users\Moudimash99\Documents\Coding\Email-remove\Email-remove (repo github.com/moudimash99/Email-remove, private, rooted at Email-remove\, since 2026-11-22; the dated backups and staging folders beside it are from before git and gitignored)
+    branch: main
     version_check: none (compare the .py files with the Acer's copy)
-    deployed: "2026-11-20 20:42: the PC's files, with the model_waits fix (archiver.py, shadow.py, test_model_waits.py) and the moved-guard in main.py"
+    deployed: "2026-11-20 20:42: the PC's files, with the model_waits fix (archiver.py, shadow.py, test_model_waits.py) and the moved-guard in main.py; the Acer's 14 .py files match main on 2026-11-22"
   deploy: >-
     Stage and replay on the PC first (the user's policy), then copy only the changed .py files:
     scp <file>.py moudimash99@192.168.1.93:/srv/apps/email-remove/. Never copy state.json or the .jsonl files from the
@@ -1209,8 +1207,8 @@
     - "Email-remove\\Email-remove review.log, review_state.json (PC)"
     - "shadow.jsonl, gemma.jsonl, archiver.log: copied from the Acer's /srv/apps/email-remove by review_with_acer_files.py before each review (each only if the copy worked; the records only if they did not shrink; a half-written last line dropped)"
   code:
-    repo: C:\Users\Moudimash99\Documents\Coding\Email-remove\Email-remove
-    branch: "none: not a git repo"
+    repo: C:\Users\Moudimash99\Documents\Coding\Email-remove\Email-remove (repo github.com/moudimash99/Email-remove, private)
+    branch: main
     deployed: "in place (daily_review.py 2026-11-11 19:05; review_with_acer_files.py 2026-11-20)"
   deploy: "Edit in place."
   check: "Good run within 48 h"
@@ -1246,8 +1244,7 @@
   check: "Good run within 28 h (longest gap 13 h 45 x 2). Halted since 2026-11-10 08:46: every run prints \"halted\" and returns 1."
   probes:
     - {pc_task: "\\job-scrapers upwork round"}
-  drift:
-    - "The upwork round runs uncommitted code (20 changed files) and its last run failed (result 1)."
+  drift: []
   notes:
     - "keyword test ran 2026-11-02..05 (result 0); new search test ran 2026-11-05..08 (last result 1). Both disabled, no more triggers."
     - "upwork round calls `python` from PATH (anaconda), unlike the other tasks' full path."

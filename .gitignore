@@ -87,3 +87,6 @@ token.txt
 
 # Private machine details (names, addresses): kept out of this public repo
 local/
+
+# Python
+__pycache__/

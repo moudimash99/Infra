@@ -29,7 +29,7 @@ spec:
       priorityClassName: homelab-critical
       containers:
         - name: cat-weight
-          image: docker.io/library/cat-weight:b93165d
+          image: docker.io/library/cat-weight:144f3e5
           imagePullPolicy: Never
           ports:
             - { name: http, containerPort: 8002 }

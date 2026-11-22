@@ -15,6 +15,13 @@ internet ─ Cloudflare (DNS, Access login) ─ tunnel ─ cloudflared ─ nginx
 - **Kubernetes** (`k8s/`): k3s, two nodes: `moudimash99` (the server) and `acer-laptop` (worker). The
   desktop (WSL2) joins later.
 - `Prometheus/`: the old setup for an EC2 machine, not used.
+- **`services.yaml`**: the catalog of everything that runs, one entry per service (where, code, data, deploy,
+  checks, drift). `scripts/status.py` checks it against what runs; `scripts/menu.py` makes the home page's menu
+  from it; `scripts/readmes.py` writes each repo's "Where it runs" README section from it (run it after changing
+  an entry, then commit and push each repo it touched). `scripts/kuma.js` adds Uptime Kuma checks.
+- **One branch everywhere:** each repo is on main (master for BoardXplorer and BoardGameFinder), the same commit on
+  the PC, GitHub and the server's clones. Private repos can't be pulled on the server (no GitHub login there): push
+  from the PC to the clone's `refs/remotes/origin/<branch>` over SSH, then `git merge --ff-only` there.
 
 ## Network
 

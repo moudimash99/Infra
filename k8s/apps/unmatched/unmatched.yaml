@@ -23,7 +23,7 @@ spec:
       priorityClassName: homelab-critical
       containers:
         - name: unmatched
-          image: docker.io/library/unmatched:2026-10-29-0739
+          image: docker.io/library/unmatched:2026-11-22-1252
           imagePullPolicy: Never
           envFrom:
             - secretRef: { name: unmatched-env }

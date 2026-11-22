@@ -22,7 +22,7 @@ spec:
       priorityClassName: homelab-critical
       containers:
         - name: website
-          image: docker.io/library/personal-website:2026-10-29
+          image: docker.io/library/personal-website:c0a166d
           imagePullPolicy: Never
           env:
             - { name: NODE_ENV, value: production }

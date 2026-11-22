@@ -23,7 +23,7 @@ spec:
       priorityClassName: homelab-critical
       containers:
         - name: boardxplorer
-          image: docker.io/library/boardxplorer:2026-10-24
+          image: docker.io/library/boardxplorer:55e7ebe
           imagePullPolicy: Never
           command: ["sh", "-c", "python manage.py migrate --noinput && python manage.py createcachetable && python manage.py create_default_user && gunicorn game_interface.wsgi:application --bind 0.0.0.0:8000"]
           env:
