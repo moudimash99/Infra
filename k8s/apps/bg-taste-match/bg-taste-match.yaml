@@ -39,8 +39,10 @@ spec:
               imagePullPolicy: Never
               command: ["sh", "/work/deploy/run_fetch.sh"]
               env:
+                # Rahdo and Dice Tower last (2026-11-22): the two biggest download into whatever room the others
+                # leave; get_audio.py stops at 150 GB free on the Acer's system disk.
                 - name: CHANNELS
-                  value: "hc oscs rahdo bgco gbg tbm bgb dtg bower ttgg mvm tantrum amass 3mbg cotb nerdvana lobg slicker purge mu tdg liege dt"
+                  value: "hc oscs bgco gbg tbm bgb dtg bower ttgg mvm tantrum amass 3mbg cotb nerdvana lobg slicker purge mu tdg liege rahdo dt"
               volumeMounts:
                 - { name: work, mountPath: /work }
                 - { name: audio, mountPath: /work/audio }
