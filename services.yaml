@@ -21,6 +21,8 @@
 #   probes      what status.py checks
 #   drift       where the repo, the README and what runs disagree, dated
 #   notes
+#   menu        its tile on lab.machaka.net (title, icon, description, href, pods, ping, widget, extra, hide).
+#               scripts/menu.py makes the whole menu from this file, grouped by system (its docstring has the rules)
 # status.py also reports mistakes in system, lifecycle and depends_on.
 #
 # Update an entry in the same change as any move, schedule change, new service or change in how it is deployed. A
@@ -68,6 +70,11 @@
     - "The deployed code (links dashboard with the Opened list, 2026-10-28/29) is not in git: 4 files uncommitted on both the PC and the server since 2026-10-28."
   notes:
     - "Docker fallback on the server: container `web` (image personal-website-perso-web, ~/Personal-Website compose), Exited (0) 3 weeks ago, restart unless-stopped. Never start it while the pod runs."
+  menu:
+    title: Website
+    icon: mdi-web
+    description: machaka.net
+    ping: http://website.apps.svc
 
 - name: cat-weight
   what: Cat weight tracker (Flask + SQLite).
@@ -97,6 +104,11 @@
   notes:
     - "The server's ~/Cat-Weight clone (the build source) is at b93165d, with the tracked cat_data.db deleted in its working tree."
     - "Docker fallback on the server: container `cat_weight` (image cat-weight-cat_weight), Exited (137) 3 weeks ago, restart unless-stopped; old data ~/Cat-Weight/data stopped updating 2026-11-02."
+  menu:
+    title: Cat weight
+    icon: mdi-scale-bathroom
+    description: 'cat.machaka.net: weigh-ins per cat'
+    ping: http://cat-weight.apps.svc
 
 - name: boardxplorer
   what: BoardGameGeek collection explorer (Django + SQLite).
@@ -126,6 +138,11 @@
     - "Deployed code is from 2026-06-11; master has 3 newer commits (PR #50, 2026-08-19) never deployed, and the server clone was never pulled."
   notes:
     - "Docker fallback on the server: container `boardxplorer` (image boardxplorer-boardxplorer), Exited (137) 3 weeks ago, restart no."
+  menu:
+    title: BoardXplorer
+    icon: mdi-dice-multiple
+    description: BoardGameGeek collection explorer
+    ping: http://boardxplorer.apps.svc
 
 - name: unmatched
   what: Unmatched fighter matcher, strategy guides and tournaments (Flask + gunicorn).
@@ -157,6 +174,11 @@
     - "The PC clone's origin URL embeds a GitHub token (value not copied here); it should be moved to a credential helper."
   notes:
     - "unmatched-tournament is retired (images unmatched-tournament:latest and unmatched_matcher-unmatched:latest still in Docker on the server; no container)."
+  menu:
+    title: Unmatched
+    icon: mdi-sword-cross
+    description: Fighter matcher, guides and tournaments
+    ping: http://unmatched.apps.svc
 
 - name: frigate
   what: Frigate NVR for the living-room camera (recordings, detection on the Intel GPU).
@@ -186,6 +208,14 @@
   notes:
     - "Docker fallback on the server: container `frigate` (ghcr.io/blakeblackshear/frigate:stable, ~/frigate), Exited (143) 2 weeks ago, restart unless-stopped. Never start it while the pod runs."
     - "~/frigate/storage (old recordings) is still on the server; frigate-rsyncd.service there is transient and not running. Whether the Acer's /var/lib/frigate/copy-done exists was not checked (no SSH to the Acer)."
+  menu:
+    title: Frigate
+    icon: frigate.png
+    href: http://192.168.1.93:5000
+    description: Living-room camera (home network only)
+    widget:
+      type: frigate
+      url: http://192.168.1.93:5000
 
 - name: freemotion-hub
   what: Free Motion's dashboard server (fm-orchestrator/freemotion-hub/server.mjs with fm-web's page) and the agents' hub.
@@ -219,6 +249,10 @@
     - "Hub commits after the 2026-11-01 Docker build (d487ac1, 02e1a50, de48033) are not running."
   notes:
     - "Docker fallback on the server: container `freemotion` (image freemotion-hub-freemotion, ~/freemotion-hub compose), Exited (137) 10 days ago, restart no. Never start it while the pod runs."
+  menu:
+    title: Free Motion
+    icon: mdi-briefcase-search
+    description: Job applications dashboard
 
 - name: lab-sites
   what: The lab, one process serving Taste Match, Deals and Cat cam (status sites for the jobs) plus the PC report intake.
@@ -250,6 +284,11 @@
   drift:
     - "The PC side is missing: no scheduled task `lab-report` and no %USERPROFILE%\\.lab-token on the PC, so lab/pc-report/report.ps1 does not run and Grafana's PC jobs dashboard has no source. The README says it reports every 10 minutes."
   notes: []
+  menu:
+    title: Lab sites
+    icon: mdi-flask-outline
+    href: null
+    description: Taste Match, Deals and Cat cam, one process
 
 - name: mail-classifier
   what: "Trained mail classifier API for the Gmail archiver. Since 2026-11-11 it decides (archiver MODEL_DECIDES = True): it archives emails the rules keep when it is sure and no guard or block applies. If it does not answer within 3 s, the email stays in the inbox."
@@ -283,6 +322,11 @@
     - "Rank steps-aside (22000, 2026-11-20): cat flash (00:20, 19:20, ~4 min) and BoardGameFinder (05:00, ~1 h) may stop it to get its memory; its Deployment brings it back when they end. The archiver keeps the emails it could not classify in state.json model_waits and asks again once it answers (user: off at night is fine \"as long as by time i wake up it ran\")."
     - "Asleep at night when idle since 2026-11-21 (user: off at night is fine as long as it ran by the morning): mail-classifier-waker stops it after 30 min without a call between 23:00 and 07:00 and starts it at 07:00; in the day it never stops it. A call wakes it in about 80 s: the archiver gets 503 (ASK_WAIT_S 2, under its 3 s), the email waits in model_waits and is asked next run. The lab's mail page and remote_check.py call /health and wake it too. Tested 2026-11-21 02:31: stopped by hand, back in 77 s. Manifest backup: mail-classifier.yaml.before-waker-2026-11-21."
     - "After a restart the first answers can take over 3 s (model warm-up): the archiver then marks it down for that run and asks again next run."
+  menu:
+    title: Mail classifier
+    icon: mdi-email-search
+    description: Decides for the archiver; asleep at night when idle
+    pods: apps/app=mail-classifier-waker
 
 - name: llm-gateway
   what: fm-llm's ask service, the one way the home's projects call a model (gemma, Gemini, Claude).
@@ -312,6 +356,11 @@
     - "README and the manifest comment say it answers 503 to everything until fm-data is on the server; fm-data is on the server since the cut-over and /healthz answers ok with 5 models."
   notes:
     - "Callers: BoardGameFinder (FM_LLM_URL), bg-taste-match shell, Email-remove gemma.py, ml/gemma_test.py."
+  menu:
+    title: LLM gateway
+    icon: mdi-brain
+    description: The one way the home's projects call a model
+    ping: http://llm-gateway.apps.svc:8792/healthz
 
 - name: spirit-island
   what: "Spirit Island Planner: setups for 1 to 6 players (spirits that work well together, with an adversary, level and scenario matched to skill). One static page."
@@ -346,6 +395,11 @@
     - "No Uptime Kuma monitor yet (its monitors live in its own database)."
   notes:
     - "Brought to the house standard on 2026-11-22: rank homelab-critical like the other sites; server only (no toleration for the Acer, whose memory is booked full). Uses ~3 MB."
+  menu:
+    title: Spirit Island
+    icon: mdi-palm-tree
+    description: Planner for 1 to 6 players
+    ping: http://spirit-island.apps.svc/healthz
 
 # ---------------------------------------------------------------------------------------------------------------
 # Scheduled jobs
@@ -400,6 +454,11 @@
     - "PC tasks \\career-ops\\FreeMotion agent/burn/loops/night/replies/scan/weekly: all Disabled (last runs 2026-11-09..11); the PC is also blocked by %USERPROFILE%\\.fm-moved.json (present, 2026-11-11 19:22). Never run both (one never-apply-twice ledger)."
     - "Applying k8s/apps from the PC branch now would replace WEB_LLM_OFF with WEB_LLM_URL and restart the controller with the websites on: decide that before the next apply."
     - "\\career-ops-test\\night test (Disabled) points at a deleted Claude scratchpad from 2026-10-11: a stale leftover."
+  menu:
+    title: Free Motion jobs
+    icon: mdi-robot-outline
+    description: Controller, one browser per lane, website writer
+    pods: apps/app in (fm-controller,fm-browser)
 
 - name: boardgamefinder
   what: Daily board game deal search (Okkazeo listings, BGG ranks, prices, deal email).
@@ -430,6 +489,25 @@
     - "No good run since 2026-11-11 07:59. Runs of 2026-11-18, 11-19 and 11-20 failed with DeadlineExceeded (6 h limit; the 11-20 one ended before the Acer went NotReady). Outcomes of 11-12..11-17 unknown (failed Jobs beyond the last 3 are pruned)."
     - "Leftover Job apps/bgf-test-1 (2026-11-10, complete)."
     - "PC task BoardGameFinder_DailyRun (scripts\\weeklyscript.bat, 07:00 daily): Disabled, last ran 2026-11-09."
+  menu:
+    title: Deals
+    icon: mdi-tag-heart
+    href: https://deals.machaka.net
+    description: Okkazeo, checked every morning
+    widget:
+      type: customapi
+      url: http://lab.tools.svc/api/summary/deals
+      refreshInterval: 300000
+      display: list
+      mappings:
+      - field: run
+        label: Last run
+      - field: best
+        label: Best now
+      - field: new
+        label: New and cheap
+      - field: bundles
+        label: Bundles to judge
 
 - name: bg-taste-match
   what: Board game YouTube reviewers matched to a BGG profile (downloads, Whisper captions, speaker separation, LLM rating).
@@ -479,6 +557,26 @@
     - "PC backup 2026-11-20: the PC's whole bg-taste-match folder (code, .git, audio 20.7 GB, captions, diar, DBs; not .venv-voice) and the pending-captions folder, copied to the server at /srv/backups/pc-2026-11-20 (read-only, MANIFEST.sha256 checked file by file)."
     - "The llm stage reaches fm-webllm through fm-webllm-waker (2026-11-20): run_llm.sh's minute of /health tries wakes the helper."
     - "OPEN 2026-11-20 night: every Gemini website call from the rating (20:45, 21:00, 21:15...) hung until the helper's 900 s limit (web-llm-serve: 'ask gemini: exit 1, N chars in, 0 out'; the caller's subprocess times out at 900 s too), so nothing was rated. The helper pod reaches Google fine (DNS and HTTPS in under a second), and its own log shows each prompt arriving whole through the waker (7,000-24,000 chars in) before its Gemini step returns nothing: the hang is in that step (the Gemini website session: cookies.json from 2026-11-11, or gemini-webapi), not the waker. Still so at 01:00 on 2026-11-21; no ask has answered through the waker yet. While it lasts the helper stays booked (1 GiB) all night, so BoardGameFinder at 05:00 must also push out the bg-taste-match shell and leaves 57 Mi, too little for the archiver until it ends. Not probed with extra calls, so as not to prolong any Google block."
+  menu:
+    title: Taste Match
+    icon: mdi-youtube
+    href: https://tastematch.machaka.net
+    description: Reviews from YouTube to each host's scores
+    pods: null
+    widget:
+      type: customapi
+      url: http://lab.tools.svc/api/summary/tastematch
+      refreshInterval: 60000
+      display: list
+      mappings:
+      - field: download
+        label: Downloaded
+      - field: transcribe
+        label: Transcribed
+      - field: speakers
+        label: Speakers
+      - field: rate
+        label: Rated
 
 - name: cat-camera-jobs
   what: "Cat camera jobs from the Cat-Camera repo: cat-flash (flash of the day video) and cat-monitor (feeding monitor, YOLO on the GPU)."
@@ -518,6 +616,23 @@
     - "cat-flash last good run 2026-11-11 19:24; runs of 2026-11-19 00:20, 19:20 and 2026-11-20 00:20 failed with DeadlineExceeded (1 h)."
     - "cat-monitor last good run 2026-11-10 04:27; 11-11 and 11-12 hit the 3 h limit, then it was suspended."
     - "PC task CatCameraFeedingMonitor (Documents\\GitHub\\Cat-Camera\\automated_feeder_monitor.py once 8, every 8 h): Disabled since 2026-09-13."
+  menu:
+    title: Cat cam
+    icon: mdi-cat
+    href: https://catcam.machaka.net
+    description: Flash of the day, camera, weights
+    widget:
+      type: customapi
+      url: http://lab.tools.svc/api/summary/catcam
+      refreshInterval: 300000
+      display: list
+      mappings:
+      - field: monitor
+        label: Monitor
+      - field: flash
+        label: Flash
+      - field: weighed
+        label: Last weigh-in
 
 # ---------------------------------------------------------------------------------------------------------------
 # Tools
@@ -546,6 +661,15 @@
   drift: []
   notes:
     - "Cluster-admin ServiceAccount. Its database still holds 192.168.1.135 for the agent (old-address forwards it)."
+  menu:
+    title: Portainer
+    icon: portainer.png
+    description: Containers on the server (Docker) and the cluster
+    widget:
+      type: portainer
+      url: http://portainer.tools.svc
+      env: 1
+      key: '{{HOMEPAGE_VAR_PORTAINER_KEY}}'
 
 - name: beszel
   what: Light monitoring with history and alerts per machine (hub + one agent per node).
@@ -575,6 +699,11 @@
   notes:
     - "Alert settings live in Beszel's own database (down 2 min, CPU/memory 90% for 10 min, disk 85%)."
     - "Hub and both agents homelab-critical since 2026-11-20 (they had no rank, so 0: the first to go when a pod makes room); the Acer agent books 48 MiB (uses 30-45)."
+  menu:
+    title: Beszel
+    icon: beszel.png
+    description: Machines and Docker containers, with history and alerts
+    ping: http://beszel.tools.svc/api/health
 
 - name: uptime-kuma
   what: Checks each site every minute and emails when one is down; status page `homelab` feeds Homepage.
@@ -597,27 +726,40 @@
   drift: []
   notes:
     - "Monitors and notifications live in its own database; some still use 192.168.1.135 (forwarded by tools/old-address)."
+  menu:
+    title: Uptime Kuma
+    icon: uptime-kuma.png
+    description: Checks every site each minute, emails when one is down
+    widget:
+      type: uptimekuma
+      url: http://uptime-kuma.tools.svc
+      slug: homelab
 
 - name: homepage
-  what: lab.machaka.net, one page with every site and tool and their live numbers.
+  what: "lab.machaka.net: the menu, one tile per entry in this file, grouped by system, with live numbers."
   kind: tool
   system: lab
   lifecycle: production
   depends_on: [lab-sites, uptime-kuma, portainer, prometheus]
   runs: k8s tools/Deployment homepage (no nodeSelector, on moudimash99)
-  manifest: Infra/k8s/tools/homepage.yaml (config in its ConfigMap)
+  manifest: Infra/k8s/tools/homepage.yaml (config, Deployment) and homepage-menu.yaml (tiles and layout, made by scripts/menu.py)
   image: "ghcr.io/gethomepage/homepage (upstream)"
   schedule: null
   url: https://lab.machaka.net
   data:
-    - "ConfigMap only; Secret tools/homepage-env (HOMEPAGE_VAR_PORTAINER_KEY)"
+    - "ConfigMaps homepage and homepage-menu only; Secret tools/homepage-env (HOMEPAGE_VAR_PORTAINER_KEY)"
   code: { repo: none (upstream image; config in Infra), branch: null }
-  deploy: "Edit homepage.yaml, apply, then `kubectl -n tools rollout restart deploy/homepage` (a changed ConfigMap does not restart it)."
+  deploy: >-
+    Tiles: edit the entries' menu: blocks here, `python scripts/menu.py --check`, then `kubectl apply -f
+    k8s/tools/homepage-menu.yaml`. Other config: edit homepage.yaml and apply. Either way `kubectl -n tools rollout
+    restart deploy/homepage` after (a changed ConfigMap does not restart it).
   check: "Readiness/liveness GET /api/healthcheck"
   probes:
     - {k8s: tools/Deployment/homepage}
   drift: []
   notes: []
+  menu:
+    hide: true
 
 # ---------------------------------------------------------------------------------------------------------------
 # Monitoring
@@ -646,6 +788,13 @@
   notes:
     - "Scrapes the Docker cAdvisor on 192.168.1.116:8081 and Frigate on 192.168.1.93:5000 directly."
     - "kube-state-metrics shows 120 restarts (last 4 days ago); watch it."
+  menu:
+    title: Prometheus
+    icon: prometheus.png
+    description: 'No public address: kubectl -n monitoring port-forward svc/prometheus 9090:80'
+    widget:
+      type: prometheus
+      url: http://prometheus.monitoring.svc
 
 - name: grafana
   what: Dashboards over Prometheus (Homelab folder made by dashboards/make.py, More detail from grafana.com).
@@ -670,6 +819,42 @@
     - "The PC jobs dashboard has no data source: the PC's lab-report task is not installed (see lab-sites)."
   notes:
     - "2026-11-21: dashboard Who gets in (/d/scheduling) added and applied; Grafana restarted (Recreate) for it."
+  menu:
+    title: Grafana
+    icon: grafana.png
+    href: https://grafana.machaka.net/d/home-overview
+    description: Dashboards over Prometheus
+    ping: http://grafana.monitoring.svc/api/health
+    extra:
+    - Scheduled jobs:
+        href: https://grafana.machaka.net/d/jobs
+        icon: mdi-calendar-check
+        description: Every job's runs, times and memory (Grafana)
+    - Who gets in:
+        href: https://grafana.machaka.net/d/scheduling
+        icon: mdi-account-clock
+        description: Who runs, waits for room or was pushed out (Grafana)
+    - Temperatures:
+        href: https://grafana.machaka.net/d/node-temperatures
+        icon: mdi-thermometer
+        description: Hottest CPU core on each machine
+        widget:
+          type: prometheusmetric
+          url: http://prometheus.monitoring.svc
+          refreshInterval: 30000
+          metrics:
+          - label: Server
+            query: max(node_hwmon_temp_celsius{chip="platform_coretemp_0",node="moudimash99"})
+            format:
+              type: number
+              suffix: °C
+              maximumFractionDigits: 0
+          - label: Acer
+            query: max(node_hwmon_temp_celsius{chip="platform_coretemp_0",node="acer-laptop"})
+            format:
+              type: number
+              suffix: °C
+              maximumFractionDigits: 0
 
 - name: alertmanager
   what: Turns Prometheus alerts into plain-word emails through Gmail SMTP.
@@ -691,6 +876,20 @@
     - {k8s: tools/Deployment/alertmanager}
   drift: []
   notes: []
+  menu:
+    title: Alerts
+    icon: mdi-bell-alert
+    href: https://grafana.machaka.net/d/home-overview
+    description: Emailed by Alertmanager; what fires is on Grafana's home
+    widget:
+      type: prometheusmetric
+      url: http://prometheus.monitoring.svc
+      refreshInterval: 60000
+      metrics:
+      - label: Firing now
+        query: count(ALERTS{alertstate="firing"}) or vector(0)
+        format:
+          type: number
 
 - name: node-exporters
   what: Machine metrics (node-exporter, port 9110) and per-program memory outside containers (process-exporter, 9256) on every node.
@@ -714,6 +913,10 @@
   drift: []
   notes:
     - "node-exporter on the Acer was in CrashLoopBackOff right after the Acer came back (2026-11-20 ~16:15)."
+  menu:
+    title: Machine metrics
+    icon: mdi-server
+    description: node-exporter and process-exporter on every node
 
 - name: gpu-metrics
   what: The Acer's GTX 1050 for Prometheus (nvidia_gpu_exporter) and per-process GPU use with the owning pod (gpu-procs).
@@ -735,6 +938,31 @@
     - {k8s: monitoring/DaemonSet/gpu-procs}
   drift: []
   notes: []
+  menu:
+    title: GPU (Acer)
+    icon: mdi-expansion-card
+    href: https://grafana.machaka.net/d/usage
+    description: 'GTX 1050: use, memory, heat, and who is on it'
+    pods: monitoring/app=nvidia-gpu-exporter
+    widget:
+      type: prometheusmetric
+      url: http://prometheus.monitoring.svc
+      refreshInterval: 30000
+      metrics:
+      - label: Use
+        query: max(nvidia_smi_utilization_gpu_ratio) * 100
+        format:
+          type: percent
+      - label: Memory
+        query: max(nvidia_smi_memory_used_bytes / nvidia_smi_memory_total_bytes) * 100
+        format:
+          type: percent
+      - label: Heat
+        query: max(nvidia_smi_temperature_gpu)
+        format:
+          type: number
+          suffix: °C
+          maximumFractionDigits: 0
 
 - name: docker-monitoring
   what: cAdvisor for the server's Docker containers (scraped by Prometheus) and the old Docker node-exporter (no longer read).
@@ -757,6 +985,10 @@
   drift:
     - "The Docker node-exporter (9100) still runs although nothing reads it (README says so too)."
   notes: []
+  menu:
+    title: Docker monitoring
+    icon: mdi-docker
+    description: cAdvisor for the server's Docker containers
 
 # ---------------------------------------------------------------------------------------------------------------
 # Cluster and server plumbing
@@ -788,6 +1020,10 @@
     - "The server's ~/Infra runs an uncommitted site.conf on main; the committed version is only on the unmerged branch acer-jobs-and-alerts."
   notes:
     - "Every name in site.conf now goes to Traefik (192.168.1.116:80); unmatchedtournament.machaka.net is a 301."
+  menu:
+    title: Edge proxy
+    icon: cloudflare.png
+    description: Cloudflare tunnel to nginx, then Traefik or Docker
 
 - name: k3s-system
   what: "The k3s cluster itself: k3s server, Traefik ingress, CoreDNS, metrics-server, local-path storage, priority classes, old-address forward."
@@ -826,6 +1062,11 @@
   notes:
     - "Remote branch origin/frigate-on-acer is fully contained in acer-jobs-and-alerts."
     - "Planned: Flux applies the cluster from main (moudimash99/Infra#7); its prerequisites are this file's 'manifest says X, live says Y' drift lines."
+  menu:
+    title: k3s cluster
+    icon: mdi-kubernetes
+    description: Traefik, CoreDNS, metrics-server, storage
+    pods: kube-system/app.kubernetes.io/name=traefik
 
 - name: registry
   what: The cluster's own image registry, so images reach every node without docker save/import.
@@ -848,6 +1089,10 @@
   drift: []
   notes:
     - "Idle: the catalog is empty and the server has no /etc/rancher/k3s/registries.yaml (the Acer's was not checked). Every app image is still imported by hand."
+  menu:
+    title: Registry
+    icon: mdi-package-variant-closed
+    description: Image registry (the nodes don't use it yet)
 
 - name: nfs-exports
   what: NFS server on the server, sharing Free Motion's data and code with the Acer.
@@ -871,6 +1116,10 @@
   drift: []
   notes:
     - "Used by fm-browser-acer (fm-data rw), fm-webllm (fm-data + ws ro), bg-taste-match-llm (ws ro)."
+  menu:
+    title: NFS
+    icon: mdi-folder-network
+    description: Free Motion's data and code, server to Acer
 
 - name: tailscale
   what: Tailscale on the server; Free Motion's agents reach the hub at 100.111.127.103:8791 through it.
@@ -892,6 +1141,10 @@
   drift: []
   notes:
     - "The llm-gateway also accepts Tailscale callers."
+  menu:
+    title: Tailscale
+    icon: tailscale.png
+    description: Free Motion's agents reach the hub through it
 
 # ---------------------------------------------------------------------------------------------------------------
 # PC (Windows Task Scheduler, 192.168.1.26)
@@ -935,6 +1188,10 @@
     - "Live test 2026-11-20 21:21: a stand-in pod with cat-flash's rank pushed out the classifier only (event Preempted); the archiver run meanwhile marked 37 emails as waiting; the classifier came back 22 s after the stand-in ended and the next run classified all 37."
     - "At 05:00 BoardGameFinder takes the classifier's memory for ~1 h, and the archiver itself may not fit then: a run or two is skipped; the next ones catch up."
     - "One-off checks \\EmailRemoveFirstDayCheck (2026-11-12 18:15) and \\EmailRemoveWeekCheck (2026-11-18 18:15) ran ml\\first_day_check.py, result 0, no next run: finished."
+  menu:
+    title: Gmail archiver
+    icon: mdi-email-remove
+    description: Archives job rejections and notices every 3 minutes
 
 - name: gmail-daily-review
   what: Daily review email of the archiver's decisions (Email-remove daily_review.py, with ml/audit.py's model check).
@@ -962,6 +1219,10 @@
     - "Still a PC job: the review asks codex, the Gemini website, agy and two Claude accounts through this PC's command-line logins (REVIEW_LLMS), and ml/audit.py uses Claude. Moving it to the Acer means either fresh logins on the cluster or switching its reviewers to the llm-gateway: the user's call (parked 2026-11-20)."
   notes:
     - "Since 2026-11-20 the archiver runs on the Acer, so the review's wrapper copies its records here first (REVIEW_COPY_ONLY=1 runs just the copy)."
+  menu:
+    title: Daily review
+    icon: mdi-email-check
+    description: Review of the archiver's decisions, 17:00 on the PC
 
 - name: job-scrapers
   what: Upwork job scan four times a day (plus two finished keyword/search test tasks).
@@ -991,6 +1252,10 @@
     - "upwork round calls `python` from PATH (anaconda), unlike the other tasks' full path."
     - "Halted on purpose since 2026-11-10 08:46: Upwork sent the scan to its sign-in page, so it wrote data\\upwork-stopped.txt and runs nothing until the user signs in again (python upwork_scan.py --rescue opens a visible window) and removes that file. Needs the user."
     - "Still a PC job (2026-11-20): its Upwork sign-in lives in a Camoufox profile on this PC. Moving it to the Acer means signing in to Upwork in a browser profile there: parked for the user, together with the sign-in."
+  menu:
+    title: Upwork scan
+    icon: mdi-briefcase-search-outline
+    description: Four times a day on the PC
 
 # ---------------------------------------------------------------------------------------------------------------
 # Not listed as services (seen during the survey)

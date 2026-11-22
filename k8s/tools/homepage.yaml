@@ -2,6 +2,8 @@
 # Its Portainer API key is in the Secret homepage-env (HOMEPAGE_VAR_PORTAINER_KEY). The Uptime Kuma widget
 # reads Kuma's status page "homelab". Beszel's and Grafana's widgets would need admin logins (a Beszel
 # superuser, a Grafana server admin), so those two tiles only check that the tool answers.
+# The tiles and their layout (services.yaml, settings.yaml) come from ConfigMap homepage-menu, which
+# scripts/menu.py makes from Infra/services.yaml (k8s/tools/homepage-menu.yaml): edit services.yaml, not that file.
 # A changed ConfigMap does not restart the pod: kubectl -n tools rollout restart deploy/homepage.
 # Behind Cloudflare Access.
 apiVersion: v1
@@ -47,19 +49,6 @@ metadata:
 data:
   kubernetes.yaml: |
     mode: cluster
-  settings.yaml: |
-    title: Homelab
-    theme: dark
-    color: slate
-    headerStyle: clean
-    statusStyle: dot
-    hideVersion: true
-    layout:
-      Pipelines: { style: row, columns: 3 }
-      Sites: { style: row, columns: 3 }
-      Tools: { style: row, columns: 3 }
-      Monitoring: { style: row, columns: 3 }
-      Home: { style: row, columns: 3 }
   widgets.yaml: |
     - kubernetes:
         cluster: { show: true, cpu: true, memory: true, showLabel: true, label: cluster }
@@ -67,158 +56,6 @@ data:
     - datetime:
         text_size: md
         format: { dateStyle: long, timeStyle: short, hour12: false }
-  services.yaml: |
-    # Each pipeline: how far it is and what it is doing (paused, running, last run failed), from the lab.
-    - Pipelines:
-        - Taste Match:
-            href: https://tastematch.machaka.net
-            description: Reviews from YouTube to each host's scores
-            icon: mdi-youtube
-            widget:
-              type: customapi
-              url: http://lab.tools.svc/api/summary/tastematch
-              refreshInterval: 60000
-              display: list
-              mappings:
-                - { field: download, label: Downloaded }
-                - { field: transcribe, label: Transcribed }
-                - { field: speakers, label: Speakers }
-                - { field: rate, label: Rated }
-        - Deals:
-            href: https://deals.machaka.net
-            description: Okkazeo, checked every morning
-            icon: mdi-tag-heart
-            widget:
-              type: customapi
-              url: http://lab.tools.svc/api/summary/deals
-              refreshInterval: 300000
-              display: list
-              mappings:
-                - { field: run, label: Last run }
-                - { field: best, label: Best now }
-                - { field: new, label: New and cheap }
-                - { field: bundles, label: Bundles to judge }
-        - Cat cam:
-            href: https://catcam.machaka.net
-            description: Flash of the day, camera, weights
-            icon: mdi-cat
-            widget:
-              type: customapi
-              url: http://lab.tools.svc/api/summary/catcam
-              refreshInterval: 300000
-              display: list
-              mappings:
-                - { field: monitor, label: Monitor }
-                - { field: flash, label: Flash }
-                - { field: weighed, label: Last weigh-in }
-    - Sites:
-        - Website:
-            href: https://machaka.net
-            description: machaka.net
-            icon: mdi-web
-            namespace: apps
-            podSelector: app=website
-            siteMonitor: http://website.apps.svc
-        - Cat weight:
-            href: https://cat.machaka.net
-            description: cat.machaka.net
-            icon: mdi-cat
-            namespace: apps
-            podSelector: app=cat-weight
-            siteMonitor: http://cat-weight.apps.svc
-        - Unmatched:
-            href: https://unmatched.machaka.net
-            description: unmatched.machaka.net
-            icon: mdi-sword-cross
-            namespace: apps
-            podSelector: app=unmatched
-            siteMonitor: http://unmatched.apps.svc
-        - BoardXplorer:
-            href: https://boardxplorer.machaka.net
-            description: boardxplorer.machaka.net
-            icon: mdi-dice-multiple
-            namespace: apps
-            podSelector: app=boardxplorer
-            siteMonitor: http://boardxplorer.apps.svc
-        - Spirit Island:
-            href: https://spirit.machaka.net
-            description: spirit.machaka.net
-            icon: mdi-palm-tree
-            namespace: apps
-            podSelector: app=spirit-island
-            siteMonitor: http://spirit-island.apps.svc/healthz
-        - Free Motion:
-            href: https://freemotion.machaka.net
-            description: Job applications dashboard (Docker)
-            icon: mdi-briefcase-search
-    - Tools:
-        - Uptime Kuma:
-            href: https://status.machaka.net
-            description: Checks every site each minute, emails when one is down
-            icon: uptime-kuma.png
-            namespace: tools
-            podSelector: app=uptime-kuma
-            widget:
-              type: uptimekuma
-              url: http://uptime-kuma.tools.svc
-              slug: homelab
-        - Beszel:
-            href: https://beszel.machaka.net
-            description: Machines and Docker containers, with history and alerts
-            icon: beszel.png
-            namespace: tools
-            podSelector: app=beszel
-            siteMonitor: http://beszel.tools.svc/api/health
-        - Portainer:
-            href: https://portainer.machaka.net
-            description: Containers on the server (Docker) and the cluster
-            icon: portainer.png
-            namespace: tools
-            podSelector: app=portainer
-            widget:
-              type: portainer
-              url: http://portainer.tools.svc
-              env: 1
-              key: "{{HOMEPAGE_VAR_PORTAINER_KEY}}"
-    - Monitoring:
-        - Grafana:
-            href: https://grafana.machaka.net/d/home-overview
-            description: Dashboards over Prometheus
-            icon: grafana.png
-            namespace: monitoring
-            podSelector: app=grafana
-            siteMonitor: http://grafana.monitoring.svc/api/health
-        - Prometheus:
-            description: "No public address: kubectl -n monitoring port-forward svc/prometheus 9090:80"
-            icon: prometheus.png
-            namespace: monitoring
-            podSelector: app=prometheus
-            widget:
-              type: prometheus
-              url: http://prometheus.monitoring.svc
-        - Temperatures:
-            href: https://grafana.machaka.net/d/node-temperatures
-            description: Hottest CPU core on each machine
-            icon: mdi-thermometer
-            widget:
-              type: prometheusmetric
-              url: http://prometheus.monitoring.svc
-              refreshInterval: 30000
-              metrics:
-                - label: Old laptop
-                  query: max(node_hwmon_temp_celsius{chip="platform_coretemp_0",node="moudimash99"})
-                  format: { type: number, suffix: "°C", maximumFractionDigits: 0 }
-                - label: Acer
-                  query: max(node_hwmon_temp_celsius{chip="platform_coretemp_0",node="acer-laptop"})
-                  format: { type: number, suffix: "°C", maximumFractionDigits: 0 }
-    - Home:
-        - Frigate:
-            href: http://192.168.1.93:5000
-            description: Cameras (home network only)
-            icon: frigate.png
-            widget:
-              type: frigate
-              url: http://192.168.1.93:5000
   bookmarks.yaml: |
     - Admin:
         - Infra repo:
@@ -281,9 +118,9 @@ spec:
             limits: { memory: 384Mi }
           volumeMounts:
             - { name: config, mountPath: /app/config/kubernetes.yaml, subPath: kubernetes.yaml }
-            - { name: config, mountPath: /app/config/settings.yaml, subPath: settings.yaml }
+            - { name: menu, mountPath: /app/config/settings.yaml, subPath: settings.yaml }
             - { name: config, mountPath: /app/config/widgets.yaml, subPath: widgets.yaml }
-            - { name: config, mountPath: /app/config/services.yaml, subPath: services.yaml }
+            - { name: menu, mountPath: /app/config/services.yaml, subPath: services.yaml }
             - { name: config, mountPath: /app/config/bookmarks.yaml, subPath: bookmarks.yaml }
             - { name: config, mountPath: /app/config/docker.yaml, subPath: docker.yaml }
             - { name: config, mountPath: /app/config/proxmox.yaml, subPath: proxmox.yaml }
@@ -293,6 +130,8 @@ spec:
       volumes:
         - name: config
           configMap: { name: homepage }
+        - name: menu
+          configMap: { name: homepage-menu }
         - name: logs
           emptyDir: {}
 ---

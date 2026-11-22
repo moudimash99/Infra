@@ -1,0 +1,326 @@
+# MADE BY scripts/menu.py from services.yaml: do not edit by hand. Change services.yaml (an entry's
+# menu: block) or the script, run it, then apply this file and restart Homepage:
+#   kubectl apply -f k8s/tools/homepage-menu.yaml && kubectl -n tools rollout restart deploy/homepage
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: homepage-menu
+  namespace: tools
+data:
+  settings.yaml: |
+    title: Homelab
+    theme: dark
+    color: slate
+    headerStyle: clean
+    statusStyle: dot
+    hideVersion: true
+    layout:
+      Board games:
+        style: row
+        columns: 3
+      Cats:
+        style: row
+        columns: 3
+      Job search:
+        style: row
+        columns: 4
+      Gmail:
+        style: row
+        columns: 3
+      Website and lab:
+        style: row
+        columns: 3
+      Monitoring:
+        style: row
+        columns: 4
+      Platform:
+        style: row
+        columns: 3
+  services.yaml: |
+    - Board games:
+      - BoardXplorer:
+          href: https://boardxplorer.machaka.net
+          description: BoardGameGeek collection explorer
+          icon: mdi-dice-multiple
+          namespace: apps
+          podSelector: app=boardxplorer
+          siteMonitor: http://boardxplorer.apps.svc
+      - Unmatched:
+          href: https://unmatched.machaka.net
+          description: Fighter matcher, guides and tournaments
+          icon: mdi-sword-cross
+          namespace: apps
+          podSelector: app=unmatched
+          siteMonitor: http://unmatched.apps.svc
+      - Spirit Island:
+          href: https://spirit.machaka.net
+          description: Planner for 1 to 6 players
+          icon: mdi-palm-tree
+          namespace: apps
+          podSelector: app=spirit-island
+          siteMonitor: http://spirit-island.apps.svc/healthz
+      - Deals:
+          href: https://deals.machaka.net
+          description: Okkazeo, checked every morning
+          icon: mdi-tag-heart
+          widget:
+            type: customapi
+            url: http://lab.tools.svc/api/summary/deals
+            refreshInterval: 300000
+            display: list
+            mappings:
+            - field: run
+              label: Last run
+            - field: best
+              label: Best now
+            - field: new
+              label: New and cheap
+            - field: bundles
+              label: Bundles to judge
+      - Taste Match:
+          href: https://tastematch.machaka.net
+          description: Reviews from YouTube to each host's scores
+          icon: mdi-youtube
+          widget:
+            type: customapi
+            url: http://lab.tools.svc/api/summary/tastematch
+            refreshInterval: 60000
+            display: list
+            mappings:
+            - field: download
+              label: Downloaded
+            - field: transcribe
+              label: Transcribed
+            - field: speakers
+              label: Speakers
+            - field: rate
+              label: Rated
+    - Cats:
+      - Cat weight:
+          href: https://cat.machaka.net
+          description: 'cat.machaka.net: weigh-ins per cat'
+          icon: mdi-scale-bathroom
+          namespace: apps
+          podSelector: app=cat-weight
+          siteMonitor: http://cat-weight.apps.svc
+      - Frigate:
+          href: http://192.168.1.93:5000
+          description: Living-room camera (home network only)
+          icon: frigate.png
+          namespace: apps
+          podSelector: app=frigate
+          widget:
+            type: frigate
+            url: http://192.168.1.93:5000
+      - Cat cam:
+          href: https://catcam.machaka.net
+          description: Flash of the day, camera, weights
+          icon: mdi-cat
+          widget:
+            type: customapi
+            url: http://lab.tools.svc/api/summary/catcam
+            refreshInterval: 300000
+            display: list
+            mappings:
+            - field: monitor
+              label: Monitor
+            - field: flash
+              label: Flash
+            - field: weighed
+              label: Last weigh-in
+    - Job search:
+      - Free Motion:
+          href: https://freemotion.machaka.net
+          description: Job applications dashboard
+          icon: mdi-briefcase-search
+          namespace: apps
+          podSelector: app=freemotion-hub
+      - LLM gateway:
+          description: The one way the home's projects call a model
+          icon: mdi-brain
+          namespace: apps
+          podSelector: app=llm-gateway
+          siteMonitor: http://llm-gateway.apps.svc:8792/healthz
+      - Free Motion jobs:
+          description: Controller, one browser per lane, website writer
+          icon: mdi-robot-outline
+          namespace: apps
+          podSelector: app in (fm-controller,fm-browser)
+      - Upwork scan:
+          description: Four times a day on the PC
+          icon: mdi-briefcase-search-outline
+    - Gmail:
+      - Mail classifier:
+          description: Decides for the archiver; asleep at night when idle
+          icon: mdi-email-search
+          namespace: apps
+          podSelector: app=mail-classifier-waker
+      - Gmail archiver:
+          description: Archives job rejections and notices every 3 minutes
+          icon: mdi-email-remove
+          widget:
+            type: prometheusmetric
+            url: http://prometheus.monitoring.svc
+            refreshInterval: 60000
+            metrics:
+            - label: Since the last good run
+              query: time() - kube_cronjob_status_last_successful_time{namespace="apps",cronjob="email-remove"}
+              format:
+                type: duration
+      - Daily review:
+          description: Review of the archiver's decisions, 17:00 on the PC
+          icon: mdi-email-check
+    - Website and lab:
+      - Website:
+          href: https://machaka.net
+          description: machaka.net
+          icon: mdi-web
+          namespace: apps
+          podSelector: app=website
+          siteMonitor: http://website.apps.svc
+      - Lab sites:
+          description: Taste Match, Deals and Cat cam, one process
+          icon: mdi-flask-outline
+          namespace: tools
+          podSelector: app=lab
+    - Monitoring:
+      - Beszel:
+          href: https://beszel.machaka.net
+          description: Machines and Docker containers, with history and alerts
+          icon: beszel.png
+          namespace: tools
+          podSelector: app=beszel
+          siteMonitor: http://beszel.tools.svc/api/health
+      - Uptime Kuma:
+          href: https://status.machaka.net
+          description: Checks every site each minute, emails when one is down
+          icon: uptime-kuma.png
+          namespace: tools
+          podSelector: app=uptime-kuma
+          widget:
+            type: uptimekuma
+            url: http://uptime-kuma.tools.svc
+            slug: homelab
+      - Prometheus:
+          description: 'No public address: kubectl -n monitoring port-forward svc/prometheus 9090:80'
+          icon: prometheus.png
+          namespace: monitoring
+          podSelector: app=prometheus
+          widget:
+            type: prometheus
+            url: http://prometheus.monitoring.svc
+      - Grafana:
+          href: https://grafana.machaka.net/d/home-overview
+          description: Dashboards over Prometheus
+          icon: grafana.png
+          namespace: monitoring
+          podSelector: app=grafana
+          siteMonitor: http://grafana.monitoring.svc/api/health
+      - Scheduled jobs:
+          href: https://grafana.machaka.net/d/jobs
+          icon: mdi-calendar-check
+          description: Every job's runs, times and memory (Grafana)
+      - Who gets in:
+          href: https://grafana.machaka.net/d/scheduling
+          icon: mdi-account-clock
+          description: Who runs, waits for room or was pushed out (Grafana)
+      - Temperatures:
+          href: https://grafana.machaka.net/d/node-temperatures
+          icon: mdi-thermometer
+          description: Hottest CPU core on each machine
+          widget:
+            type: prometheusmetric
+            url: http://prometheus.monitoring.svc
+            refreshInterval: 30000
+            metrics:
+            - label: Server
+              query: max(node_hwmon_temp_celsius{chip="platform_coretemp_0",node="moudimash99"})
+              format:
+                type: number
+                suffix: °C
+                maximumFractionDigits: 0
+            - label: Acer
+              query: max(node_hwmon_temp_celsius{chip="platform_coretemp_0",node="acer-laptop"})
+              format:
+                type: number
+                suffix: °C
+                maximumFractionDigits: 0
+      - Alerts:
+          href: https://grafana.machaka.net/d/home-overview
+          description: Emailed by Alertmanager; what fires is on Grafana's home
+          icon: mdi-bell-alert
+          namespace: tools
+          podSelector: app=alertmanager
+          widget:
+            type: prometheusmetric
+            url: http://prometheus.monitoring.svc
+            refreshInterval: 60000
+            metrics:
+            - label: Firing now
+              query: count(ALERTS{alertstate="firing"}) or vector(0)
+              format:
+                type: number
+      - Machine metrics:
+          description: node-exporter and process-exporter on every node
+          icon: mdi-server
+          namespace: monitoring
+          podSelector: app=node-exporter
+      - GPU (Acer):
+          href: https://grafana.machaka.net/d/usage
+          description: 'GTX 1050: use, memory, heat, and who is on it'
+          icon: mdi-expansion-card
+          namespace: monitoring
+          podSelector: app=nvidia-gpu-exporter
+          widget:
+            type: prometheusmetric
+            url: http://prometheus.monitoring.svc
+            refreshInterval: 30000
+            metrics:
+            - label: Use
+              query: max(nvidia_smi_utilization_gpu_ratio) * 100
+              format:
+                type: percent
+            - label: Memory
+              query: max(nvidia_smi_memory_used_bytes / nvidia_smi_memory_total_bytes) * 100
+              format:
+                type: percent
+            - label: Heat
+              query: max(nvidia_smi_temperature_gpu)
+              format:
+                type: number
+                suffix: °C
+                maximumFractionDigits: 0
+      - Docker monitoring:
+          description: cAdvisor for the server's Docker containers
+          icon: mdi-docker
+    - Platform:
+      - Portainer:
+          href: https://portainer.machaka.net
+          description: Containers on the server (Docker) and the cluster
+          icon: portainer.png
+          namespace: tools
+          podSelector: app=portainer
+          widget:
+            type: portainer
+            url: http://portainer.tools.svc
+            env: 1
+            key: '{{HOMEPAGE_VAR_PORTAINER_KEY}}'
+      - Edge proxy:
+          description: Cloudflare tunnel to nginx, then Traefik or Docker
+          icon: cloudflare.png
+      - k3s cluster:
+          description: Traefik, CoreDNS, metrics-server, storage
+          icon: mdi-kubernetes
+          namespace: kube-system
+          podSelector: app.kubernetes.io/name=traefik
+      - Registry:
+          description: Image registry (the nodes don't use it yet)
+          icon: mdi-package-variant-closed
+          namespace: kube-system
+          podSelector: app=registry
+      - NFS:
+          description: Free Motion's data and code, server to Acer
+          icon: mdi-folder-network
+      - Tailscale:
+          description: Free Motion's agents reach the hub through it
+          icon: tailscale.png
