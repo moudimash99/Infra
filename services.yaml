@@ -480,7 +480,7 @@
   deploy: "git archive master into a new ~/build/boardgamefinder-<date> on the server, docker build, docker save | ssh acer sudo k3s ctr -n k8s.io images import - (through the PC), set the tag in the manifest, apply."
   check: "Last good run within 48 h (daily x 2); alert BoardGameFinderMissed fires at 26 h"
   probes:
-    - {k8s: apps/CronJob/boardgamefinder, max_age_h: 26}
+    - {k8s: apps/CronJob/boardgamefinder, paused_on_purpose: true}   # until the resume on 2026-11-25; then back to max_age_h: 26
   drift:
     - "None: the CronJob runs image 2026-11-22b, built from master b4f9e55."
   notes:
