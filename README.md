@@ -253,7 +253,8 @@ database, not in this repo:
   - Kubernetes: a container killed for memory or near its limit, crash loops, a pod that can't start (missing
     image, bad config) or stays Pending, a Deployment or DaemonSet short of pods, a scrape target down;
   - scheduled jobs: any Job that fails (or runs past its time limit), BoardGameFinder with no good run in 26 h,
-    no cat feeding report in 17 h, bg-taste-match downloads stalled 12 h, any other Job running over 6 h;
+    no cat feeding report in 26 h (these two stay quiet while their CronJob is suspended on purpose),
+    bg-taste-match downloads stalled 12 h, any other Job running over 6 h;
   - Frigate: camera below 1 fps, no metrics, detector slower than 100 ms, storage under 10%;
   - itself: emails failing, broken rules, Prometheus unable to reach Alertmanager.
 

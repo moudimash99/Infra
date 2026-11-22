@@ -484,7 +484,7 @@
   drift:
     - "None: the CronJob runs image 2026-11-22b, built from master b4f9e55."
   notes:
-    - "suspend: true ON PURPOSE, live and in the manifest, from 2026-11-22 for 3 days (the user's call, to let Okkazeo's block lapse). The PC scheduled task bgf-resume-after-pause resumes it on 2026-11-25 (first run 11-26 05:00), and bgf-report-after-resume emails the user how that run went. BoardGameFinderMissed keeps firing until a run succeeds. The user's longer-term fix: spread the Okkazeo requests over the day instead of ~1,650 page loads in about an hour."
+    - "suspend: true ON PURPOSE, live and in the manifest, from 2026-11-22 for 3 days (the user's call, to let Okkazeo's block lapse). The PC scheduled task bgf-resume-after-pause resumes it on 2026-11-25 (first run 11-26 05:00), and bgf-report-after-resume emails the user how that run went. BoardGameFinderMissed is quiet while it is suspended (rule changed 2026-11-22) and fires again from the resume until a run succeeds. The user's longer-term fix: spread the Okkazeo requests over the day instead of ~1,650 page loads in about an hour."
     - "From 2026-11-20 it starts at 05:00 and may stop the mail classifier (rank batch-make-room) for its hour, so it no longer waits for memory that is booked but unused."
     - "No good run since 2026-11-11 07:59. Runs of 2026-11-18, 11-19 and 11-20 failed with DeadlineExceeded (6 h limit; the 11-20 one ended before the Acer went NotReady). Outcomes of 11-12..11-17 unknown (failed Jobs beyond the last 3 are pruned). 11-21 and 11-22 ran and failed at price_finder (Okkazeo, below)."
     - "Why the runs fail (BoardGameFinder session, 2026-11-22): since 2026-11-21 05:40 Okkazeo answers the container's Chrome (HeadlessChrome/156, Linux) with a bare page, 'Aucune annonce pour le moment', with no ads and no search results; a test pod with image 2026-11-22b confirmed it. The PC's headless Chrome gets the full pages. Whether both use the same public address is unverified (the Acer goes out via 192.168.1.254, the PC also has a route via 192.168.1.1). Not to be worked around: the user decides between running the scrape from the PC, slowing it down, asking Okkazeo, or pausing the job. Until a run gets through, every ad on the Acer is marked offline (by the old image's last run), so prices and deals are stale; the new code fails without marking ads gone."
@@ -606,13 +606,13 @@
     deployed: "main: the Acer's /srv/apps/cat-monitor/code (automated_feeder_monitor.py, daily_flash.py, feeding_pipeline.py) matches the PC's files, committed on 2026-11-22 (3aa82d3); copied by hand"
   deploy: "Scripts: copy to /srv/apps/cat-monitor/code on the Acer (no script found). Image: build Dockerfile.monitor on the server, import on the Acer, set the tag, apply."
   check: >-
-    cat-flash: good run within 38 h (longest gap 19 h x 2); cat-monitor: suspended, no expectation (but alert
-    CatMonitorMissed at 26 h still watches it).
+    cat-flash: good run within 38 h (longest gap 19 h x 2); cat-monitor: suspended, no expectation (alert
+    CatMonitorMissed at 26 h, quiet while it is suspended since 2026-11-22).
   probes:
     - {k8s: apps/CronJob/cat-flash, max_age_h: 38}
     - {k8s: apps/CronJob/cat-monitor, paused_on_purpose: true}
   drift:
-    - "cat-monitor is suspend: true ON PURPOSE, live and in the manifest (GPU heat: GPU jobs only on nights the user allows, see bg-taste-match). The CatMonitorMissed alert (26 h) keeps firing for a job that is paused on purpose."
+    - "cat-monitor is suspend: true ON PURPOSE, live and in the manifest (GPU heat: GPU jobs only on nights the user allows, see bg-taste-match). The CatMonitorMissed alert (26 h) skips it while it is suspended (rule changed 2026-11-22; before, it kept firing)."
     - "README says cat-monitor runs 02:16, 10:16, 18:16 and alerts after 17 h; the manifest runs it once a day at 03:16, and the rule is 26 h."
   notes:
     - "The server's ~/Cat-Camera clone is on main (its commit '19' of 2026-02-07 merged on 2026-11-22); its data folders cat/, benchmark_results/ and output/ (~9 GB) are gitignored."

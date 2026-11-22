@@ -228,14 +228,20 @@ groups:
         annotations:
           summary: "{{ $labels.job_name }}: a run failed"
           description: "It stopped with an error or ran past its time limit. Its log: kubectl -n {{ $labels.namespace }} logs job/{{ $labels.job_name }}"
+      # The two "Missed" rules stay quiet while their CronJob is paused on purpose (suspend: true) and come back by
+      # themselves when it is resumed: until its next good run, a resumed job still shows as missed.
       - alert: BoardGameFinderMissed
-        expr: time() - kube_cronjob_status_last_successful_time{cronjob="boardgamefinder"} > 26 * 3600
+        expr: |
+          time() - kube_cronjob_status_last_successful_time{cronjob="boardgamefinder"} > 26 * 3600
+          unless on (namespace, cronjob) kube_cronjob_spec_suspend == 1
         labels: { severity: warning }
         annotations:
           summary: "BoardGameFinder: no finished run in over a day"
           description: "Its daily 07:00 run failed or didn't start: no deal email today."
       - alert: CatMonitorMissed
-        expr: time() - kube_cronjob_status_last_successful_time{cronjob="cat-monitor"} > 26 * 3600
+        expr: |
+          time() - kube_cronjob_status_last_successful_time{cronjob="cat-monitor"} > 26 * 3600
+          unless on (namespace, cronjob) kube_cronjob_spec_suspend == 1
         labels: { severity: warning }
         annotations:
           summary: "cat-monitor: no run has succeeded for over a day"
