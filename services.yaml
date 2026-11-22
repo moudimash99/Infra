@@ -467,7 +467,7 @@
   depends_on: [llm-gateway]
   runs: "k8s apps/CronJob boardgamefinder on acer-laptop; PC Task Scheduler copy BoardGameFinder_DailyRun (disabled)"
   manifest: Infra/k8s/apps/boardgamefinder/boardgamefinder.yaml
-  image: "boardgamefinder, built on the server from ~/build/boardgamefinder (pull Never)"
+  image: "boardgamefinder:2026-11-22b, built on the server in ~/build/boardgamefinder-20261122b from a git archive of master b4f9e55 (pull Never)"
   schedule: "0 5 * * * Europe/Paris since 2026-11-20 (was 07:00; activeDeadlineSeconds 21600 = 6 h, backoffLimit 0); rank batch-make-room: may stop the mail classifier to start"
   url: "none (results on https://deals.machaka.net through the lab)"
   data:
@@ -475,18 +475,20 @@
     - "Secret apps/boardgamefinder (from the repo's .env); FM_LLM_URL=http://192.168.1.116:8792"
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\BoardGameFinder (github.com/moudimash99/BoardGameFinder)
-    branch: master (okkazeo-link-review merged into it on 2026-11-22, with everything uncommitted)
-    deployed: "an uncommitted working-tree copy from 2026-11-09/10 (the container Dockerfile itself was only committed on 2026-11-18 in d3abc7a)"
-  deploy: "Copy the repo to ~/build/boardgamefinder on the server, docker build, import on the Acer, set the tag, apply."
+    branch: master (okkazeo-link-review merged into it on 2026-11-22)
+    deployed: "b4f9e55 on master: image 2026-11-22b, on the CronJob since 2026-11-22 13:15"
+  deploy: "git archive master into a new ~/build/boardgamefinder-<date> on the server, docker build, docker save | ssh acer sudo k3s ctr -n k8s.io images import - (through the PC), set the tag in the manifest, apply."
   check: "Last good run within 48 h (daily x 2); alert BoardGameFinderMissed fires at 26 h"
   probes:
     - {k8s: apps/CronJob/boardgamefinder, max_age_h: 26}
   drift:
-    - "Image built from an uncommitted copy of 2026-11-09/10. master's 2026-11-18 work (d3abc7a, 16f51bb, 7690e12: hand-verified links, French titles, the pipeline in a container; 163 tests pass) was not deployed until 2026-11-22 13:15, when the BoardGameFinder session put image 2026-11-22b on the CronJob (its manifest change is that session's to commit, and it updates this entry). The runs fail because Okkazeo pages stop loading in the container (below)."
+    - "None: the CronJob runs image 2026-11-22b, built from master b4f9e55."
   notes:
+    - "suspend: true ON PURPOSE, live and in the manifest, from 2026-11-22 for 3 days (the user's call, to let Okkazeo's block lapse). The PC scheduled task bgf-resume-after-pause resumes it on 2026-11-25 (first run 11-26 05:00), and bgf-report-after-resume emails the user how that run went. BoardGameFinderMissed keeps firing until a run succeeds. The user's longer-term fix: spread the Okkazeo requests over the day instead of ~1,650 page loads in about an hour."
     - "From 2026-11-20 it starts at 05:00 and may stop the mail classifier (rank batch-make-room) for its hour, so it no longer waits for memory that is booked but unused."
-    - "No good run since 2026-11-11 07:59. Runs of 2026-11-18, 11-19 and 11-20 failed with DeadlineExceeded (6 h limit; the 11-20 one ended before the Acer went NotReady). Outcomes of 11-12..11-17 unknown (failed Jobs beyond the last 3 are pruned)."
-    - "Why the runs fail (BoardGameFinder session, 2026-11-22): on 11-21, 'could not locate games box' 8 times in a row from game 298 of 404; on 11-22 the search box was missing at once. The same pages load from the PC, so likely Okkazeo throttling or blocking the home's address (or the container's network or Chrome). Next: save one page's title and source from inside the container; if throttled, slow the scraper down."
+    - "No good run since 2026-11-11 07:59. Runs of 2026-11-18, 11-19 and 11-20 failed with DeadlineExceeded (6 h limit; the 11-20 one ended before the Acer went NotReady). Outcomes of 11-12..11-17 unknown (failed Jobs beyond the last 3 are pruned). 11-21 and 11-22 ran and failed at price_finder (Okkazeo, below)."
+    - "Why the runs fail (BoardGameFinder session, 2026-11-22): since 2026-11-21 05:40 Okkazeo answers the container's Chrome (HeadlessChrome/156, Linux) with a bare page, 'Aucune annonce pour le moment', with no ads and no search results; a test pod with image 2026-11-22b confirmed it. The PC's headless Chrome gets the full pages. Whether both use the same public address is unverified (the Acer goes out via 192.168.1.254, the PC also has a route via 192.168.1.1). Not to be worked around: the user decides between running the scrape from the PC, slowing it down, asking Okkazeo, or pausing the job. Until a run gets through, every ad on the Acer is marked offline (by the old image's last run), so prices and deals are stale; the new code fails without marking ads gone."
+    - "2026-11-22: the PC's hand review (2026-11-12..18) was merged into the Acer's Games.db: 1,149 approved pages (was 404), French titles for all 716 games, the Search_Names table. Backup from before it: /srv/apps/boardgamefinder/data/Games.db.bak-20261122-123352. How: BoardGameFinder KNOWN_ISSUES.md and scripts/scratch/merge_pc_review_into_acer_20261122.py."
     - "Leftover Job apps/bgf-test-1 (2026-11-10, complete)."
     - "PC task BoardGameFinder_DailyRun (scripts\\weeklyscript.bat, 07:00 daily): Disabled, last ran 2026-11-09."
   menu:

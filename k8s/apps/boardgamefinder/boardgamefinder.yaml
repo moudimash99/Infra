@@ -14,6 +14,9 @@ metadata:
 spec:
   schedule: "0 5 * * *"
   timeZone: Europe/Paris
+  # Paused on purpose from 2026-11-22 for 3 days (the user's call): Okkazeo serves the Acer's Chrome a bare page
+  # since 11-21. A PC scheduled task resumes it on 2026-11-25 (first run 11-26 05:00) and emails a report.
+  suspend: true
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -32,7 +35,7 @@ spec:
           priorityClassName: batch-make-room
           containers:
             - name: pipeline
-              image: docker.io/library/boardgamefinder:2026-11-10b
+              image: docker.io/library/boardgamefinder:2026-11-22b
               imagePullPolicy: Never
               envFrom:
                 - secretRef: { name: boardgamefinder }
