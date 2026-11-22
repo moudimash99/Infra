@@ -43,6 +43,7 @@ data:
           description: BoardGameGeek collection explorer
           icon: mdi-dice-multiple
           namespace: apps
+          app: boardxplorer
           podSelector: app=boardxplorer
           siteMonitor: http://boardxplorer.apps.svc
       - Unmatched:
@@ -50,6 +51,7 @@ data:
           description: Fighter matcher, guides and tournaments
           icon: mdi-sword-cross
           namespace: apps
+          app: unmatched
           podSelector: app=unmatched
           siteMonitor: http://unmatched.apps.svc
       - Spirit Island:
@@ -57,6 +59,7 @@ data:
           description: Planner for 1 to 6 players
           icon: mdi-palm-tree
           namespace: apps
+          app: spirit-island
           podSelector: app=spirit-island
           siteMonitor: http://spirit-island.apps.svc/healthz
       - Deals:
@@ -101,6 +104,7 @@ data:
           description: 'cat.machaka.net: weigh-ins per cat'
           icon: mdi-scale-bathroom
           namespace: apps
+          app: cat-weight
           podSelector: app=cat-weight
           siteMonitor: http://cat-weight.apps.svc
       - Frigate:
@@ -108,6 +112,7 @@ data:
           description: Living-room camera (home network only)
           icon: frigate.png
           namespace: apps
+          app: frigate
           podSelector: app=frigate
           widget:
             type: frigate
@@ -134,17 +139,20 @@ data:
           description: Job applications dashboard
           icon: mdi-briefcase-search
           namespace: apps
+          app: freemotion-hub
           podSelector: app=freemotion-hub
       - LLM gateway:
           description: The one way the home's projects call a model
           icon: mdi-brain
           namespace: apps
+          app: llm-gateway
           podSelector: app=llm-gateway
           siteMonitor: http://llm-gateway.apps.svc:8792/healthz
       - Free Motion jobs:
           description: Controller, one browser per lane, website writer
           icon: mdi-robot-outline
           namespace: apps
+          app: free-motion
           podSelector: app in (fm-controller,fm-browser)
       - Upwork scan:
           description: Four times a day on the PC
@@ -154,6 +162,7 @@ data:
           description: Decides for the archiver; asleep at night when idle
           icon: mdi-email-search
           namespace: apps
+          app: mail-classifier
           podSelector: app=mail-classifier-waker
       - Gmail archiver:
           description: Archives job rejections and notices every 3 minutes
@@ -176,12 +185,14 @@ data:
           description: machaka.net
           icon: mdi-web
           namespace: apps
+          app: website
           podSelector: app=website
           siteMonitor: http://website.apps.svc
       - Lab sites:
           description: Taste Match, Deals and Cat cam, one process
           icon: mdi-flask-outline
           namespace: tools
+          app: lab-sites
           podSelector: app=lab
     - Monitoring:
       - Beszel:
@@ -189,6 +200,7 @@ data:
           description: Machines and Docker containers, with history and alerts
           icon: beszel.png
           namespace: tools
+          app: beszel
           podSelector: app=beszel
           siteMonitor: http://beszel.tools.svc/api/health
       - Uptime Kuma:
@@ -196,6 +208,7 @@ data:
           description: Checks every site each minute, emails when one is down
           icon: uptime-kuma.png
           namespace: tools
+          app: uptime-kuma
           podSelector: app=uptime-kuma
           widget:
             type: uptimekuma
@@ -205,6 +218,7 @@ data:
           description: 'No public address: kubectl -n monitoring port-forward svc/prometheus 9090:80'
           icon: prometheus.png
           namespace: monitoring
+          app: prometheus
           podSelector: app=prometheus
           widget:
             type: prometheus
@@ -214,6 +228,7 @@ data:
           description: Dashboards over Prometheus
           icon: grafana.png
           namespace: monitoring
+          app: grafana
           podSelector: app=grafana
           siteMonitor: http://grafana.monitoring.svc/api/health
       - Scheduled jobs:
@@ -250,6 +265,7 @@ data:
           description: Emailed by Alertmanager; what fires is on Grafana's home
           icon: mdi-bell-alert
           namespace: tools
+          app: alertmanager
           podSelector: app=alertmanager
           widget:
             type: prometheusmetric
@@ -264,12 +280,14 @@ data:
           description: node-exporter and process-exporter on every node
           icon: mdi-server
           namespace: monitoring
+          app: node-exporters
           podSelector: app=node-exporter
       - GPU (Acer):
           href: https://grafana.machaka.net/d/usage
           description: 'GTX 1050: use, memory, heat, and who is on it'
           icon: mdi-expansion-card
           namespace: monitoring
+          app: gpu-metrics
           podSelector: app=nvidia-gpu-exporter
           widget:
             type: prometheusmetric
@@ -299,6 +317,7 @@ data:
           description: Containers on the server (Docker) and the cluster
           icon: portainer.png
           namespace: tools
+          app: portainer
           podSelector: app=portainer
           widget:
             type: portainer
@@ -312,11 +331,13 @@ data:
           description: Traefik, CoreDNS, metrics-server, storage
           icon: mdi-kubernetes
           namespace: kube-system
+          app: k3s-system
           podSelector: app.kubernetes.io/name=traefik
       - Registry:
           description: Image registry (the nodes don't use it yet)
           icon: mdi-package-variant-closed
           namespace: kube-system
+          app: registry
           podSelector: app=registry
       - NFS:
           description: Free Motion's data and code, server to Acer

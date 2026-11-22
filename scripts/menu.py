@@ -91,7 +91,9 @@ def tile(svc):
     t["icon"] = m.get("icon", ICONS.get(svc.get("kind"), "mdi-cube-outline"))
     if pods:
         ns, _, sel = pods.partition("/")
-        t["namespace"], t["podSelector"] = ns, sel
+        # Homepage draws the pod status only when `app` is set; with a podSelector it finds the pods by the selector,
+        # so the name is only a label (without it, no tile showed a status before 2026-11-22).
+        t["namespace"], t["app"], t["podSelector"] = ns, svc["name"], sel
     if m.get("ping"):
         t["siteMonitor"] = m["ping"]
     if widget:
