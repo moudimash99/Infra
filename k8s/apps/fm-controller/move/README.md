@@ -11,6 +11,7 @@ PC and the cluster at once: two writers of the never-apply-twice ledger could ap
 | `fm-copy.sh` | PC (Git Bash) | fm-data to the server by tar over ssh; `--final` first clears the server's round state |
 | `fm-profiles.sh` | PC (Git Bash) | the PC's two lane browser profiles (site sessions) into the fm-browser pods' folders on the Acer |
 | `driver-smoke.sh` | inside fm-controller | each driver opens a page on a lane's browser with run.sh's flags: no job, no ledger |
+| `deploy-memory-fix.sh` | PC (Git Bash) | a record, not to rerun as is: how the fm-pool#7 memory fix went live on 2026-11-21 without a pod restart (code to the bare repos and checkouts between rounds, then restart only the score loops and the hub agent) |
 
 Run a copy of a script, never the file itself while editing it: bash reads a script as it goes.
 
