@@ -287,7 +287,12 @@ def code_check(svc, s, keys):
                 if re.fullmatch(r"[0-9a-f]{7,40}", t) and git(path, "cat-file", "-t", t) == "commit":
                     newer = git(path, "rev-list", "--count", f"{t}..HEAD", *code_only)
                 elif re.match(r"\d{4}-\d{2}-\d{2}", t):
-                    newer = git(path, "rev-list", "--count", "HEAD", f"--after={t[:10]} 23:59", *code_only)
+                    # A tag with a build time (unmatched's 2026-11-22-1252) counts commits after that minute, read in
+                    # the PC's time zone (deploy.sh's `date` gave Paris time: the image was created 11:53 UTC); a date
+                    # alone (2026-11-22, 2026-11-22b) only those after its day, so a same-day commit goes unseen.
+                    hm = re.fullmatch(r"(\d{4}-\d{2}-\d{2})-(\d{2})(\d{2})", t)
+                    after = f"{hm[1]} {hm[2]}:{hm[3]}" if hm else f"{t[:10]} 23:59"
+                    newer = git(path, "rev-list", "--count", "HEAD", f"--after={after}", *code_only)
                 else:
                     continue
                 if newer not in ("", "0"):
