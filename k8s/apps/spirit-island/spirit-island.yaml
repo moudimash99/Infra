@@ -1,8 +1,8 @@
 # spirit.machaka.net: Spirit Island Planner, a static single-page app (no data on the server). Public on purpose:
 # no Cloudflare Access login (user, 2026-11-22), like unmatched and machaka.net.
 # The page and its nginx.conf live in the ConfigMap spirit-island-site, made from the planner project's site/ folder
-# (not in this repo: the page is ~165 KB of generated HTML). The project is C:\Users\Moudimash99\Documents\Coding\
-# spirit island on the laptop DESKTOP-D6PL75M: `python build_site.py`, then `./deploy.sh` rebuilds the ConfigMap and
+# (not in this repo: the page is ~165 KB of generated HTML). The project is on another laptop (which one:
+# local/machines.yaml, kept out of git): `python build_site.py`, then `./deploy.sh` rebuilds the ConfigMap and
 # restarts this Deployment (nginx.conf is a subPath mount). deploy.sh never applies this file; this repo owns it.
 # Stock nginx image, nothing to build or load. Uses ~3 MB of memory.
 # Rank homelab-critical like the other sites. Server only: no toleration for the Acer, whose memory is booked full.

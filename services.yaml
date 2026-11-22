@@ -376,23 +376,22 @@
   data:
     - "ConfigMap apps/spirit-island-site: index.html (~165 KB, generated) and nginx.conf, made from the planner project's site/ folder, not from this repo"
   code:
-    repo: "C:\\Users\\Moudimash99\\Documents\\Coding\\spirit island on the laptop DESKTOP-D6PL75M (192.168.1.71, Tailscale 100.94.89.34), not this PC"
+    repo: "the spirit island planner project on another laptop, not this PC (which laptop, and its folder: Infra/local/machines.yaml, kept out of git)"
     branch: "none: not a git repo, no GitHub remote (2026-11-22)"
     version_check: none (the page goes out as a ConfigMap)
   deploy: >-
-    Page, from the project folder on DESKTOP-D6PL75M (Git Bash): `python build_site.py` writes site/index.html, then
+    Page, from the project folder on that laptop (Git Bash): `python build_site.py` writes site/index.html, then
     `./deploy.sh` copies site/index.html and site/nginx.conf to the server (SSH alias home-laptop, over Tailscale),
     rebuilds ConfigMap apps/spirit-island-site (server-side apply), restarts the Deployment (nginx.conf is a subPath
     mount) and checks the page through Traefik. It never applies the manifest. Deployment, Service, Ingress: kubectl
     apply -f k8s/apps/spirit-island/spirit-island.yaml (this repo owns them).
-  check: "Readiness/liveness GET /healthz on :80; https://spirit.machaka.net/healthz answers 200; Homepage siteMonitor"
+  check: "Readiness/liveness GET /healthz on :80; https://spirit.machaka.net/healthz answers 200; Homepage siteMonitor; Uptime Kuma check 11 \"Spirit Island\" (group Sites on status page homelab, since 2026-11-22)"
   probes:
     - {k8s: apps/Deployment/spirit-island}
     - {http: "https://spirit.machaka.net/healthz", expect: [200]}
   drift:
     - "First applied by hand on 2026-11-22 ~01:40 from an untracked copy of the manifest in the server's ~/Infra (on main), with no entry here. That copy and its README row are still uncommitted there (see k3s-system)."
-    - "The page's source has no version control: the project folder on DESKTOP-D6PL75M is not a git repo (2026-11-22)."
-    - "No Uptime Kuma monitor yet (its monitors live in its own database)."
+    - "The page's source has no version control: the project folder on that laptop is not a git repo (2026-11-22)."
   notes:
     - "Brought to the house standard on 2026-11-22: rank homelab-critical like the other sites; server only (no toleration for the Acer, whose memory is booked full). Uses ~3 MB."
   menu:
@@ -727,6 +726,7 @@
   drift: []
   notes:
     - "Monitors and notifications live in its own database; some still use 192.168.1.135 (forwarded by tools/old-address)."
+    - "Add a check with scripts/kuma.js (usage in its header): add-site copies the site checks' settings and puts it on the status page. 11 checks on 2026-11-22: 6 sites (Sites group), Frigate (Home), 4 tools (Tools)."
   menu:
     title: Uptime Kuma
     icon: uptime-kuma.png

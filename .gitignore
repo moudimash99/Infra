@@ -84,3 +84,6 @@ node_modules/
 
 certs/
 token.txt
+
+# Private machine details (names, addresses): kept out of this public repo
+local/

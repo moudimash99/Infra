@@ -114,7 +114,7 @@ X-Forwarded-Proto that nginx sets; without it every visitor looks like 10.42.0.1
 | website | machaka.net, mohammad.machaka.net | server | `~/Personal-Website/tracking-data` |
 | frigate | http://192.168.1.93:5000 (home network only) | Acer | `/srv/apps/frigate/config`, `/var/lib/frigate/media` |
 | freemotion-hub | freemotion.machaka.net; agents on port 8791 of the server (hostPort, over Tailscale) | server | `/srv/apps/freemotion-hub` |
-| spirit-island | spirit.machaka.net (public, no login) | server | none: a static page in ConfigMap `spirit-island-site`, published by `deploy.sh` in the planner project on the laptop DESKTOP-D6PL75M (see the manifest) |
+| spirit-island | spirit.machaka.net (public, no login) | server | none: a static page in ConfigMap `spirit-island-site`, published by `deploy.sh` in the planner project on another laptop (see the manifest) |
 
 The Free Motion hub (dashboard) moved from Docker on 2026-11-10. Its image is always `freemotion-hub:live`, built and
 loaded only by fm-orchestrator's `freemotion-hub/test/deploy.mjs` after its tests; applying the manifest never changes the
@@ -309,7 +309,8 @@ Memory (2026-10-25): tools ~250 MB, Prometheus ~120 MB, Grafana ~300-450 MB.
 1. An Ingress in the cluster (host name, class `traefik`).
 2. Cloudflare DNS: a CNAME to the tunnel, proxied (or one wildcard `*` record for all).
 3. Cloudflare Zero Trust → Access: add the name to the self-hosted app, so it asks for the login first.
-4. Optional: a site in `lab/app/config.py` (SITES), a card or page in the lab for a job, and a check in Uptime Kuma.
+4. A check in Uptime Kuma: `scripts/kuma.js add-site <name> <url>` (how to run it is in its header), and an entry in
+   `services.yaml` with its `menu:` block. Optional: a card or page in the lab for a job.
 
 ### Secrets
 
