@@ -42,3 +42,5 @@ configMapGenerator:
     files: [dashboards/jobs.json]
   - name: dashboard-pc                   # The PC's jobs, from its reports to the lab
     files: [dashboards/pc.json]
+  - name: dashboard-scheduling           # Who gets in: each app running / waiting for room / failed, and booked memory
+    files: [dashboards/scheduling.json]

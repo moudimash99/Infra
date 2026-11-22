@@ -1,0 +1,973 @@
+{
+ "uid": "scheduling",
+ "title": "Who gets in",
+ "description": "Each app on a machine: when it ran, when it waited for room, when it failed; and the memory booked against what is really used.",
+ "tags": [
+  "homelab"
+ ],
+ "timezone": "browser",
+ "editable": true,
+ "graphTooltip": 1,
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "1m",
+ "time": {
+  "from": "now-12h",
+  "to": "now"
+ },
+ "fiscalYearStartMonth": 0,
+ "liveNow": false,
+ "links": [
+  {
+   "title": "Homelab",
+   "type": "dashboards",
+   "tags": [
+    "homelab"
+   ],
+   "asDropdown": false,
+   "includeVars": false,
+   "keepTime": false,
+   "targetBlank": false
+  }
+ ],
+ "templating": {
+  "list": [
+   {
+    "name": "machine",
+    "label": "Machine",
+    "type": "custom",
+    "query": "acer-laptop,moudimash99",
+    "current": {
+     "text": "acer-laptop",
+     "value": "acer-laptop"
+    },
+    "options": [],
+    "multi": false,
+    "includeAll": false,
+    "hide": 0
+   }
+  ]
+ },
+ "annotations": {
+  "list": [
+   {
+    "name": "Pushed out",
+    "datasource": {
+     "type": "prometheus",
+     "uid": "prometheus"
+    },
+    "enable": true,
+    "iconColor": "purple",
+    "expr": "(kube_pod_status_reason{reason=~\"PreemptionByScheduler|Evicted\"} == 1 unless kube_pod_status_reason{reason=~\"PreemptionByScheduler|Evicted\"} offset 1m == 1) and on (namespace, pod) (kube_pod_info{node=\"$machine\"} offset 2m)",
+    "step": "1m",
+    "titleFormat": "{{pod}} pushed out ({{reason}})",
+    "textFormat": "",
+    "tagKeys": "",
+    "useValueForTime": false
+   },
+   {
+    "name": "Killed for memory",
+    "datasource": {
+     "type": "prometheus",
+     "uid": "prometheus"
+    },
+    "enable": true,
+    "iconColor": "red",
+    "expr": "(kube_pod_container_status_last_terminated_reason{reason=\"OOMKilled\"} == 1 unless kube_pod_container_status_last_terminated_reason{reason=\"OOMKilled\"} offset 1m == 1) and on (namespace, pod) kube_pod_info{node=\"$machine\"}",
+    "step": "1m",
+    "titleFormat": "{{pod}} / {{container}} killed for memory",
+    "textFormat": "",
+    "tagKeys": "",
+    "useValueForTime": false
+   }
+  ]
+ },
+ "panels": [
+  {
+   "type": "stat",
+   "title": "Running now",
+   "description": "Pods running on this machine now, every namespace.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "count(kube_pod_status_phase{phase=\"Running\"} == 1 and on (namespace, pod) kube_pod_info{node=\"$machine\"})",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#2a78d6",
+        "value": null
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": []
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "orientation": "auto",
+    "textMode": "value",
+    "colorMode": "none",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 14,
+     "valueSize": 30
+    }
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 6,
+    "h": 3
+   },
+   "id": 1
+  },
+  {
+   "type": "stat",
+   "title": "Waiting for room now",
+   "description": "Pods that exist but have no machine yet, usually because the memory they book doesn't fit.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "count(kube_pod_status_phase{phase=\"Pending\"} == 1) or vector(0)",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#0ca30c",
+        "value": null
+       },
+       {
+        "color": "#fab219",
+        "value": 1
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [
+      {
+       "type": "value",
+       "options": {
+        "0": {
+         "text": "None"
+        }
+       }
+      }
+     ]
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "orientation": "auto",
+    "textMode": "value",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 14,
+     "valueSize": 30
+    }
+   },
+   "gridPos": {
+    "x": 6,
+    "y": 0,
+    "w": 6,
+    "h": 3
+   },
+   "id": 2
+  },
+  {
+   "type": "stat",
+   "title": "Booked",
+   "description": "Memory the running pods have booked (requests), as a share of what the machine gives pods. A new pod gets in only if its own booking fits in the rest, whatever is really used.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(kube_pod_container_resource_requests{resource=\"memory\", node=\"$machine\"} and on (namespace, pod) (kube_pod_status_phase{phase=\"Running\"} == 1)) / sum(kube_node_status_allocatable{resource=\"memory\", node=\"$machine\"}) * 100",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#0ca30c",
+        "value": null
+       },
+       {
+        "color": "#fab219",
+        "value": 90
+       },
+       {
+        "color": "#d03b3b",
+        "value": 97
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "orientation": "auto",
+    "textMode": "value",
+    "colorMode": "value",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 14,
+     "valueSize": 30
+    }
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 0,
+    "w": 6,
+    "h": 3
+   },
+   "id": 3
+  },
+  {
+   "type": "stat",
+   "title": "Really used",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(container_memory_working_set_bytes{node=\"$machine\", container!=\"\"}) / sum(kube_node_status_allocatable{resource=\"memory\", node=\"$machine\"}) * 100",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#0ca30c",
+        "value": null
+       },
+       {
+        "color": "#fab219",
+        "value": 85
+       },
+       {
+        "color": "#d03b3b",
+        "value": 95
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "orientation": "auto",
+    "textMode": "value",
+    "colorMode": "value",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 14,
+     "valueSize": 30
+    }
+   },
+   "gridPos": {
+    "x": 18,
+    "y": 0,
+    "w": 6,
+    "h": 3
+   },
+   "id": 4
+  },
+  {
+   "type": "state-timeline",
+   "title": "Every app: running, waiting, failed",
+   "description": "Blue: running. Orange: waiting for room (the booking didn't fit). Red: failed (for 10 minutes after). Empty: not there. Point at a bar for its exact start and length. Markers on top: purple, a pod pushed out to make room for a higher rank (the scheduler) or by a short machine (eviction); red, a container killed for memory. Apps in apps and tools; the monitoring pods are left out.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "interval": "30s",
+   "maxDataPoints": 1500,
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "(3 * max_over_time((max by (pod_app) (label_replace(label_replace(((kube_pod_status_phase{phase=\"Failed\"} == 1 unless on (namespace, pod) (kube_pod_status_phase{phase=\"Failed\"} offset 10m == 1)) and on (namespace, pod) kube_pod_info{namespace=~\"apps|tools\", node=~\"$machine|\"}), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\")))[$__interval:10s])) or (2 * max_over_time((max by (pod_app) (label_replace(label_replace((kube_pod_status_phase{phase=\"Pending\"} == 1 and on (namespace, pod) kube_pod_info{namespace=~\"apps|tools\", node=~\"$machine|\"}), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\")))[$__interval:10s])) or max_over_time((max by (pod_app) (label_replace(label_replace(((kube_job_status_start_time{namespace=~\"apps|tools\"} offset -1m) <= time() unless on (namespace, job_name) ((kube_job_status_completion_time offset -1m) <= time()) unless on (namespace, job_name) (kube_job_failed{condition=\"true\"} == 1)) and on (namespace, job_name) label_replace((kube_pod_owner{namespace=~\"apps|tools\", owner_kind=\"Job\"} offset -1m) and on (namespace, pod) (kube_pod_info{node=\"$machine\"} offset -1m), \"job_name\", \"$1\", \"owner_name\", \"(.+)\"), \"pod_app\", \"$1\", \"job_name\", \"(.+)\"), \"pod_app\", \"$1\", \"job_name\", \"^(.+)-[0-9]{6,}$\")) * 0 + 1)[$__interval:10s]) or max_over_time((max by (pod_app) (label_replace(label_replace((kube_pod_status_phase{phase=\"Running\"} == 1 and on (namespace, pod) kube_pod_info{namespace=~\"apps|tools\", node=~\"$machine|\"}), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\")))[$__interval:10s])",
+     "legendFormat": "{{pod_app}}",
+     "range": true,
+     "instant": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "#898781"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#2a78d6",
+        "value": null
+       }
+      ]
+     },
+     "mappings": [
+      {
+       "type": "value",
+       "options": {
+        "1": {
+         "text": "running",
+         "color": "#2a78d6",
+         "index": 0
+        },
+        "2": {
+         "text": "waiting for room",
+         "color": "#fab219",
+         "index": 1
+        },
+        "3": {
+         "text": "failed",
+         "color": "#d03b3b",
+         "index": 2
+        }
+       }
+      }
+     ],
+     "custom": {
+      "lineWidth": 0,
+      "fillOpacity": 90,
+      "spanNulls": false
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "mergeValues": true,
+    "showValue": "never",
+    "alignValue": "left",
+    "rowHeight": 0.85,
+    "legend": {
+     "showLegend": true,
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "single",
+     "sort": "none"
+    }
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 3,
+    "w": 24,
+    "h": 16
+   },
+   "id": 5
+  },
+  {
+   "type": "timeseries",
+   "title": "Memory: booked against really used",
+   "description": "When the orange line reaches the red one, the next pod waits even if the blue line is far below.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(kube_node_status_allocatable{resource=\"memory\", node=\"$machine\"})",
+     "legendFormat": "room for pods",
+     "range": true,
+     "instant": false
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(kube_pod_container_resource_requests{resource=\"memory\", node=\"$machine\"} and on (namespace, pod) (kube_pod_status_phase{phase=\"Running\"} == 1))",
+     "legendFormat": "booked by running pods",
+     "range": true,
+     "instant": false
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(container_memory_working_set_bytes{node=\"$machine\", container!=\"\"})",
+     "legendFormat": "really used",
+     "range": true,
+     "instant": false
+    },
+    {
+     "refId": "D",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(kube_pod_container_resource_requests{resource=\"memory\"} and on (namespace, pod) (kube_pod_status_phase{phase=\"Pending\"} == 1)) or vector(0)",
+     "legendFormat": "wanted by pods waiting",
+     "range": true,
+     "instant": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bytes",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "pointSize": 6,
+      "drawStyle": "line",
+      "spanNulls": false,
+      "stacking": {
+       "mode": "none",
+       "group": "A"
+      },
+      "axisSoftMin": 0,
+      "gradientMode": "none",
+      "lineInterpolation": "smooth"
+     },
+     "color": {
+      "mode": "palette-classic"
+     },
+     "min": 0
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "room for pods"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#d03b3b"
+        }
+       },
+       {
+        "id": "custom.lineStyle",
+        "value": {
+         "fill": "dash",
+         "dash": [
+          8,
+          6
+         ]
+        }
+       },
+       {
+        "id": "custom.fillOpacity",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "booked by running pods"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#fab219"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "really used"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#2a78d6"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "wanted by pods waiting"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#898781"
+        }
+       },
+       {
+        "id": "custom.drawStyle",
+        "value": "bars"
+       },
+       {
+        "id": "custom.fillOpacity",
+        "value": 40
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 19,
+    "w": 24,
+    "h": 9
+   },
+   "id": 6
+  },
+  {
+   "type": "table",
+   "title": "Waiting now, and for how long",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sort_desc(max by (pod) ((time() - kube_pod_created) and on (namespace, pod) (kube_pod_status_phase{phase=\"Pending\"} == 1)))",
+     "legendFormat": "{{pod}}",
+     "range": false,
+     "instant": true,
+     "format": "table"
+    }
+   ],
+   "transformations": [
+    {
+     "id": "filterFieldsByName",
+     "options": {
+      "include": {
+       "names": [
+        "Value",
+        "pod"
+       ]
+      }
+     }
+    },
+    {
+     "id": "organize",
+     "options": {
+      "renameByName": {
+       "pod": "Pod"
+      },
+      "indexByName": {
+       "pod": 0,
+       "Value": 1
+      }
+     }
+    },
+    {
+     "id": "sortBy",
+     "options": {
+      "sort": [
+       {
+        "field": "Value",
+        "desc": true
+       }
+      ]
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": false
+     },
+     "noValue": "Nothing"
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Value"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "s"
+       },
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "gauge",
+         "mode": "basic",
+         "valueDisplayMode": "text"
+        }
+       },
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#fab219"
+        }
+       },
+       {
+        "id": "min",
+        "value": 0
+       },
+       {
+        "id": "custom.width",
+        "value": 170
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": false,
+    "cellHeight": "sm",
+    "footer": {
+     "show": false
+    }
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 28,
+    "w": 12,
+    "h": 7
+   },
+   "id": 7
+  },
+  {
+   "type": "table",
+   "title": "On this machine now: rank, booked, used",
+   "description": "Rank decides who gives way: a waiting pod of a higher rank pushes out lower ones (see k8s/cluster/priority.yaml).",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max by (pod, priority_class) (kube_pod_info{node=\"$machine\"} and on (namespace, pod) (kube_pod_status_phase{phase=\"Running\"} == 1))",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true,
+     "format": "table"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (pod) (kube_pod_container_resource_requests{resource=\"memory\", node=\"$machine\"} and on (namespace, pod) (kube_pod_status_phase{phase=\"Running\"} == 1))",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true,
+     "format": "table"
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (pod) (kube_pod_container_resource_limits{resource=\"memory\", node=\"$machine\"} and on (namespace, pod) (kube_pod_status_phase{phase=\"Running\"} == 1))",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true,
+     "format": "table"
+    },
+    {
+     "refId": "D",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (pod) (container_memory_working_set_bytes{node=\"$machine\", container!=\"\"})",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true,
+     "format": "table"
+    }
+   ],
+   "transformations": [
+    {
+     "id": "joinByField",
+     "options": {
+      "byField": "pod",
+      "mode": "inner"
+     }
+    },
+    {
+     "id": "organize",
+     "options": {
+      "excludeByName": {
+       "Time": true,
+       "Time 1": true,
+       "Time 2": true,
+       "Time 3": true,
+       "Time 4": true,
+       "Value #A": true
+      },
+      "indexByName": {
+       "pod": 0,
+       "priority_class": 1,
+       "Value #B": 2,
+       "Value #D": 3,
+       "Value #C": 4
+      },
+      "renameByName": {
+       "pod": "Pod",
+       "priority_class": "Rank",
+       "Value #B": "Booked",
+       "Value #D": "Used",
+       "Value #C": "Limit"
+      }
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": false
+     },
+     "noValue": "Nothing running"
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Booked"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       },
+       {
+        "id": "custom.width",
+        "value": 84
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Used"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       },
+       {
+        "id": "custom.width",
+        "value": 84
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Limit"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       },
+       {
+        "id": "custom.width",
+        "value": 84
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm",
+    "footer": {
+     "show": false
+    },
+    "sortBy": [
+     {
+      "displayName": "Booked",
+      "desc": true
+     }
+    ]
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 28,
+    "w": 12,
+    "h": 7
+   },
+   "id": 8
+  }
+ ]
+}

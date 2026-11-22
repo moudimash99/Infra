@@ -235,11 +235,11 @@
 - name: mail-classifier
   what: "Trained mail classifier API for the Gmail archiver. Since 2026-11-11 it decides (archiver MODEL_DECIDES = True): it archives emails the rules keep when it is sure and no guard or block applies. If it does not answer within 3 s, the email stays in the inbox."
   kind: web-app
-  runs: "k8s apps/Deployment mail-classifier on acer-laptop (rank steps-aside since 2026-11-20, strategy Recreate)"
+  runs: "k8s apps/Deployment mail-classifier on acer-laptop (rank steps-aside since 2026-11-20, strategy Recreate; 0 or 1 copy at night since 2026-11-21, owned by apps/Deployment mail-classifier-waker)"
   manifest: Email-remove/ml/service/mail-classifier.yaml (NOT in Infra/k8s; image line holds the placeholder MODEL_TAG)
   image: "docker.io/library/mail-classifier:both-20261110-r2 (pull Never; tag = model version; built 2026-11-10 00:51)"
   schedule: null
-  url: "http://mail-classifier.apps.svc.cluster.local/classify in the cluster (the archiver); NodePort 30880 on every node for the home network; no Ingress, private email text"
+  url: "http://mail-classifier.apps.svc.cluster.local/classify in the cluster (the archiver, the lab); NodePort 30880 on every node for the home network; both reach the waker, which passes calls to Service mail-classifier-backend; GET /waker answers without waking it; no Ingress, private email text"
   data:
     - "none (model baked into the image)"
   code:
@@ -250,15 +250,17 @@
   deploy: >-
     build-context.ps1 on the PC, docker build on the server, import on the Acer, replace MODEL_TAG in
     mail-classifier.yaml, kubectl apply.
-  check: "Readiness/liveness GET /health on :8080; Prometheus scrapes /metrics via pod annotations; ml/service/remote_check.py against :30880"
+  check: "Readiness/liveness GET /health on :8080 (the waker: /waker on :8933; `kubectl -n apps logs deploy/mail-classifier-waker` shows each stop and start); Prometheus scrapes /metrics via pod annotations; ml/service/remote_check.py against :30880"
   probes:
-    - {k8s: apps/Deployment/mail-classifier}
-    - {http: "http://192.168.1.116:30880/health", expect: [200]}
+    - {k8s: apps/Deployment/mail-classifier-waker}
+    - {k8s: apps/Deployment/mail-classifier, on_demand: true}
+    - {http: "http://192.168.1.116:30880/waker", expect: [200]}
   drift:
     - "Live in the cluster but not in Infra/k8s and not in the README; its manifest lives in Email-remove, which has no version control."
   notes:
     - "Called by the Gmail archiver (CronJob apps/email-remove on the Acer since 2026-11-20; shadow.py)."
     - "Rank steps-aside (22000, 2026-11-20): cat flash (00:20, 19:20, ~4 min) and BoardGameFinder (05:00, ~1 h) may stop it to get its memory; its Deployment brings it back when they end. The archiver keeps the emails it could not classify in state.json model_waits and asks again once it answers (user: off at night is fine \"as long as by time i wake up it ran\")."
+    - "Asleep at night when idle since 2026-11-21 (user: off at night is fine as long as it ran by the morning): mail-classifier-waker stops it after 30 min without a call between 23:00 and 07:00 and starts it at 07:00; in the day it never stops it. A call wakes it in about 80 s: the archiver gets 503 (ASK_WAIT_S 2, under its 3 s), the email waits in model_waits and is asked next run. The lab's mail page and remote_check.py call /health and wake it too. Tested 2026-11-21 02:31: stopped by hand, back in 77 s. Manifest backup: mail-classifier.yaml.before-waker-2026-11-21."
     - "After a restart the first answers can take over 3 s (model warm-up): the archiver then marks it down for that run and asks again next run."
 
 - name: llm-gateway
@@ -318,12 +320,11 @@
     branch: main everywhere
     version_check: "checkout moudimash99@192.168.1.116:/srv/apps/freemotion/ws"
     deployed_equals_pc_main: >-
-      fm-agent ccf7714, fm-core 0e3fc2f, fm-docs 0ed0985, fm-llm 933c953, fm-mail 7c2d9b0, fm-orchestrator 06d3c2d,
-      fm-pool ab6a896, fm-web 08e7197 (server ws = PC main for all eight)
+      fm-agent c6fcd21, fm-core 0e3fc2f, fm-docs 0ed0985, fm-llm 933c953, fm-mail 7c2d9b0, fm-orchestrator e98cca7,
+      fm-pool 940b886, fm-web 08e7197 (server ws = PC main for all eight; the memory-diet fix, fm-pool#7, deployed
+      2026-11-21 ~11:18 with fm/.worktrees/deploy-memory-fix.sh)
     newer_not_deployed: >-
-      memory-diet branches (fm-pool#7 memory fix, 2026-11-12): fm-agent +1, fm-orchestrator +2, fm-pool +1, in
-      fm/.worktrees, deploy script fm/.worktrees/deploy-memory-fix.sh. Image: Infra/images/fm b161c73 (2026-11-10 23:37)
-      and b10d975 (2026-11-11 01:52) are not in fm:2026-11-10a.
+      Image: Infra/images/fm b161c73 (2026-11-10 23:37) and b10d975 (2026-11-11 01:52) are not in fm:2026-11-10a.
     uncommitted: "fm-pool 2 files (make-pool.mjs, its test); fm-web untracked package-lock.json (PC and server); fm-data 1150 (data repo)"
     unpushed: "fm-pool main is 3 commits ahead of origin/main on GitHub (the server's bare repo has them)"
   deploy: >-
@@ -343,8 +344,8 @@
   drift:
     - "fm-controller live has WEB_LLM_OFF=1 (applied 2026-11-11 21:57); the manifest has WEB_LLM_URL=http://fm-webllm...:8933 (commits 1625f9c, 4ae8ac5) and was never re-applied, so the controller does not use fm-webllm although fm-webllm runs."
     - "The image predates two images/fm commits (b161c73 shared browser context, b10d975 dbus env); fm-browser.yaml spells the browser args out until the next build."
-    - "memory-diet fixes built and committed, not deployed."
   notes:
+    - "Memory fix (fm-pool#7) live since 2026-11-21 ~11:18: score loops run with --max-old-space-size=384 under a bash keeper (each end logged in fm-data/tmp/fm/scheduled/loop-<name>.err; a heap abort restarts in 5 min), the hub agent with a 384 MB cap. Before it, the loops reached 0.7 and 1.2 GB RSS (11:15). Check after each 06:00 scan: controller restarts, the .err files for 'heap limit'."
     - "fm-controller was OOMKilled on 2026-11-13 05:00 (2 restarts)."
     - "fm-webllm on demand since 2026-11-20 (user: the website helper \"will be needed for freemotion ... we need it based on demand\", not a timer): fm-webllm-waker starts it when a call or /health comes in, holds the call until it answers (up to 5 min, else 503 = busy, the caller's next writer takes the job) and stops it after 30 min without calls. Its Gemini pace and cap are files on /web-llm, so restarts lose nothing. The manifest has no replicas on purpose. Rank stays batch-high (never pushes anyone out): with no room, it waits."
     - "PC tasks \\career-ops\\FreeMotion agent/burn/loops/night/replies/scan/weekly: all Disabled (last runs 2026-11-09..11); the PC is also blocked by %USERPROFILE%\\.fm-moved.json (present, 2026-11-11 19:22). Never run both (one never-apply-twice ledger)."
@@ -426,7 +427,7 @@
     - "Whisper captions done on the PC on 2026-11-18 were pushed to the Acer on 2026-11-20 (231/231); the folder Documents/Coding/bg-taste-match-pending-captions stays as a spare copy."
     - "PC backup 2026-11-20: the PC's whole bg-taste-match folder (code, .git, audio 20.7 GB, captions, diar, DBs; not .venv-voice) and the pending-captions folder, copied to the server at /srv/backups/pc-2026-11-20 (read-only, MANIFEST.sha256 checked file by file)."
     - "The llm stage reaches fm-webllm through fm-webllm-waker (2026-11-20): run_llm.sh's minute of /health tries wakes the helper."
-    - "OPEN 2026-11-20 night: every Gemini website call from the rating (20:45, 21:00, 21:15...) hung until the helper's 900 s limit (web-llm-serve: 'ask gemini: exit 1, N chars in, 0 out'; the caller's subprocess times out at 900 s too), so nothing was rated. The helper pod reaches Google fine (DNS and HTTPS in under a second) and every call arrived through the waker, so it is the Gemini website session itself (cookies.json from 2026-11-11, or gemini-webapi). Not probed with extra calls, so as not to prolong any Google block."
+    - "OPEN 2026-11-20 night: every Gemini website call from the rating (20:45, 21:00, 21:15...) hung until the helper's 900 s limit (web-llm-serve: 'ask gemini: exit 1, N chars in, 0 out'; the caller's subprocess times out at 900 s too), so nothing was rated. The helper pod reaches Google fine (DNS and HTTPS in under a second), and its own log shows each prompt arriving whole through the waker (7,000-24,000 chars in) before its Gemini step returns nothing: the hang is in that step (the Gemini website session: cookies.json from 2026-11-11, or gemini-webapi), not the waker. Still so at 01:00 on 2026-11-21; no ask has answered through the waker yet. While it lasts the helper stays booked (1 GiB) all night, so BoardGameFinder at 05:00 must also push out the bg-taste-match shell and leaves 57 Mi, too little for the archiver until it ends. Not probed with extra calls, so as not to prolong any Google block."
 
 - name: cat-camera-jobs
   what: "Cat camera jobs from the Cat-Camera repo: cat-flash (flash of the day video) and cat-monitor (feeding monitor, YOLO on the GPU)."
@@ -598,7 +599,8 @@
     - {k8s: monitoring/Deployment/grafana}
   drift:
     - "The PC jobs dashboard has no data source: the PC's lab-report task is not installed (see lab-sites)."
-  notes: []
+  notes:
+    - "2026-11-21: dashboard Who gets in (/d/scheduling) added and applied; Grafana restarted (Recreate) for it."
 
 - name: alertmanager
   what: Turns Prometheus alerts into plain-word emails through Gmail SMTP.

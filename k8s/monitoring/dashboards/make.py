@@ -1,6 +1,6 @@
 """The homelab's own Grafana dashboards, made from short definitions so they stay consistent. Run after a change:
 
-    python k8s/monitoring/dashboards/make.py      (writes home.json, usage.json, jobs.json, pc.json here)
+    python k8s/monitoring/dashboards/make.py      (writes home.json, usage.json, jobs.json, pc.json, scheduling.json here)
 
 Phone first: Grafana stacks panels in one column below 769 px, in grid order, so each dashboard reads top to bottom
 as answers: the one-glance stats first (short stat tiles), then lists (bar gauges and short tables), then charts.
@@ -10,6 +10,7 @@ Details are in collapsed rows. Each machine keeps its own colour everywhere (ser
   usage  "What is using the machines?"  memory / CPU / GPU per app and per program, now and over time
   jobs   "Scheduled jobs"               every run of the last week: when, how long, result, memory, OOM kills
   pc     "PC jobs"                       the Windows PC's scheduled jobs, from its reports to the lab
+  scheduling "Who gets in"           each app on a machine: running, waiting for room, failed; booked vs used memory
 """
 import json
 import os
@@ -411,8 +412,145 @@ pc = dashboard("pc-jobs", "PC jobs", time="now-24h", refresh="5m",
            w=24, h=7, unit="none"),
 ])
 
+# ---------------------------------------------------------------------------------------------------------------
+# scheduling: who gets in on a machine, and who waits for room (made 2026-11-21 from the "Acer Scheduling Night" page)
+#
+# One row per app: blue while it runs, orange while it waits for room (Pending), red for 10 minutes after it fails.
+# Short runs are the hard part: kube-state-metrics is scraped every 30 s and a fetch run takes 20 s. Pod phases alone
+# miss such runs, so a Job's run is drawn from its start and completion times instead, read 1 minute ahead
+# (offset -1m) so that a run that began and ended between two scrapes is still placed where it was. Each point is the
+# worst state seen in its interval at 10 s steps (failed over waiting over running), so nothing shorter than a pixel
+# disappears. The last minute of Job runs lags by up to a minute because of the look-ahead.
+
+
+def named(x):
+    """pod -> pod_app: the app or job behind a pod (a pod with no hash suffix, a StatefulSet's, keeps its name)."""
+    return f'label_replace(label_replace({x}, "pod_app", "$1", "pod", "(.+)"), {APP})'
+
+
+NS = 'namespace=~"apps|tools"'
+ON_MACHINE = f'and on (namespace, pod) kube_pod_info{{{NS}, node=~"$machine|"}}'   # "" = not placed yet (waiting)
+IN_RUNNING = 'and on (namespace, pod) (kube_pod_status_phase{phase="Running"} == 1)'
+IN_PENDING = 'and on (namespace, pod) (kube_pod_status_phase{phase="Pending"} == 1)'
+
+
+def worst(x):
+    return f'max_over_time(({x})[$__interval:10s])'
+
+
+S_RUNNING = 'max by (pod_app) (' + named('(kube_pod_status_phase{phase="Running"} == 1 ' + ON_MACHINE + ')') + ')'
+S_WAITING = 'max by (pod_app) (' + named('(kube_pod_status_phase{phase="Pending"} == 1 ' + ON_MACHINE + ')') + ')'
+S_FAILED = ('max by (pod_app) (' + named('((kube_pod_status_phase{phase="Failed"} == 1 unless on (namespace, pod) '
+                                         '(kube_pod_status_phase{phase="Failed"} offset 10m == 1)) ' + ON_MACHINE + ')')
+            + ')')
+JOB_ON_MACHINE = ('label_replace((kube_pod_owner{' + NS + ', owner_kind="Job"} offset -1m) and on (namespace, pod) '
+                  '(kube_pod_info{node="$machine"} offset -1m), "job_name", "$1", "owner_name", "(.+)")')
+S_JOB = ('max by (pod_app) (label_replace(label_replace('
+         '((kube_job_status_start_time{' + NS + '} offset -1m) <= time()'
+         ' unless on (namespace, job_name) ((kube_job_status_completion_time offset -1m) <= time())'
+         ' unless on (namespace, job_name) (kube_job_failed{condition="true"} == 1))'
+         ' and on (namespace, job_name) ' + JOB_ON_MACHINE + ','
+         ' "pod_app", "$1", "job_name", "(.+)"), "pod_app", "$1", "job_name", "^(.+)-[0-9]{6,}$")) * 0 + 1')
+STATE = (f'(3 * {worst(S_FAILED)}) or (2 * {worst(S_WAITING)}) or {worst(S_JOB)} or {worst(S_RUNNING)}')
+
+ALLOC = 'sum(kube_node_status_allocatable{resource="memory", node="$machine"})'
+BOOKED = ('sum(kube_pod_container_resource_requests{resource="memory", node="$machine"} ' + IN_RUNNING + ')')
+WANTED = 'sum(kube_pod_container_resource_requests{resource="memory"} ' + IN_PENDING + ') or vector(0)'
+USED = 'sum(container_memory_working_set_bytes{node="$machine", container!=""})'
+STATES = [{"type": "value", "options": {"1": {"text": "running", "color": BLUE, "index": 0},
+                                        "2": {"text": "waiting for room", "color": ORANGE, "index": 1},
+                                        "3": {"text": "failed", "color": RED, "index": 2}}}]
+
+
+def timeline(title, expr, legend, w=24, h=14, desc=""):
+    # Colour "fixed", not "thresholds": with thresholds a state timeline names its bars by range ("2+", "-∞+") and
+    # ignores the value mappings. Fixed lets the mappings give each state its name and colour.
+    return {"type": "state-timeline", "title": title, "description": desc, "datasource": DS, "w": w, "h": h,
+            "interval": "30s", "maxDataPoints": 1500, "targets": [target(expr, legend)],
+            "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": GREY}, "thresholds": steps(BLUE),
+                                         "mappings": STATES,
+                                         "custom": {"lineWidth": 0, "fillOpacity": 90, "spanNulls": False}},
+                            "overrides": []},
+            "options": {"mergeValues": True, "showValue": "never", "alignValue": "left", "rowHeight": 0.85,
+                        "legend": {"showLegend": True, "displayMode": "list", "placement": "bottom"},
+                        "tooltip": {"mode": "single", "sort": "none"}}}
+
+
+def event_annotation(name, expr, title, color):
+    return {"name": name, "datasource": DS, "enable": True, "iconColor": color, "expr": expr, "step": "1m",
+            "titleFormat": title, "textFormat": "", "tagKeys": "", "useValueForTime": False}
+
+
+scheduling = dashboard("scheduling", "Who gets in", time="now-12h", refresh="1m", variables=[machine_var()],
+                       desc="Each app on a machine: when it ran, when it waited for room, when it failed; and the "
+                            "memory booked against what is really used.", panels=[
+    stat("Running now", [('count(kube_pod_status_phase{phase="Running"} == 1 and on (namespace, pod) '
+                          'kube_pod_info{node="$machine"})', "")], w=6, h=3, text="value", color_mode="none",
+         desc="Pods running on this machine now, every namespace."),
+    stat("Waiting for room now", [('count(kube_pod_status_phase{phase="Pending"} == 1) or vector(0)', "")], w=6, h=3,
+         text="value", thr=steps(GREEN, 1, ORANGE), mappings=[{"type": "value", "options": {"0": {"text": "None"}}}],
+         desc="Pods that exist but have no machine yet, usually because the memory they book doesn't fit."),
+    stat("Booked", [(f'{BOOKED} / {ALLOC} * 100', "")], w=6, h=3, unit="percent", text="value", color_mode="value",
+         thr=steps(GREEN, 90, ORANGE, 97, RED), decimals=0,
+         desc="Memory the running pods have booked (requests), as a share of what the machine gives pods. A new pod "
+              "gets in only if its own booking fits in the rest, whatever is really used."),
+    stat("Really used", [(f'{USED} / {ALLOC} * 100', "")], w=6, h=3, unit="percent", text="value",
+         color_mode="value", thr=steps(GREEN, 85, ORANGE, 95, RED), decimals=0),
+    timeline("Every app: running, waiting, failed", STATE, "{{pod_app}}", h=16,
+             desc="Blue: running. Orange: waiting for room (the booking didn't fit). Red: failed (for 10 minutes "
+                  "after). Empty: not there. Point at a bar for its exact start and length. Markers on top: purple, "
+                  "a pod pushed out to make room for a higher rank (the scheduler) or by a short machine (eviction); "
+                  "red, a container killed for memory. Apps in apps and tools; the monitoring pods are left out."),
+    series("Memory: booked against really used", [
+        (ALLOC, "room for pods"), (BOOKED, "booked by running pods"), (USED, "really used"),
+        (WANTED, "wanted by pods waiting")], w=24, h=9, unit="bytes",
+        overrides=[field("room for pods", [{"id": "color", "value": {"mode": "fixed", "fixedColor": RED}},
+                                           {"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [8, 6]}},
+                                           {"id": "custom.fillOpacity", "value": 0}]),
+                   field("booked by running pods", [{"id": "color", "value": {"mode": "fixed", "fixedColor": ORANGE}}]),
+                   field("really used", [{"id": "color", "value": {"mode": "fixed", "fixedColor": BLUE}}]),
+                   field("wanted by pods waiting", [{"id": "color", "value": {"mode": "fixed", "fixedColor": GREY}},
+                                                    {"id": "custom.drawStyle", "value": "bars"},
+                                                    {"id": "custom.fillOpacity", "value": 40}])],
+        desc="When the orange line reaches the red one, the next pod waits even if the blue line is far below."),
+    bars("Waiting now, and for how long",
+         'sort_desc(max by (pod) ((time() - kube_pod_created) ' + IN_PENDING + '))', "{{pod}}", w=12, h=7,
+         unit="s", color=ORANGE),
+    table("On this machine now: rank, booked, used",
+          [target('max by (pod, priority_class) (kube_pod_info{node="$machine"} ' + IN_RUNNING + ')', instant=True,
+                  fmt="table", ref="A"),
+           target('sum by (pod) (kube_pod_container_resource_requests{resource="memory", node="$machine"} '
+                  + IN_RUNNING + ')', instant=True, fmt="table", ref="B"),
+           target('sum by (pod) (kube_pod_container_resource_limits{resource="memory", node="$machine"} '
+                  + IN_RUNNING + ')', instant=True, fmt="table", ref="C"),
+           target('sum by (pod) (container_memory_working_set_bytes{node="$machine", container!=""})',
+                  instant=True, fmt="table", ref="D")],
+          [{"id": "joinByField", "options": {"byField": "pod", "mode": "inner"}},
+           {"id": "organize", "options": {
+               "excludeByName": {"Time": True, "Time 1": True, "Time 2": True, "Time 3": True, "Time 4": True,
+                                 "Value #A": True},
+               "indexByName": {"pod": 0, "priority_class": 1, "Value #B": 2, "Value #D": 3, "Value #C": 4},
+               "renameByName": {"pod": "Pod", "priority_class": "Rank", "Value #B": "Booked", "Value #D": "Used",
+                                "Value #C": "Limit"}}}],
+          [field(n, [{"id": "unit", "value": "bytes"}, {"id": "decimals", "value": 0}, {"id": "custom.width", "value": 84}])
+           for n in ("Booked", "Used", "Limit")],
+          w=12, h=7, sort=[{"displayName": "Booked", "desc": True}], no_value="Nothing running",
+          desc="Rank decides who gives way: a waiting pod of a higher rank pushes out lower ones (see "
+               "k8s/cluster/priority.yaml)."),
+])
+scheduling["annotations"]["list"] = [
+    event_annotation("Pushed out", '(kube_pod_status_reason{reason=~"PreemptionByScheduler|Evicted"} == 1 unless '
+                     'kube_pod_status_reason{reason=~"PreemptionByScheduler|Evicted"} offset 1m == 1) '
+                     'and on (namespace, pod) (kube_pod_info{node="$machine"} offset 2m)',
+                     "{{pod}} pushed out ({{reason}})", "purple"),
+    event_annotation("Killed for memory", '(kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1 '
+                     'unless kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} offset 1m == 1) '
+                     'and on (namespace, pod) kube_pod_info{node="$machine"}',
+                     "{{pod}} / {{container}} killed for memory", "red"),
+]
+
 if __name__ == "__main__":
-    for name, d in (("home", home), ("usage", usage), ("jobs", jobs), ("pc", pc)):
+    for name, d in (("home", home), ("usage", usage), ("jobs", jobs), ("pc", pc), ("scheduling", scheduling)):
         with open(os.path.join(HERE, f"{name}.json"), "w", encoding="utf-8") as f:
             json.dump(d, f, indent=1)
         print(f"{name}.json: {len(d['panels'])} panels")

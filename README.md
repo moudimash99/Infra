@@ -62,7 +62,10 @@ k3s agent. It runs on Wi-Fi (`wlp2s0`, MAC `3c:95:09:a0:1e:b5`); Ethernet (`enp3
 - **Firewall (ufw):** SSH from anywhere; from 192.168.1.0/24: 10250/tcp (kubelet), 8472/udp (flannel),
   9110/tcp (node-exporter), 45876/tcp (Beszel), 5000/tcp, 8554/tcp and 8555 tcp+udp (Frigate); everything
   from 10.42.0.0/16 and 10.43.0.0/16.
-- **Laptop settings:** swap off, sleep masked, lid ignored, Wi-Fi power saving off
+- **Laptop settings:** sleep masked, lid ignored, Wi-Fi power saving off. Swap since 2026-11-21: zswap (zstd, zsmalloc,
+  at most 25% of RAM, no writeback shrinker; `zswap-setup.service`) in front of a 6 GB `/swapfile` on the hard disk
+  (the SSD is the one that failed), and the kubelet drop-in `/srv/k3s/agent/etc/kubelet.conf.d/50-swap.conf`
+  (`memorySwap.swapBehavior: LimitedSwap`)
   (`wifi-powersave-off.service`), screen off (`screen-off.service`).
 - **GPUs:** the Intel HD 630 is Frigate's (VA-API decoding, OpenVINO detection) and the only display device in
   `/dev/dri`. The GeForce GTX 1050 (4 GB) is for CUDA only. `nouveau` is blacklisted (2026-11-02), and since
@@ -145,13 +148,24 @@ of the code and data stopped updating that day.
 | bg-taste-match-fetch / -gpu / -llm | every 2 h / hourly, **paused on purpose** (GPU heat) / hourly 20:45-08:45 | Acer | `/srv/apps/bg-taste-match` (code + data), audio in `/var/lib/bg-taste-match/audio` (1 TB disk) |
 | email-remove (the Gmail archiver) | every 3 min (moved from the PC on 2026-11-20) | Acer | `/srv/apps/email-remove` (code + private data, mode 700); Secret `email-remove` |
 
-**Memory on the Acer** (6.6 GiB for pods): the scheduler places a pod only where its booking (memory request) fits,
-and the bookings are full long before the memory is (busiest normal hour ~4.7 GB used, 2026-11-20). Ranks
-(`k8s/cluster/priority.yaml`) decide who gives way: cat-flash and BoardGameFinder (`batch-make-room`) may stop lower
-pods to start, which in practice is the mail classifier (`steps-aside`) for their few minutes or hour; it comes back
-by itself, and the archiver asks again about the emails it could not classify. Free Motion (`batch-high`), Frigate,
-the sites and monitoring rank above them and are never pushed out. There is no kubelet memory eviction on this k3s:
-if the pods really ran out, the kernel would kill by size. The GPU jobs stay paused except on nights the user allows.
+**Memory on the Acer** (6.6 GiB for pods): two separate questions.
+- *Placing pods* uses bookings (memory requests), not real use; the bookings were full long before the memory. Ranks
+  (`k8s/cluster/priority.yaml`) decide who gives way: cat-flash and BoardGameFinder (`batch-make-room`) may stop lower
+  pods to start, in practice the mail classifier (`steps-aside`) and the bg-taste-match shell; they come back by
+  themselves, and the archiver asks again about the emails it could not classify. No *job* can push out Free Motion
+  (`batch-high`); Frigate, the sites and monitoring (homelab ranks) rank above everything.
+- *Running* uses real memory, which only the limits cap per pod. With Free Motion idle, the busiest normal hour used
+  ~4.7 GB; with Free Motion applying (2026-11-12/13) the pods reached ~6.0 GiB, and at full speed with its website
+  writer in use they reach the 6.6 GiB cap. There is no kubelet memory eviction on this k3s and the ranks play no
+  part here: past the cap the kernel kills whole containers (`memory.oom.group=1`) by size plus a small booking
+  (`oom_score_adj` = 1000 - 1000 x request / 7809 Mi): the classifier or a running job first, then the small-booked
+  always-on pods, Free Motion's browsers and Frigate last.
+- Since 2026-11-21 two things soften that: **swap** (see "Laptop settings": a pod past its own limit or a full Acer
+  compresses its cold pages, ~2.5:1, instead of being killed; each Burstable container may swap request/7809 Mi of
+  the 6 GB, e.g. 805 MiB per Free Motion browser, ~100 MiB for a 128 Mi pod; a container gets it when it is created),
+  and **the classifier asleep at night when idle** (`mail-classifier-waker`, 23:00-07:00, in
+  `Email-remove/ml/service/mail-classifier.yaml`), which frees its 0.7-1.1 GiB for the night jobs and Free Motion.
+- The GPU jobs stay paused except on nights the user allows.
 
 bg-taste-match also has an idle `bg-taste-match-shell` pod with the same mounts, for stages run by hand
 (`kubectl -n apps exec deploy/bg-taste-match-shell -- python score.py <user>`). Its image holds only the environment:
@@ -260,6 +274,11 @@ phone first, so each reads top to bottom as answers, details in collapsed rows, 
   `gpu-procs` collector), programs outside containers, Docker on the server; then the same over time.
 - **Scheduled jobs**: time since each job's last good run, what's paused or running, every run of the last 7 days
   (when, how long, result) read back from Prometheus, run times, memory against the limit, out-of-memory kills.
+- **Who gets in** (`/d/scheduling`, pick a machine; made 2026-11-21): one row per app, blue while it runs, orange while
+  it waits for room (Pending), red for 10 minutes after it fails; purple markers where a pod was pushed out
+  (preempted or evicted) and red ones for memory kills. Job runs are drawn from their start and end times read 1 minute
+  ahead, so 20-second runs between two 30 s scrapes still show (the last minute lags). Then booked against really used
+  memory, who is waiting now, and each running pod's rank, booking, use and limit.
 - **PC jobs**: the Windows PC's scheduled tasks and its jobs' numbers (archived today, FreeMotion, Upwork), from the
   reports `lab/pc-report/report.ps1` sends to the lab every 10 minutes (set up with `lab/pc-report/install.ps1`; not
   installed on the PC as of 2026-11-20, and its archiver numbers read the PC's archiver.log, which stopped growing when
