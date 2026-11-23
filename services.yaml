@@ -473,7 +473,7 @@
   system: board-games
   lifecycle: production
   depends_on: [llm-gateway]
-  runs: "k8s apps/CronJob boardgamefinder (nightly pipeline) and apps/CronJob boardgamefinder-fetch (Okkazeo pages, all day) on acer-laptop; PC Task Scheduler copy BoardGameFinder_DailyRun (disabled)"
+  runs: "k8s apps/CronJob boardgamefinder (nightly pipeline) and apps/CronJob boardgamefinder-fetch (Okkazeo pages, all day) on acer-laptop"
   manifest: Infra/k8s/apps/boardgamefinder/boardgamefinder.yaml
   image: "boardgamefinder:2026-11-22c, built on the server in ~/build/boardgamefinder-20261122c from a git archive of master f43875d (pull Never)"
   schedule: "boardgamefinder-fetch 0 10 * * * Europe/Paris, stops itself at 04:00 (startingDeadlineSeconds 6 h, activeDeadlineSeconds 18.5 h, batch-high, 384Mi). boardgamefinder 30 4 * * * Europe/Paris (startingDeadlineSeconds 1 h, activeDeadlineSeconds 5 h, batch-make-room, 512Mi). Before 2026-11-22: one job at 05:00 (07:00 until 11-20)."
@@ -493,6 +493,7 @@
   drift:
     - "None: both CronJobs run image 2026-11-22c, built from master f43875d."
   notes:
+    - "Clean-up 2026-11-23 (BoardGameFinder#6, user OK): only image 2026-11-22c is kept on the server and the Acer (10a, 10b, 22, 22b removed, with the server's build folders), Job bgf-test-1 deleted, the PC's disabled task BoardGameFinder_DailyRun unregistered and its stale data/Games.db and scripts/scratch/finder_copy.db deleted. scripts/weeklyscript.bat stays: app.py and the setup scripts still name it."
     - "suspend: true ON PURPOSE, live and in the manifest, from 2026-11-22 for 3 days (the user's call, to let Okkazeo's block lapse). The PC scheduled task bgf-resume-after-pause resumes both CronJobs on 2026-11-25 15:00 (the fetcher starts at once and ends at 04:00; first nightly run 11-26 04:30), and bgf-report-after-resume emails the user how that run went. BoardGameFinderMissed is quiet while it is suspended (rule changed 2026-11-22) and fires again from the resume until a run succeeds. The user's longer-term fix, built the same day: spread the Okkazeo requests over the day (the fetcher, below) instead of ~1,650 page loads in about an hour."
     - "From 2026-11-22 (the user's design, after Okkazeo's block): boardgamefinder-fetch loads one Okkazeo page at a time from 10:00 to 04:00, spread over the window (about one every 35 s, never under 20 s), and saves each under data/fetch/cycle-*; it opens Games.db read-only once, at the start, to plan the day. The nightly job reads the saved pages in (scripts/parse_pages.py), deletes them, and loads no Okkazeo page (BGF_NO_OKKAZEO=1: Okkazeo hosts don't resolve, so the deal screenshot has no game pictures; the email has them). A game's unseen ads are marked gone only when all its pages loaded that day. Bundle reviews use descriptions the fetcher saved the day before, so they lag a day."
     - "The fetcher is batch-high, not batch-mid (the user's choice, 2026-11-22): cat flash (batch-make-room, 1Gi at 19:20 and 00:20) stops the lowest pods first, and a fetcher stopped mid-day loses the rest of its day."
@@ -501,8 +502,6 @@
     - "No good run since 2026-11-11 07:59. Runs of 2026-11-18, 11-19 and 11-20 failed with DeadlineExceeded (6 h limit; the 11-20 one ended before the Acer went NotReady). Outcomes of 11-12..11-17 unknown (failed Jobs beyond the last 3 are pruned). 11-21 and 11-22 ran and failed at price_finder (Okkazeo, below)."
     - "Why the runs fail (BoardGameFinder session, 2026-11-22): since 2026-11-21 05:40 Okkazeo answers the container's Chrome (HeadlessChrome/156, Linux) with a bare page, 'Aucune annonce pour le moment', with no ads and no search results; a test pod with image 2026-11-22b confirmed it. The PC's headless Chrome gets the full pages. Whether both use the same public address is unverified (the Acer goes out via 192.168.1.254, the PC also has a route via 192.168.1.1). Not to be worked around: the user decides between running the scrape from the PC, slowing it down, asking Okkazeo, or pausing the job. Until a run gets through, every ad on the Acer is marked offline (by the old image's last run), so prices and deals are stale; the new code fails without marking ads gone."
     - "2026-11-22: the PC's hand review (2026-11-12..18) was merged into the Acer's Games.db: 1,149 approved pages (was 404), French titles for all 716 games, the Search_Names table. Backup from before it: /srv/apps/boardgamefinder/data/Games.db.bak-20261122-123352. How: BoardGameFinder KNOWN_ISSUES.md and scripts/scratch/merge_pc_review_into_acer_20261122.py."
-    - "Leftover Job apps/bgf-test-1 (2026-11-10, complete)."
-    - "PC task BoardGameFinder_DailyRun (scripts\\weeklyscript.bat, 07:00 daily): Disabled, last ran 2026-11-09."
   menu:
     title: Deals
     icon: mdi-tag-heart
