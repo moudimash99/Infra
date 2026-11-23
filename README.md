@@ -178,9 +178,9 @@ of the code and data stopped updating that day.
   the 6 GB, e.g. 805 MiB per Free Motion browser, ~100 MiB for a 128 Mi pod; a container gets it when it is created),
   and **the classifier asleep at night when idle** (`mail-classifier-waker`, 23:00-07:00, in
   `Email-remove/ml/service/mail-classifier.yaml`), which frees its 0.7-1.1 GiB for the night jobs and Free Motion.
-- Whisper and speaker separation (`bg-taste-match-gpu`) run hourly since 2026-11-23 with a heat guard inside the job
-  (`heat_guard.py` in that repo: pause at GPU 80 C / CPU 90 C, hard stop at 85 / 95, stop if unreadable) and a 64 Mi
-  booking, so they use spare memory and are killed first. The cat monitor stays paused.
+- Whisper (`bg-taste-match-gpu`) runs hourly since 2026-11-23 with a heat guard inside the job (`heat_guard.py` in
+  that repo: pause at GPU 80 C / CPU 90 C, hard stop at 85 / 95, stop if unreadable), a 64 Mi booking and a 1 Gi
+  limit, so it uses spare memory and is killed first. Speaker separation and the cat monitor stay off.
 
 bg-taste-match also has an idle `bg-taste-match-shell` pod with the same mounts, for stages run by hand
 (`kubectl -n apps exec deploy/bg-taste-match-shell -- python score.py <user>`). Its image holds only the environment:

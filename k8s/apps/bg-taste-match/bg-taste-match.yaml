@@ -77,7 +77,8 @@ spec:
     spec:
       backoffLimit: 0
       # Pushed out by the scheduler (a batch-make-room job starting): not a failure, the pod is made again. A memory
-      # kill (exit 137) still ends the run, so a video too big for the limit is retried at most once an hour.
+      # kill (exit 137) still ends the run as failed: retried at the next hourly run, and a video started by
+      # WHISPER_MAX_TRIES runs that never finished it is skipped (captions/<id>.tries; delete it to try again).
       podFailurePolicy:
         rules:
           - action: Ignore
@@ -101,8 +102,13 @@ spec:
                 - name: CHANNELS
                   value: "hc oscs rahdo bgco gbg tbm bgb dtg bower ttgg mvm tantrum amass 3mbg cotb nerdvana lobg slicker purge mu tdg liege dt"
                 - { name: SOLO, value: "" }
-                # 0 = no length limit: whisper_captions.py transcribes long audio in 10-minute pieces
+                # 0 = no length limit: whisper_captions.py transcribes long audio in pieces of WHISPER_PIECE_MINUTES
                 - { name: WHISPER_MAX_MINUTES, value: "0" }
+                - { name: WHISPER_PIECE_MINUTES, value: "5" }
+                - { name: WHISPER_MAX_TRIES, value: "3" }
+                # Whisper only (2026-11-23, user: run Whisper in 1 GB): speaker separation reads a whole video and
+                # needs more, so it is off here until it gets a job of its own
+                - { name: SPEAKERS, value: "0" }
                 # one GPU job at a time (cat-monitor too): taken per video, see gpu_lock.py
                 - { name: GPU_LOCK, value: /gpu-lock/gpu.lock }
                 - { name: NVIDIA_VISIBLE_DEVICES, value: all }
@@ -117,7 +123,7 @@ spec:
                 - { name: HEAT_HARD_CPU, value: "95" }
                 - { name: HEAT_MAX_WAIT, value: "900" }
                 # a stage starts only with this much memory really free on the Acer (deploy/run_gpu.sh)
-                - { name: MIN_FREE_MIB, value: "1536" }
+                - { name: MIN_FREE_MIB, value: "1280" }
                 - name: HF_TOKEN
                   valueFrom: { secretKeyRef: { name: bg-taste-match, key: HF_TOKEN } }
               volumeMounts:
@@ -125,11 +131,13 @@ spec:
                 - { name: audio, mountPath: /work/audio }
                 - { name: gpu-lock, mountPath: /gpu-lock }
               resources:
-                # Killable (2026-11-23): books almost nothing, uses ~1-2.5 GiB of spare room (peaks before the
-                # 10-minute pieces: 1.0, 1.5, 2.5 GiB), and gets CPU last. 4Gi limit: speaker separation reads a whole
-                # video, so it needs more than Whisper.
+                # Killable (2026-11-23): books almost nothing, uses up to 1 GiB of spare room, and gets CPU last.
+                # 1Gi limit (user: try Whisper in 1 GB, and let it fail rather than grow). Measured on the PC's GPU:
+                # 1,622 MiB while the model loads, 992 MiB working on 5-minute pieces. So a run may be killed while it
+                # loads (it fails, no video is counted) or on a video (counted, skipped after 3). Raise to 2Gi if it
+                # never gets through.
                 requests: { cpu: 50m, memory: 64Mi }
-                limits: { memory: 4Gi }
+                limits: { memory: 1Gi }
           volumes:
             - name: work
               hostPath: { path: /srv/apps/bg-taste-match, type: Directory }
