@@ -97,3 +97,81 @@ def test_pieces():
     out = t.render(R="")
     assert out.startswith("+0.42|−0.07|1:05|1:02:05|")
     assert 'left:40%' in out and 'left:60.0%' in out and 'left:40.0%;width:40.0%' in out
+
+
+def test_sorter_state_from_its_logs(tmp_path):
+    from app.sources import bgt
+    assert bgt.sorter_state(str(tmp_path)) is None
+    (tmp_path / "sort_retry.log").write_text("=== 2026-11-23T20:58:41Z ttgg\n  3315/3315 labelled\n=== 2026-11-23T21:33:10Z bgco\n")
+    (tmp_path / "sort_retry.bgco.out").write_text("Labelling 3805 videos from titles\n  660/3805 labelled\n  720/3805 labelled\n")
+    s = bgt.sorter_state(str(tmp_path), {"bgco": "Board Game Co"})
+    assert s["state"] == "running" and s["name"] == "Board Game Co" and s["pos"] == (720, 3805) and s["updated"]
+    (tmp_path / "sort_retry.log").write_text("=== 2026-11-23T21:33:10Z bgco\nRuntimeError: limit\n"
+                                             "=== 2026-11-23T23:00:00Z STOPPED at bgco (exit 1)\n")
+    assert bgt.sorter_state(str(tmp_path))["state"] == "stopped"
+    (tmp_path / "sort_retry_loop.log").write_text("=== 2026-11-23T23:01:00Z last pass: === 2026-11-23T23:00:00Z "
+                                                  "STOPPED at bgco (exit 1); waiting 30 min\n")
+    s = bgt.sorter_state(str(tmp_path))
+    assert s["state"] == "waiting" and s["until"] == bgt._log_time("=== 2026-11-23T23:01:00Z") + 1800
+    (tmp_path / "sort_retry_loop.log").write_text("=== 2026-11-24T06:00:00Z ALL DONE\n")
+    assert bgt.sorter_state(str(tmp_path))["state"] == "done"
+
+
+def test_sorting_counts_videos_and_hours(tmp_path, monkeypatch):
+    from app.sources import bgt
+    conn = sqlite3.connect(tmp_path / "bgtaste.db")
+    conn.execute("CREATE TABLE videos (id, channel, duration, llm_category, category_override)")
+    conn.executemany("INSERT INTO videos VALUES (?, ?, ?, ?, ?)", [
+        ("a", "dt", 3600, "review", None), ("b", "dt", 7200, None, None), ("c", "susd", 1800, None, "other"),
+        ("d", "susd", 1800, "review", None)])
+    conn.commit()
+    monkeypatch.setattr(bgt, "BGT_DIR", str(tmp_path))
+    monkeypatch.setattr(bgt.channel_names, "get", lambda: type("R", (), {"data": {"dt": "Dice Tower"}})())
+    data = bgt.sorting.fn()
+    assert data["totals"] == {"videos": 4, "hours": 4.0, "sorted": 3, "sorted_h": 2.0}
+    assert [(c["name"], c["sorted_h"], c["hours"]) for c in data["left"]] == [("Dice Tower", 1.0, 3.0)]
+
+
+def test_pipeline_page_shows_hours_and_sorting(tmp_path, monkeypatch):
+    import time as _time
+    from starlette.testclient import TestClient
+    from app import site_bgt, store
+    from app.sources import Reading, bgt
+
+    class Fixed:
+        def __init__(self, data):
+            self.data = data
+
+        def get(self, *args):
+            return Reading(True, self.data, "", _time.time())
+
+    monkeypatch.setattr(store, "LAB_DB", str(tmp_path / "lab.db"))
+    store.init()
+    stages = {"audio": 900, "text": 700, "speakers": 200, "rated": 650, "voices": 100}
+    ch = {"key": "susd", "name": "Shut Up & Sit Down", "videos": 1000, "hours": 728.0, "done": False, "started": True,
+          "later": 0, "hours_to_transcribe": 200.0, "to_download": 100, **stages,
+          **{k + "_h": v * 0.5 for k, v in stages.items()}}
+    totals = {**stages, **{k + "_h": v * 0.5 for k, v in stages.items()}, "videos": 1000, "hours": 728.0,
+              "hours_to_transcribe": 200.0, "hours_to_download": 50.0, "to_download": 100, "unavailable": 0, "later": 0}
+    monkeypatch.setattr(bgt, "progress", Fixed({"channels": {"susd": ch}, "totals": totals, "audio_files": 900,
+        "speed": {"downloads_24h": 3, "audio_hours_downloaded_24h": 2, "transcribed_24h": 1, "audio_hours_transcribed_24h": 1},
+        "scope": {"full": "Shut Up & Sit Down", "n_full": 1, "n_limited": 0}}))
+    monkeypatch.setattr(bgt, "now", Fixed({"runs": [], "cron": {}, "youtube_blocked": False, "gpu_paused": False}))
+    monkeypatch.setattr(bgt, "activity", Fixed([]))
+    monkeypatch.setattr(bgt, "problems", Fixed({"unmatched": [], "n_unmatched": 0, "waiting_rating": 5}))
+    client = TestClient(site_bgt.app)
+    for sorter, words in [({"state": "running", "name": "Dice Tower", "pos": (720, 3805), "updated": _time.time() - 60},
+                           "Sorting Dice Tower: 720 of 3,805 titles"),
+                          ({"state": "waiting", "until": _time.time() + 600}, "starts again at"),
+                          ({"state": "stopped", "name": "Dice Tower", "at": _time.time()}, "nothing restarts it"),
+                          ({"state": "gave_up", "at": _time.time()}, "Gave up"), (None, "Sorting titles")]:
+        monkeypatch.setattr(bgt, "sorting", Fixed({
+            "totals": {"videos": 73923, "hours": 23436.0, "sorted": 37893, "sorted_h": 11966.0},
+            "left": [{"key": "dt", "name": "Dice Tower", "videos": 23596, "hours": 6000.0, "sorted": 642, "sorted_h": 150.0}],
+            "sorter": sorter}))
+        r = client.get("/pipeline")
+        assert r.status_code == 200 and "Traceback" not in r.text
+        assert words in r.text
+        assert "11,966 of 23,436 h" in r.text and "36,030 videos" in r.text
+    assert "450 of 728 h" in r.text            # Downloaded: 900 videos at half an hour each, in hours
+    assert "900 of 1,000 videos" in r.text and "325 h" in r.text   # Rated, per channel, in hours

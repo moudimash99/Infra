@@ -20,16 +20,17 @@
     <div class="card-head" style="margin-bottom:4px"><h3>{{ icon("layers") }}This round</h3></div>
     <p class="small muted mb-4">{{ t.videos | comma }} reviews from {{ prog.data.channels | length }} channels, {{ t.hours | round | int | comma }} hours of video</p>
     <div class="steps">
-      {% for key, label, ic, note in [("audio", "Downloaded", "download", "{:,} left · {} in the last 24 h".format(t.to_download, sp.downloads_24h)),
-                                      ("text", "Transcribed", "file-text", "{:,} h of audio left{}".format(t.hours_to_transcribe | round | int, (" · ≈ {} h on the GPU".format((t.hours_to_transcribe / whisper_speed) | round | int)) if whisper_speed else "")),
+      {% for key, label, ic, note in [("audio", "Downloaded", "download", "{:,} left · {:,} in the last 24 h".format(t.to_download, sp.downloads_24h)),
+                                      ("text", "Transcribed", "file-text", "{:,} h of audio left{}".format(t.hours_to_transcribe | round | int, (" · ≈ {:,} h on the GPU".format((t.hours_to_transcribe / whisper_speed) | round | int)) if whisper_speed else "")),
                                       ("speakers", "Speakers found", "mic", "who speaks when"),
                                       ("rated", "Rated", "star", ("{:,} ready for rating".format(problems.data.waiting_rating)) if problems.data else "")] %}
       {% set paused = pipe.data and pipe.data.gpu_paused and key in ("text", "speakers") %}
+      {% set h = t[key ~ "_h"] or 0 %}
       <div class="step"><span class="ic">{{ icon(ic) }}</span>
-        <div><div class="what"><b>{{ label }}</b><span>{{ t[key] | comma }} of {{ t.videos | comma }}</span></div>
-          <span class="progress{{ ' muted' if paused }}"><span style="width:{{ pct(t[key], t.videos) }}%"></span></span>
-          {% if note or paused %}<div class="xs muted mt-1">{{ "Paused · " if paused }}{{ note }}</div>{% endif %}</div>
-        <span class="n">{{ pct(t[key], t.videos) }}%</span></div>
+        <div><div class="what"><b>{{ label }}</b><span>{{ h | round | int | comma }} of {{ t.hours | round | int | comma }} h</span></div>
+          <span class="progress{{ ' muted' if paused }}"><span style="width:{{ pct(h, t.hours) }}%"></span></span>
+          <div class="xs muted mt-1">{{ "Paused · " if paused }}{{ t[key] | comma }} of {{ t.videos | comma }} videos{% if note %} · {{ note }}{% endif %}</div></div>
+        <span class="n">{{ h | round | int | comma }} h</span></div>
       {% endfor %}
     </div>
     {% set sc = prog.data.scope %}
@@ -46,8 +47,42 @@
         <li><b>Speakers found</b>: who speaks when is known, so each score goes to the right host.</li>
         <li><b>Rated</b>: at least one host's score for a game came out of the text.</li>
       </ul>
-      <p class="xs muted mt-2">Every bar counts the same {{ t.videos | comma }} videos. Left out: videos that aren't reviews (news, unboxings, playthroughs){% if t.unavailable %} and {{ t.unavailable | comma }} that YouTube no longer serves{% endif %}.</p>
+      <p class="xs muted mt-2">Every bar measures hours of video out of the same {{ t.hours | round | int | comma }} h ({{ t.videos | comma }} videos), so a 3-hour video weighs as much as eighteen 10-minute ones. Left out: videos that aren't reviews (news, unboxings, playthroughs){% if t.unavailable %} and {{ t.unavailable | comma }} that YouTube no longer serves{% endif %}.</p>
     </details>
+  </div>
+</section>
+{% endif %}
+
+{# ---- sorting titles ---- #}
+{{ unreadable(sorting, "the sorting counts") }}
+{% set so = sorting.data %}
+{% if so and (so.left or (so.sorter and so.sorter.state != "done")) %}{% set st = so.totals %}{% set w = so.sorter %}
+<section class="section">
+  <div class="card pad-lg">
+    <div class="card-head" style="margin-bottom:4px"><h3>{{ icon("filter") }}Sorting titles</h3>
+      {% if w %}{{ chip({"running": "running", "waiting": "paused", "stopped": "warning", "gave_up": "failed", "done": "done"}[w.state],
+                        {"running": "Running", "waiting": "Waiting", "stopped": "Stopped", "gave_up": "Gave up", "done": "Done"}[w.state]) }}{% endif %}</div>
+    <p class="small muted mb-4">Claude Haiku reads each video's title and puts it in a category; only reviews and lists are downloaded. Until a video is sorted, a title rule decides.</p>
+    <div class="step"><span class="ic">{{ icon("filter") }}</span>
+      <div><div class="what"><b>Sorted</b><span>{{ st.sorted_h | round | int | comma }} of {{ st.hours | round | int | comma }} h</span></div>
+        <span class="progress"><span style="width:{{ pct(st.sorted_h, st.hours) }}%"></span></span>
+        <div class="xs muted mt-1">{{ st.sorted | comma }} of {{ st.videos | comma }} videos · {{ (st.hours - st.sorted_h) | round | int | comma }} h ({{ (st.videos - st.sorted) | comma }} videos) left</div></div>
+      <span class="n">{{ st.sorted_h | round | int | comma }} h</span></div>
+    {% if w %}<p class="small soft mt-3">
+      {%- if w.state == "running" %}Sorting {{ w.name }}{% if w.pos %}: {{ w.pos[0] | comma }} of {{ w.pos[1] | comma }} titles{% endif %}{% if w.updated %} · updated {{ w.updated | ago }}{% endif %}.
+      {%- elif w.state == "waiting" %}Stopped on the Claude plan's 5-hour limit{% if w.until %}; starts again at {{ w.until | clock }}{% endif %}.
+      {%- elif w.state == "stopped" %}Stopped at {{ w.name }}{% if w.at %} {{ w.at | ago }}{% endif %}; nothing restarts it.
+      {%- elif w.state == "gave_up" %}Gave up after 24 tries{% if w.at %} ({{ w.at | ago }}){% endif %}.
+      {%- else %}Done{% if w.at %} {{ w.at | ago }}{% endif %}.{% endif %}</p>{% endif %}
+    {% if so.left %}
+    <details class="more mt-2"><summary>{{ so.left | length }} channel{{ "s" if so.left | length != 1 }} with titles left</summary>
+      <div class="list tight">{% for c in so.left %}
+        <div class="item"><span class="body"><span class="row between"><span class="title">{{ c.name }}</span>
+          <span class="meta nowrap">{{ c.sorted_h | round | int | comma }} of {{ c.hours | round | int | comma }} h · {{ (c.videos - c.sorted) | comma }} videos left</span></span>
+          <span class="progress sm"><span style="width:{{ pct(c.sorted_h, c.hours) }}%"></span></span></span></div>
+      {% endfor %}</div>
+    </details>
+    {% endif %}
   </div>
 </section>
 {% endif %}
@@ -100,10 +135,11 @@
     {% for c in active + finished %}
     <a class="item" href="{{ R }}/videos?show=all&channel={{ c.key }}">
       <span class="body">
-        <span class="row between"><span class="title">{{ c.name }}</span><span class="meta nowrap">{{ c.videos | comma }} videos · {{ c.hours | round | int }} h</span></span>
+        <span class="row between"><span class="title">{{ c.name }}</span><span class="meta nowrap">{{ c.videos | comma }} videos · {{ c.hours | round | int | comma }} h</span></span>
         <span class="tm-quad">
           {% for key, label in [("audio", "Audio"), ("text", "Text"), ("speakers", "Voices"), ("rated", "Rated")] %}
-          <span><span class="progress sm{{ ' ok' if c[key] == c.videos }}"><span style="width:{{ pct(c[key], c.videos) }}%"></span></span><span class="lbl"><span>{{ label }}</span><b>{{ pct(c[key], c.videos) }}%</b></span></span>
+          {% set h = c[key ~ "_h"] or 0 %}
+          <span><span class="progress sm{{ ' ok' if c[key] == c.videos }}"><span style="width:{{ pct(h, c.hours) }}%"></span></span><span class="lbl"><span>{{ label }}</span><b>{{ h | round | int | comma }} h</b></span></span>
           {% endfor %}
         </span>
         {% if c.later %}<span class="meta mt-1">{{ c.later | comma }} more videos next round</span>{% endif %}
@@ -115,7 +151,7 @@
   {% if waiting %}
   <details class="more mt-2"><summary>{{ waiting | length }} channels not started</summary>
     <div class="card flush"><div class="list tight">
-      {% for c in waiting %}<a class="item" href="{{ R }}/videos?show=all&channel={{ c.key }}"><span class="body"><span class="title">{{ c.name }}</span></span><span class="trail small muted">{{ c.videos }} videos · {{ c.hours | round | int }} h</span></a>{% endfor %}
+      {% for c in waiting %}<a class="item" href="{{ R }}/videos?show=all&channel={{ c.key }}"><span class="body"><span class="title">{{ c.name }}</span></span><span class="trail small muted">{{ c.videos | comma }} videos · {{ c.hours | round | int | comma }} h</span></a>{% endfor %}
     </div></div>
   </details>
   {% endif %}

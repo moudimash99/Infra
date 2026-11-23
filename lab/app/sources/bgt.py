@@ -8,7 +8,9 @@ any more, so the bars only ever grow):
   rated + speakers -> voices (rated again knowing who said what: speaker_transcripts)
 """
 import ast
+import calendar
 import os
+import re
 import sqlite3
 import time
 
@@ -117,6 +119,7 @@ def progress():
         st["audio"] = st["text"] or st["speakers"] or vid in audio
         for k, _ in STAGES:
             c[k] += st[k]
+            c[k + "_h"] = c.get(k + "_h", 0.0) + (hours if st[k] else 0.0)   # the bars measure hours of video
         if not st["text"]:
             c["hours_to_transcribe"] += hours
         if not st["audio"]:
@@ -139,6 +142,7 @@ def progress():
     recent_audio = [i for i, p in audio.items() if _mtime(p) > day]
     recent_caps = [i for i, p in captions.items() if _mtime(p) > day]
     totals = {k: sum(c[k] for c in channels.values()) for k, _ in STAGES}
+    totals.update({k + "_h": sum(c.get(k + "_h", 0.0) for c in channels.values()) for k, _ in STAGES})
     totals.update(videos=len(videos), hours=sum(c["hours"] for c in channels.values()),
                   hours_to_transcribe=sum(c["hours_to_transcribe"] for c in channels.values()),
                   hours_to_download=sum(c.get("hours_to_download", 0) for c in channels.values()),
@@ -149,6 +153,78 @@ def progress():
              "transcribed_24h": len(recent_caps),
              "audio_hours_transcribed_24h": sum(dur.get(i, 0) for i in recent_caps) / 3600}
     return {"channels": channels, "totals": totals, "speed": speed, "audio_files": len(audio), "scope": scope}
+
+
+SORTED_SQL = "(llm_category IS NOT NULL OR category_override IS NOT NULL)"
+# The sorter's logs in the working folder (2026-11-23: sort_retry.sh, restarted by sort_retry_loop.sh after each
+# Claude 5-hour limit). sort_retry.<channel>.out holds classify_llm.py's "N/M labelled" lines.
+SORT_LOG, SORT_LOOP_LOG = "sort_retry.log", "sort_retry_loop.log"
+
+
+@source("bgt.sorting", ttl=120)
+def sorting():
+    """Title sorting (classify_llm.py puts each title in a category; only reviews and lists get downloaded): per
+    channel, videos and hours sorted by the LLM or by hand, and what the sorter is doing now."""
+    conn = db()
+    try:
+        rows = conn.execute(f"""SELECT channel, COUNT(*) AS n, SUM(COALESCE(duration, 0)) / 3600.0 AS h,
+                   SUM({SORTED_SQL}) AS done,
+                   SUM(CASE WHEN {SORTED_SQL} THEN COALESCE(duration, 0) ELSE 0 END) / 3600.0 AS done_h
+                   FROM videos GROUP BY channel""").fetchall()
+    finally:
+        conn.close()
+    names = channel_names.get().data or {}
+    chans = [{"key": r["channel"], "name": names.get(r["channel"], r["channel"]), "videos": r["n"], "hours": r["h"],
+              "sorted": r["done"], "sorted_h": r["done_h"]} for r in rows]
+    totals = {k: sum(c[k] for c in chans) for k in ("videos", "hours", "sorted", "sorted_h")}
+    left = sorted((c for c in chans if c["sorted"] < c["videos"]), key=lambda c: c["sorted_h"] - c["hours"])
+    return {"totals": totals, "left": left, "sorter": sorter_state(BGT_DIR, names)}
+
+
+def _lines(path):
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            return [ln.rstrip() for ln in f if ln.strip()]
+    except OSError:
+        return []
+
+
+def _log_time(line):
+    """'=== 2026-11-23T21:33:10Z bgco' -> its time (epoch seconds), or None."""
+    m = re.match(r"=== (\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ)", line or "")
+    return calendar.timegm(time.strptime(m.group(1), "%Y-%m-%dT%H:%M:%SZ")) if m else None
+
+
+def sorter_state(folder, names=None):
+    """What the sorter is doing, from its logs: running (channel, position), waiting for the Claude limit to reset,
+    stopped, done or gave up. None when it has never run here."""
+    names = names or {}
+    run, loop = _lines(os.path.join(folder, SORT_LOG)), _lines(os.path.join(folder, SORT_LOOP_LOG))
+    if not run and not loop:
+        return None
+    last_run, last_loop = (run[-1] if run else ""), (loop[-1] if loop else "")
+    if "ALL DONE" in last_loop or "RETRY DONE" in last_run:
+        return {"state": "done", "at": _log_time(last_loop) or _log_time(last_run)}
+    if "GAVE UP" in last_loop:
+        return {"state": "gave_up", "at": _log_time(last_loop)}
+    if "waiting 30 min" in last_loop:
+        at = _log_time(last_loop)
+        return {"state": "waiting", "until": at + 1800 if at else None, "why": "limit" if "STOPPED" in last_loop else ""}
+    if "STOPPED" in last_run:
+        m = re.search(r"STOPPED at (\S+)", last_run)
+        ch = m.group(1) if m else ""
+        return {"state": "stopped", "channel": ch, "name": names.get(ch, ch), "at": _log_time(last_run)}
+    starts = [ln for ln in run if re.match(r"=== \S+ \S+$", ln)]
+    ch = starts[-1].split()[-1] if starts else ""
+    out = os.path.join(folder, f"sort_retry.{ch}.out")
+    pos = None
+    for ln in reversed(_lines(out)):
+        m = re.match(r"(\d+)/(\d+) labelled", ln.strip())
+        if m:
+            pos = (int(m.group(1)), int(m.group(2)))
+            break
+    return {"state": "running", "channel": ch, "name": names.get(ch, ch), "pos": pos,
+            "since": _log_time(starts[-1]) if starts else None, "updated": _mtime(out) or None}
 
 
 def _and(words):
