@@ -37,7 +37,16 @@ spec:
             - name: fetch
               image: docker.io/library/bg-taste-match:2026-11-10a
               imagePullPolicy: Never
-              command: ["sh", "/work/deploy/run_fetch.sh"]
+              # At most 110 minutes per pass (2026-11-23, Infra#9): a big catch-up (1,657 videos, ~35 s each) once ran
+              # 9-13 h, got pushed out by cat-flash and counted as a failure, and status.py called it stuck. get_audio.py
+              # skips what is already downloaded, so the next pass (every 2 h) carries on; a pass cut by the cap ends OK.
+              command:
+                - sh
+                - -c
+                - |
+                  timeout 6600 sh /work/deploy/run_fetch.sh; code=$?
+                  if [ "$code" = 124 ]; then echo "=== $(date -u +%FT%TZ) 110-minute cap reached: the next pass carries on"; exit 0; fi
+                  exit $code
               env:
                 # Rahdo and Dice Tower last (2026-11-22): the two biggest download into whatever room the others
                 # leave; get_audio.py stops at 150 GB free on the Acer's system disk.
