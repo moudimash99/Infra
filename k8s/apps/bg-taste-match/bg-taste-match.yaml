@@ -125,13 +125,13 @@ spec:
                 - { name: NVIDIA_DRIVER_CAPABILITIES, value: "compute,utility" }
                 # heat guard (heat_guard.py), degrees C: pause / resume / hard stop, and the longest pause in seconds
                 - { name: HEAT_GUARD, value: "1" }
-                # GPU 80 / 85 until 2026-11-23 (user: "change the guard and limits for now and we see"); the GTX 1050's
+                # GPU 80 / 85 until 2026-11-23, then 82 / 90, then 87 / 93 (user, 2026-11-24: "go 87 93 for now"); the GTX 1050's
                 # own levels: target 94, slowdown 97. CPU unchanged: the i5-7300HQ's limit is 100 and it already reaches 90.
-                - { name: HEAT_PAUSE_GPU, value: "82" }
+                - { name: HEAT_PAUSE_GPU, value: "87" }
                 - { name: HEAT_PAUSE_CPU, value: "90" }
                 - { name: HEAT_RESUME_GPU, value: "70" }
                 - { name: HEAT_RESUME_CPU, value: "80" }
-                - { name: HEAT_HARD_GPU, value: "90" }
+                - { name: HEAT_HARD_GPU, value: "93" }
                 - { name: HEAT_HARD_CPU, value: "95" }
                 - { name: HEAT_MAX_WAIT, value: "900" }
                 - { name: HEAT_CHECK_EVERY, value: "10" }
