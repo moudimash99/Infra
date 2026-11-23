@@ -62,9 +62,13 @@ metadata:
   namespace: apps
   labels: { app: bg-taste-match }
 spec:
-  # Paused on purpose, like cat-monitor: the Acer's GPU runs hot. Resume only on a night the user allows GPU work,
-  # with a heat guard running, and pause it again in the morning (written here 2026-11-22; paused live since 11-11).
-  suspend: true
+  # Running since 2026-11-23 (user: run it with a heat guard): the Acer's GPU runs hot, so heat_guard.py runs inside
+  # each stage (HEAT_* below). It pauses the work while the GPU or CPU is hot, ends the pass after 15 minutes of
+  # waiting or at once at the hard level, and stops the work if it can't read the temperatures. Paused 11-11 to 11-23
+  # after a guard run from another machine died and Whisper ran all day up to GPU 85 C / CPU 92 C.
+  # The first killable job (moudimash99/Infra#12): it books almost nothing, so it uses the Acer's spare memory and is
+  # the first the kernel kills when that runs out; each stage picks up where it stopped.
+  suspend: false
   schedule: "15 * * * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 2
@@ -72,6 +76,12 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 0
+      # Pushed out by the scheduler (a batch-make-room job starting): not a failure, the pod is made again. A memory
+      # kill (exit 137) still ends the run, so a video too big for the limit is retried at most once an hour.
+      podFailurePolicy:
+        rules:
+          - action: Ignore
+            onPodConditions: [{ type: DisruptionTarget }]
       template:
         metadata:
           labels: { app: bg-taste-match, stage: gpu }
@@ -91,12 +101,23 @@ spec:
                 - name: CHANNELS
                   value: "hc oscs rahdo bgco gbg tbm bgb dtg bower ttgg mvm tantrum amass 3mbg cotb nerdvana lobg slicker purge mu tdg liege dt"
                 - { name: SOLO, value: "" }
-                # 0 = no length limit: whisper_captions.py transcribes long audio in 30-minute pieces
+                # 0 = no length limit: whisper_captions.py transcribes long audio in 10-minute pieces
                 - { name: WHISPER_MAX_MINUTES, value: "0" }
                 # one GPU job at a time (cat-monitor too): taken per video, see gpu_lock.py
                 - { name: GPU_LOCK, value: /gpu-lock/gpu.lock }
                 - { name: NVIDIA_VISIBLE_DEVICES, value: all }
                 - { name: NVIDIA_DRIVER_CAPABILITIES, value: "compute,utility" }
+                # heat guard (heat_guard.py), degrees C: pause / resume / hard stop, and the longest pause in seconds
+                - { name: HEAT_GUARD, value: "1" }
+                - { name: HEAT_PAUSE_GPU, value: "80" }
+                - { name: HEAT_PAUSE_CPU, value: "90" }
+                - { name: HEAT_RESUME_GPU, value: "70" }
+                - { name: HEAT_RESUME_CPU, value: "80" }
+                - { name: HEAT_HARD_GPU, value: "85" }
+                - { name: HEAT_HARD_CPU, value: "95" }
+                - { name: HEAT_MAX_WAIT, value: "900" }
+                # a stage starts only with this much memory really free on the Acer (deploy/run_gpu.sh)
+                - { name: MIN_FREE_MIB, value: "1536" }
                 - name: HF_TOKEN
                   valueFrom: { secretKeyRef: { name: bg-taste-match, key: HF_TOKEN } }
               volumeMounts:
@@ -104,9 +125,10 @@ spec:
                 - { name: audio, mountPath: /work/audio }
                 - { name: gpu-lock, mountPath: /gpu-lock }
               resources:
-                # Whisper or pyannote with one video loaded: peaks of 1.0-1.7 GiB seen (2026-11-11). Requested
-                # below that so it fits next to Free Motion's browser lanes; the limit covers the peak.
-                requests: { cpu: 500m, memory: 1400Mi }
+                # Killable (2026-11-23): books almost nothing, uses ~1-2.5 GiB of spare room (peaks before the
+                # 10-minute pieces: 1.0, 1.5, 2.5 GiB), and gets CPU last. 4Gi limit: speaker separation reads a whole
+                # video, so it needs more than Whisper.
+                requests: { cpu: 50m, memory: 64Mi }
                 limits: { memory: 4Gi }
           volumes:
             - name: work

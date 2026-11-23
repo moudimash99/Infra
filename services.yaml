@@ -528,7 +528,7 @@
   image: "bg-taste-match for all four: the environment only (the code goes out with push_code.sh), built by deploy/build.sh (pull Never)"
   schedule:
     fetch: "5 */2 * * * (no timeZone, so UTC; every 2 h)"
-    gpu: "15 * * * * (UTC, hourly; SUSPENDED live)"
+    gpu: "15 * * * * (UTC, hourly; running since 2026-11-23 with the in-job heat guard)"
     llm: "45 0-8,20-23 * * * Europe/Paris (hourly at night only)"
     shell: always running (sleep infinity, for stages run by hand)
   url: "none (status on https://tastematch.machaka.net through the lab)"
@@ -543,22 +543,23 @@
     branch: main
     libs:
       - "C:\\Users\\Moudimash99\\Documents\\Coding\\bgg-core (github.com/moudimash99/bgg-core; deploy/build.sh copies the PC's working tree into the image, not a pinned commit)"
-    deployed: "199af0d, sent with push_code.sh 2026-11-22 11:45 (disk guard); ce7becb before, checked 2026-11-20 file by file. main has since added only the PC-era re-rate helpers (31ba14b, not used), not sent"
+    deployed: "4aaeda9, sent with push_code.sh 2026-11-23 00:46 Paris (heat guard, 10-minute Whisper pieces); 199af0d before (2026-11-22 11:45, disk guard)"
     version_check: "none (code goes out with push_code.sh, not in the image; compare file hashes by hand as on 2026-11-20)"
   deploy: "Code: deploy/push_code.sh from the PC (never sends bgtaste.db). Image: deploy/build.sh, import on the Acer, set the tag, apply."
   check: >-
     fetch: good run within 4 h (alert BgTasteMatchDownloadsStalled at 12 h); llm: a good run every night (within 24 h,
-    the daytime gap is 12 h); gpu: suspended, no expectation; shell: pod Ready.
+    the daytime gap is 12 h); gpu: a finished pass within 26 h (a pass that ends because it is too hot or memory is
+    short still finishes; none at all means it was never placed); shell: pod Ready.
   probes:
     - {k8s: apps/CronJob/bg-taste-match-fetch, max_age_h: 5}
     - {k8s: apps/CronJob/bg-taste-match-llm, max_age_h: 26}
-    - {k8s: apps/CronJob/bg-taste-match-gpu, paused_on_purpose: true}
+    - {k8s: apps/CronJob/bg-taste-match-gpu, max_age_h: 26}
     - {k8s: apps/Deployment/bg-taste-match-shell}
   drift:
     - "README says every 30/60/60 min; the manifest says fetch every 2 h, gpu hourly, llm hourly at night only."
   notes:
-    - "bg-taste-match-gpu is suspend: true live ON PURPOSE: the Acer's GPU runs hot, so the GPU jobs (this one and cat-monitor) stay paused except on nights the user allows GPU work. No guard is installed: on 2026-11-10 a one-night heat-guard script (heatwatch.sh, run from the PC by the bg-taste-match session) resumed them and was to pause them at 08:00, but it died at 06:29, Whisper ran all day up to GPU 85 C / CPU 92 C, and both were paused by hand on 2026-11-11. They stay paused until someone resumes them by hand. The manifest says suspend: true too (since 2026-11-22), so an apply keeps them paused."
-    - "bg-taste-match-gpu asks 1400Mi (commit a585e7d, so it fits next to Free Motion's browser lanes; the 4Gi limit covers the 1.0-1.7 GiB peaks). Applied 2026-11-22 to that CronJob alone, still suspended (it asked 1536Mi before); the other three were not touched."
+    - "bg-taste-match-gpu runs since 2026-11-23 (user: run it with a heat guard). heat_guard.py runs inside each stage (HEAT_* env in the manifest): it pauses before each 10-minute piece or file while the GPU is at 80 C or the CPU at 90 C, goes on at 70 / 80, ends the pass after 15 min of waiting, stops at once at 85 / 95, and stops the work (pass fails, exit 76) if it can't read the temperatures. It replaces heatwatch.sh, the one-night guard run from the PC on 2026-11-10 that died at 06:29, after which Whisper ran all day up to GPU 85 C / CPU 92 C and the GPU jobs were paused 11-11 to 11-23. cat-monitor stays paused."
+    - "bg-taste-match-gpu is the first killable job (moudimash99/Infra#12): it books 64Mi / 50m (1400Mi before), so it uses the Acer's spare memory and the kernel kills it first when that runs out; the 4Gi limit stays (speaker separation reads a whole video: a run reached 2.5 GiB). run_gpu.sh starts a stage only with MIN_FREE_MIB (1536) really free. podFailurePolicy: a scheduler push-out (DisruptionTarget) is not a failure; a memory kill (137) still ends the run, so a video too big for the limit is retried at most hourly. Whisper pieces 30 -> 10 min, GPU only (no CPU fallback)."
     - "All-reviews step started 2026-11-22 (user: download every relevant review, not only games the user rated): round 1's picks were all downloaded (about 2,500 videos, 728 h, 38 GB). 3mbg released and sorted by hand; /work/sort_all.sh (nohup in the shell pod, log /work/sort_all.log) releases and sorts 19 more channels with claude-haiku through the gateway (the Gemini API key was out of quota). Then /work/sort_rest.sh (same pod, log /work/sort_rest.log) waits for it and does rahdo and dt (user: all 25 channels). The fetch job's CHANNELS put rahdo and dt last (live and manifest, 2026-11-22), so they only fill the room the other 21 leave: all 25 sorted is roughly 13,000+ h, ~700 GB at 0.052 GB/h, more than the ~440 GB above the 150 GB guard. The fetch job downloads whatever is released, at 30 s between videos. Only one sorter: the gateway runs one Claude call at a time. The Gemini website (fm-webllm) could not help: on 2026-11-22 14:30 even a 30-character ask got no answer (gemini-webapi init gets HTTP 400 from batchexecute, then hangs), while `web-llm.py check` says both sites are signed in."
     - "Last good runs: fetch 2026-11-20 16:13 (after the Acer came back), llm 2026-11-16 07:15, gpu 2026-11-10 08:15."
     - "The 4-day gap is a stuck Job, not the code: fetch-29913605 stayed active from 2026-11-16 09:05 to 2026-11-20 and concurrencyPolicy Forbid skipped every run behind it; likewise llm-29913465 stayed unfinished until 2026-11-20 13:29, so llm has not been scheduled since 2026-11-16 06:45."
