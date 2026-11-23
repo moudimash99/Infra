@@ -60,7 +60,9 @@ spec:
             - { name: home, mountPath: /fm/home }
             - { name: shm, mountPath: /dev/shm }
           resources:
-            requests: { cpu: 500m, memory: 1Gi }
+            # Booked at what it really uses (2026-11-23): 1.45 GiB between rounds, 2.2 GiB median, 3.07 GiB peak over a
+            # full day. With 1Gi the scheduler saw ~5 GiB free on the server when ~1 GiB really was.
+            requests: { cpu: 500m, memory: 3Gi }
             # 3 GiB was too little: a round's job list (~1.2 GB) with the hub agent (0.5 GB) and three score loops
             # (1.3 GB) reached it (2026-11-11). An OOM kill takes the whole container, round and all.
             limits: { memory: 4Gi }

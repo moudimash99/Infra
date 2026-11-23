@@ -70,8 +70,11 @@ spec:
             - { name: profile, mountPath: /profile, subPathExpr: $(POD_NAME) }
             - { name: shm, mountPath: /dev/shm }
           resources:
-            requests: { cpu: 300m, memory: 1Gi }
-            limits: { memory: 1536Mi }
+            # 2026-11-23: peaks over 3 days were 1,223 and 1,535 MiB (the second at its old 1536Mi limit), /dev/shm
+            # included. Booked a little higher (the Acer is booked full, see k8s/cluster/priority.yaml) and given room
+            # so a browser is not killed by its own limit in the middle of a form.
+            requests: { cpu: 300m, memory: 1152Mi }
+            limits: { memory: 2Gi }
       volumes:
         - name: data
           nfs: { server: 192.168.1.116, path: /srv/apps/freemotion/fm-data }
