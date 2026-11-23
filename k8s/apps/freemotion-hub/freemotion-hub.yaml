@@ -27,6 +27,9 @@ metadata:
   name: freemotion-hub
   namespace: apps
   labels: { app: freemotion-hub }
+  # Flux leaves this alone (Infra#7): deployed by fm-orchestrator's deploy.mjs (retag + rollout restart), and a
+  # restart drops the hub agent's connection.
+  annotations: { kustomize.toolkit.fluxcd.io/reconcile: disabled }
 spec:
   replicas: 1
   strategy: { type: Recreate }  # one SQLite file, and one hostPort: never two copies at once
