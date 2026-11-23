@@ -97,6 +97,25 @@ its Ingress and a DNS record. After a change: `docker exec nginx nginx -s reload
 
 The kubeconfig context on the PC is `homelab`.
 
+**GitOps since 2026-11-23 (Flux, `k8s/flux/`):** Flux applies `k8s/cluster`, `k8s/tools`, `k8s/monitoring` and
+`k8s/apps` from `main` on GitHub (fetched every 5 minutes, applied every 10). So a change is a commit pushed to `main`:
+- **An apply that isn't pushed gets undone** at the next run. Pushing first and then applying by hand (for an
+  immediate effect) is fine: Flux then finds nothing to change.
+- **prune is off:** Flux never deletes. To remove something, delete it by hand and then commit the removal.
+- **Not touched by Flux** (annotation `kustomize.toolkit.fluxcd.io/reconcile: disabled`): `fm-controller`,
+  `fm-browser-acer` and `freemotion-hub`. A change to them restarts them, so they are applied by hand between rounds
+  (`burn.mjs off`, wait for "FM: DONE", apply, `burn.mjs on`); the dashboard deploys through `deploy.mjs`.
+- **Fields other tools set stay** (server-side apply): the replicas the wakers set, the restart time of the
+  unmatched-restart CronJob. On the first Flux apply some Deployments restarted once, because Flux took over an old
+  `kubectl rollout restart` timestamp; a `rollout restart` today may likewise be followed by one more restart.
+- **Status:** `kubectl -n flux-system get gitrepository,kustomization` (all Ready, with the commit applied).
+  To apply now rather than in up to 10 minutes:
+  `kubectl -n flux-system annotate --overwrite gitrepository/infra reconcile.fluxcd.io/requestedAt="$(date +%s)"`.
+- **Flux itself** (`k8s/flux/gotk-components.yaml`, `sync.yaml`) is applied by hand:
+  `kubectl apply --server-side -f k8s/flux/gotk-components.yaml`, then `kubectl apply -f k8s/flux/sync.yaml`.
+
+By hand (the folders, as Flux applies them):
+
 ```
 kubectl apply -f k8s/cluster/
 kubectl apply -R -f k8s/apps/
@@ -104,10 +123,7 @@ kubectl apply -f k8s/tools/
 kubectl apply -k k8s/monitoring/ --server-side   # --server-side: the dashboards are too big otherwise
 ```
 
-**Run `kubectl diff` before applying a folder.** Since 2026-11-22 `kubectl diff -R -f k8s/apps/` is empty: what
-is off on purpose (the GPU jobs, fm-controller's website writers with `WEB_LLM_OFF`) is off in its manifest too, so
-an apply keeps it off. Anything a diff shows is drift: write it in `services.yaml` (moudimash99/Infra#7 is the move
-to Flux).
+What is off on purpose (the GPU jobs, fm-controller's website writers with `WEB_LLM_OFF`) is off in its manifest too.
 
 `k8s/cluster/traefik-config.yaml` makes Traefik keep the X-Forwarded-For / X-Real-IP /
 X-Forwarded-Proto that nginx sets; without it every visitor looks like 10.42.0.1 to the apps.

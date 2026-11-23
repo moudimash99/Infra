@@ -163,7 +163,8 @@
     branch: main
     not_in_image: [input/merged_win_pct.json, input/merged_games.json, input/stats_meta.json, input/prices.json]
   deploy: >-
-    scripts/deploy.sh on the server, in a terminal: git pull, docker build, copies the image to the Acer and loads it
+    (Flux, since 2026-11-23: the new tag must be committed and pushed in k8s/apps/unmatched/unmatched.yaml, or Flux
+    puts the old one back within 10 minutes.) scripts/deploy.sh on the server, in a terminal: git pull, docker build, copies the image to the Acer and loads it
     there (asks for the Acer's passwords), `kubectl set image`, rollout status, then rewrites the tag in
     ~/Infra/k8s/apps/unmatched/unmatched.yaml (copy it to the PC's Infra and commit it).
   check: "Pod Ready (tcpSocket :8001); Homepage siteMonitor http://unmatched.apps.svc"
@@ -173,7 +174,7 @@
   drift:
     - "Older duplicate clone in Documents/GitHub/unmatched_matcher (branch loser-player, 2026-10-14); not the one deployed."
   notes:
-    - "The PC clone's origin URL embeds a GitHub token that GitHub refuses (403); fetch and push name https://github.com/moudimash99/unmatched_matcher.git instead."
+    - "Since 2026-11-23 the PC clone's origin is the plain https://github.com/moudimash99/unmatched_matcher.git with gh as the login (the old token, \"Desktop PC\", was deleted on GitHub: unmatched_matcher#53)."
     - "The weekly workflow refresh-stats.yml (Mondays 06:00 UTC) commits the new stats and prices straight to main when they changed, after the tests pass on them (since 2026-11-22). Since 2026-11-23 they reach the site without a deploy (unmatched_matcher#54): the pod's init step `stats` fetches the four files from main at each start (a file it can't fetch or parse keeps the image's copy), and the CronJob unmatched-restart restarts the site on Mondays at 08:00 UTC (a Role allows it to patch only this Deployment). status.py does not count commits that change only those files (code.not_in_image). The old branches stats/refresh-2026-10-19..11-09 were deleted on 2026-11-22; a git bundle of them is in /srv/backups/git-branches on the server."
     - "The stats come from main while the code stays at its image: if a change to the stats' format ever lands together with app code, deploy that code before the next Monday restart (the init step only checks the files are valid JSON)."
     - "The restart writes the kubectl.kubernetes.io/restartedAt annotation, which the manifest does not hold: `kubectl diff` shows it, and applying the file removes it (one more restart, harmless)."
@@ -1112,6 +1113,32 @@
     title: Registry
     icon: mdi-package-variant-closed
     description: Image registry (the nodes don't use it yet)
+
+- name: flux
+  what: "GitOps: Flux applies k8s/cluster, k8s/tools, k8s/monitoring and k8s/apps from main on GitHub (user OK 2026-11-23, Infra#7)."
+  kind: cluster
+  system: platform
+  lifecycle: production
+  depends_on: []
+  runs: "k8s flux-system/Deployment source-controller and kustomize-controller on moudimash99"
+  manifest: Infra/k8s/flux/gotk-components.yaml (Flux v2.10.0, trimmed to these two controllers), Infra/k8s/flux/sync.yaml
+  image: "ghcr.io/fluxcd/source-controller and kustomize-controller (tags in gotk-components.yaml)"
+  schedule: "GitRepository infra every 5 min; each Kustomization every 10 min"
+  url: null
+  data: []
+  code: { repo: none, branch: null }
+  deploy: "By hand: kubectl apply --server-side -f k8s/flux/gotk-components.yaml; kubectl apply -f k8s/flux/sync.yaml"
+  check: "kubectl -n flux-system get gitrepository,kustomization: all Ready, each on main's latest commit"
+  probes:
+    - {k8s: flux-system/Deployment/source-controller}
+    - {k8s: flux-system/Deployment/kustomize-controller}
+  drift: []
+  notes:
+    - "prune: false everywhere: Flux never deletes; objects made outside the repo (the Secrets, spirit-island-site, the mail classifier from Email-remove) stay."
+    - "Left alone (kustomize.toolkit.fluxcd.io/reconcile: disabled): fm-controller, fm-browser-acer, freemotion-hub; applied by hand between rounds."
+    - "Resumed one folder at a time on 2026-11-23 after each diffed clean. The first apply restarted homepage, lab, uptime-kuma, beszel-agent, grafana and spirit-island once (Flux took over old rollout-restart timestamps); lab waited ~20 s for room and pushed out a bg-taste-match fetch pass."
+    - "Memory: about 75 MiB for both controllers (2026-11-23)."
+  menu: {hide: true}
 
 - name: backups
   what: "Nightly copies of the app data, each machine's onto the other (user 2026-11-23: the Acer's to the server and the server's to the Acer)."
