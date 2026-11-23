@@ -274,12 +274,13 @@
     - "https://lab.machaka.net/lab-sso (Access sign-in bridge; the rest of lab.machaka.net is Homepage)"
     - "PC report intake: NodePort 30881 (home network, token in Secret tools/lab-intake)"
   data:
-    - "hostPath /srv/apps/lab on the Acer (lab.db: job runs, log summaries, clip cache)"
+    - "hostPath /srv/apps/lab on the Acer (lab.db: job runs, log summaries, clip cache; table visitors: Taste Match visitors' BGG ratings and results, kept a day)"
+    - "Secret tools/lab-bgg (BGG_TOKEN, for visitors' BGG ratings)"
     - "read-only hostPaths on the Acer: /srv/apps/bg-taste-match, /var/lib/bg-taste-match/audio, /srv/apps/boardgamefinder/data, /srv/apps/cat-monitor, /srv/apps/cat-weight"
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\Infra\lab
     branch: main
-    deployed: "d09624a (tag 2026-11-24-host; Infra/lab is a folder, not a repo of its own, so status.py does not compare it)"
+    deployed: "e9c8a43 (tag 2026-11-24-find; Infra/lab is a folder, not a repo of its own, so status.py does not compare it)"
   deploy: "From the PC, Infra root: `sh lab/build.sh TAG` (builds on the server, imports on the Acer through the PC), set the tag in lab.yaml, apply."
   check: "Readiness/liveness GET /healthz on :8080; Prometheus scrapes :8081/metrics (pod annotations); Homepage Pipelines tiles read /api/summary/*"
   probes:
@@ -287,6 +288,7 @@
     - {k8s: tools/Deployment/lab}
   drift: []
   notes:
+    - "Taste Match's Find yours (since 2026-11-24, sources/visitors.py): anyone's BGG username -> their rated games from BGG's API -> score.py in a child process -> results in lab.db for a day. One job at a time, 20 waiting, 60 new names an hour. Still behind Cloudflare Access; a public hostname is the owner's decision."
     - "The PC side runs since 2026-11-23: scheduled task `lab-report` (every 10 minutes, lab/pc-report/install.ps1) with %USERPROFILE%\\.lab-token and the Secret tools/lab-intake. It reports only what runs on the PC: Disabled tasks (the archiver, moved to the Acer) and Free Motion (moved to the server, marked by %USERPROFILE%\\.fm-moved.json) are left out."
   menu:
     title: Lab sites
@@ -548,7 +550,7 @@
     branch: main
     libs:
       - "C:\\Users\\Moudimash99\\Documents\\Coding\\bgg-core (github.com/moudimash99/bgg-core; deploy/build.sh copies the PC's working tree into the image, not a pinned commit)"
-    deployed: "71bea54, sent with push_code.sh 2026-11-24 (score: shared games counted by verdict weight); 84df3cc before (2026-11-23 23:45, heat guard checks during each piece); f51b9bd before that (2026-11-23 01:43, heat guard, Whisper piece length, give-up count, SPEAKERS switch)"
+    deployed: "4257ba9, sent with push_code.sh 2026-11-24 (score: anyone's ratings; shared games counted by verdict weight since 71bea54); 84df3cc before (2026-11-23 23:45, heat guard checks during each piece); f51b9bd before that (2026-11-23 01:43, heat guard, Whisper piece length, give-up count, SPEAKERS switch)"
     version_check: "none (code goes out with push_code.sh, not in the image; compare file hashes by hand as on 2026-11-20)"
   deploy: "Code: deploy/push_code.sh from the PC (never sends bgtaste.db). Image: deploy/build.sh, import on the Acer, set the tag, apply."
   check: >-
