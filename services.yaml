@@ -175,6 +175,7 @@
   notes:
     - "The PC clone's origin URL embeds a GitHub token that GitHub refuses (403); fetch and push name https://github.com/moudimash99/unmatched_matcher.git instead."
     - "The weekly workflow refresh-stats.yml (Mondays 06:00 UTC) commits the new stats and prices straight to main when they changed, after the tests pass on them (since 2026-11-22). Since 2026-11-23 they reach the site without a deploy (unmatched_matcher#54): the pod's init step `stats` fetches the four files from main at each start (a file it can't fetch or parse keeps the image's copy), and the CronJob unmatched-restart restarts the site on Mondays at 08:00 UTC (a Role allows it to patch only this Deployment). status.py does not count commits that change only those files (code.not_in_image). The old branches stats/refresh-2026-10-19..11-09 were deleted on 2026-11-22; a git bundle of them is in /srv/backups/git-branches on the server."
+    - "The stats come from main while the code stays at its image: if a change to the stats' format ever lands together with app code, deploy that code before the next Monday restart (the init step only checks the files are valid JSON)."
     - "The restart writes the kubectl.kubernetes.io/restartedAt annotation, which the manifest does not hold: `kubectl diff` shows it, and applying the file removes it (one more restart, harmless)."
     - "unmatched-tournament is retired (images unmatched-tournament:latest and unmatched_matcher-unmatched:latest still in Docker on the server; no container)."
   menu:
