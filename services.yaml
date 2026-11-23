@@ -150,10 +150,10 @@
   system: board-games
   lifecycle: production
   depends_on: []
-  runs: k8s apps/Deployment unmatched on acer-laptop
+  runs: k8s apps/Deployment unmatched on acer-laptop; apps/CronJob unmatched-restart on moudimash99 (Mondays 08:00 UTC)
   manifest: Infra/k8s/apps/unmatched/unmatched.yaml
   image: "unmatched, built on the server by scripts/deploy.sh, tag = build time (pull Never)"
-  schedule: null
+  schedule: "unmatched-restart: 0 8 * * 1 (UTC), two hours after refresh-stats.yml"
   url: [https://unmatched.machaka.net, "unmatchedtournament.machaka.net (nginx 301 to /tournaments)"]
   data:
     - "hostPath /srv/apps/unmatched on the Acer (tournament data files)"
@@ -161,6 +161,7 @@
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\unmatched_matcher (github.com/moudimash99/unmatched_matcher); server copy ~/unmatched_matcher
     branch: main
+    not_in_image: [input/merged_win_pct.json, input/merged_games.json, input/stats_meta.json, input/prices.json]
   deploy: >-
     scripts/deploy.sh on the server, in a terminal: git pull, docker build, copies the image to the Acer and loads it
     there (asks for the Acer's passwords), `kubectl set image`, rollout status, then rewrites the tag in
@@ -168,11 +169,13 @@
   check: "Pod Ready (tcpSocket :8001); Homepage siteMonitor http://unmatched.apps.svc"
   probes:
     - {k8s: apps/Deployment/unmatched}
+    - {k8s: apps/CronJob/unmatched-restart, max_age_h: 170}
   drift:
     - "Older duplicate clone in Documents/GitHub/unmatched_matcher (branch loser-player, 2026-10-14); not the one deployed."
   notes:
     - "The PC clone's origin URL embeds a GitHub token that GitHub refuses (403); fetch and push name https://github.com/moudimash99/unmatched_matcher.git instead."
-    - "The weekly workflow refresh-stats.yml (Mondays 06:00 UTC) commits the new stats and prices straight to main when they changed, after the tests pass on them (since 2026-11-22; before, it pushed a stats/refresh-<date> branch and could not open its PR). The site shows them only after deploy.sh, so status.py reports unmatched as newer than what runs from each Monday until a deploy. The old branches stats/refresh-2026-10-19..11-09 (superseded by 11-16, merged and deployed 2026-11-22) were deleted on 2026-11-22; a git bundle of them is in /srv/backups/git-branches on the server."
+    - "The weekly workflow refresh-stats.yml (Mondays 06:00 UTC) commits the new stats and prices straight to main when they changed, after the tests pass on them (since 2026-11-22). Since 2026-11-23 they reach the site without a deploy (unmatched_matcher#54): the pod's init step `stats` fetches the four files from main at each start (a file it can't fetch or parse keeps the image's copy), and the CronJob unmatched-restart restarts the site on Mondays at 08:00 UTC (a Role allows it to patch only this Deployment). status.py does not count commits that change only those files (code.not_in_image). The old branches stats/refresh-2026-10-19..11-09 were deleted on 2026-11-22; a git bundle of them is in /srv/backups/git-branches on the server."
+    - "The restart writes the kubectl.kubernetes.io/restartedAt annotation, which the manifest does not hold: `kubectl diff` shows it, and applying the file removes it (one more restart, harmless)."
     - "unmatched-tournament is retired (images unmatched-tournament:latest and unmatched_matcher-unmatched:latest still in Docker on the server; no container)."
   menu:
     title: Unmatched

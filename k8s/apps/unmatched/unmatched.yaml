@@ -21,6 +21,35 @@ spec:
       tolerations:
         - { key: dedicated, value: worker, effect: NoSchedule }
       priorityClassName: homelab-critical
+      # The weekly stats (refresh-stats.yml, Mondays 06:00 UTC, committed to main only once the tests pass on them)
+      # reach the site without a new image (moudimash99/unmatched_matcher#54): at each start this step fetches the
+      # four stats files from main and lays them over the image's copies; the app reads them once, at start-up.
+      # A file that can't be fetched or isn't valid JSON keeps the image's copy, so the site always starts.
+      # The CronJob unmatched-restart (below) restarts the site on Mondays at 08:00 UTC to pick them up.
+      initContainers:
+        - name: stats
+          image: docker.io/library/unmatched:2026-11-22-1252
+          imagePullPolicy: Never
+          command:
+            - python
+            - -c
+            - |
+              import json, shutil, urllib.request
+              BASE = "https://raw.githubusercontent.com/moudimash99/unmatched_matcher/main/input/"
+              for f in ("merged_win_pct.json", "merged_games.json", "stats_meta.json", "prices.json"):
+                  try:
+                      body = urllib.request.urlopen(BASE + f, timeout=20).read()
+                      json.loads(body)
+                      open("/stats/" + f, "wb").write(body)
+                      print(f, "from main,", len(body), "bytes")
+                  except Exception as e:
+                      shutil.copy("/app/input/" + f, "/stats/" + f)
+                      print(f, "kept the image's copy:", e)
+          volumeMounts:
+            - { name: stats, mountPath: /stats }
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { memory: 128Mi }
       containers:
         - name: unmatched
           image: docker.io/library/unmatched:2026-11-22-1252
@@ -31,6 +60,10 @@ spec:
             - { name: http, containerPort: 8001 }
           volumeMounts:
             - { name: data, mountPath: /app/data }
+            - { name: stats, mountPath: /app/input/merged_win_pct.json, subPath: merged_win_pct.json, readOnly: true }
+            - { name: stats, mountPath: /app/input/merged_games.json, subPath: merged_games.json, readOnly: true }
+            - { name: stats, mountPath: /app/input/stats_meta.json, subPath: stats_meta.json, readOnly: true }
+            - { name: stats, mountPath: /app/input/prices.json, subPath: prices.json, readOnly: true }
           readinessProbe:
             tcpSocket: { port: http }
             periodSeconds: 5
@@ -44,6 +77,8 @@ spec:
       volumes:
         - name: data
           hostPath: { path: /srv/apps/unmatched, type: Directory }
+        - name: stats
+          emptyDir: { sizeLimit: 32Mi }
 ---
 apiVersion: v1
 kind: Service
@@ -70,3 +105,83 @@ spec:
             pathType: Prefix
             backend:
               service: { name: unmatched, port: { name: http } }
+---
+# Weekly restart of the site so it picks up the stats committed on Monday (see the Deployment's init step). It runs on
+# the server (the Acer is booked full) and only patches the Deployment's restartedAt annotation, like
+# `kubectl rollout restart`; its Role allows nothing else.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: unmatched-restart
+  namespace: apps
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: unmatched-restart
+  namespace: apps
+rules:
+  - apiGroups: [apps]
+    resources: [deployments]
+    resourceNames: [unmatched]
+    verbs: [get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: unmatched-restart
+  namespace: apps
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: unmatched-restart }
+subjects:
+  - { kind: ServiceAccount, name: unmatched-restart, namespace: apps }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: unmatched-restart
+  namespace: apps
+spec:
+  schedule: "0 8 * * 1"   # Mondays 08:00 UTC: two hours after refresh-stats.yml (06:00 UTC)
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 600
+      template:
+        spec:
+          serviceAccountName: unmatched-restart
+          restartPolicy: Never
+          nodeSelector: { kubernetes.io/hostname: moudimash99 }
+          priorityClassName: batch-low
+          containers:
+            - name: restart
+              image: docker.io/library/python:3.13-slim
+              command:
+                - python
+                - -c
+                - |
+                  import datetime, json, ssl, time, urllib.request
+                  SA = "/var/run/secrets/kubernetes.io/serviceaccount/"
+                  URL = "https://kubernetes.default.svc/apis/apps/v1/namespaces/apps/deployments/unmatched"
+                  token = open(SA + "token").read()
+                  ctx = ssl.create_default_context(cafile=SA + "ca.crt")
+                  now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                  body = {"spec": {"template": {"metadata": {"annotations": {"kubectl.kubernetes.io/restartedAt": now}}}}}
+                  req = urllib.request.Request(URL, data=json.dumps(body).encode(), method="PATCH", headers={
+                      "Authorization": "Bearer " + token, "Content-Type": "application/strategic-merge-patch+json"})
+                  urllib.request.urlopen(req, context=ctx, timeout=30)
+                  print("restart requested at", now)
+                  for _ in range(36):   # wait up to 6 minutes for the new pod to be ready
+                      time.sleep(10)
+                      d = json.load(urllib.request.urlopen(urllib.request.Request(URL, headers={"Authorization": "Bearer " + token}), context=ctx, timeout=30))
+                      s = d["status"]
+                      if s.get("updatedReplicas") == 1 and s.get("readyReplicas") == 1 and s.get("observedGeneration") == d["metadata"]["generation"]:
+                          print("unmatched is ready on the new pod"); break
+                  else:
+                      raise SystemExit("unmatched did not come back ready within 6 minutes")
+              resources:
+                requests: { cpu: 10m, memory: 32Mi }
+                limits: { memory: 128Mi }

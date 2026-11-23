@@ -242,6 +242,7 @@ def code_check(svc, s, keys):
                 (a path ending in a folder of checkouts is matched per repo by folder name, for repo globs like fm-*).
       none ...: no automatic comparison (e.g. code pushed as files); only uncommitted changes are reported.
     code.libs: library repos built into the image (e.g. bgg-core), always compared the image way.
+    code.not_in_image: files the service fetches itself at start-up; commits that change only them are not counted.
     Every repo: commits on its branch not pushed to origin (its upstream, or origin/<branch>)."""
     code = svc.get("code") or {}
     if not isinstance(code, dict):
@@ -283,6 +284,8 @@ def code_check(svc, s, keys):
             # Commits that change only README.md (e.g. its "Where it runs" section, scripts/readmes.py), .gitignore or
             # .github/ (GitHub's workflows) don't count: none of them changes what is built.
             code_only = ["--", ".", ":(exclude)README.md", ":(exclude).gitignore", ":(exclude).github"]
+            # Nor do files the service fetches itself at start-up (code.not_in_image, e.g. unmatched's weekly stats).
+            code_only += [f":(exclude){f}" for f in (code.get("not_in_image") or [])]
             for t in sorted(tags):
                 if re.fullmatch(r"[0-9a-f]{7,40}", t) and git(path, "cat-file", "-t", t) == "commit":
                     newer = git(path, "rev-list", "--count", f"{t}..HEAD", *code_only)
