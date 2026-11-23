@@ -85,10 +85,17 @@ def reviewer(request: Request, rid: str):
     name = r["name"] if r else taste.nice_name((host or {}).get("name", rid))
     verdicts = (hv.data or {}).get("verdicts", [])
     scores = [v["score"] for v in verdicts if v["score"] is not None]
+    things = taste.things.get().data or {}
+    sort = request.query_params.get("sort", "agree")
+    sort = sort if sort in taste.COMMON_SORTS else "agree"
     return page(request, "tastematch/reviewer.html", active="/reviewers", sc=sc, s=s, r=r, rid=rid, hname=name,
                 channel=chans.get(ch) or {"name": ch, "url": ""}, agree=agree, disagree=disagree, loves=loves,
                 verdicts=verdicts, mean=(sum(scores) / len(scores)) if scores else None, hv=hv,
-                things=taste.things.get().data or {}, show_all=request.query_params.get("all") == "1")
+                things=things, show_all=request.query_params.get("all") == "1",
+                common=taste.common_games(s, r, sort, things) if r else [], sort=sort, sorts=taste.COMMON_SORTS,
+                dist_them=taste.distribution(scores),
+                dist_you=taste.distribution([v[0] / 2 for v in s["user"].values()]) if s else [],
+                you_mean=(sum(v[0] for v in s["user"].values()) / 2 / len(s["user"])) if s and s["user"] else None)
 
 
 # ---- games ----------------------------------------------------------------------------------------------------------

@@ -79,3 +79,20 @@ a.hero:hover { text-decoration: none; box-shadow: var(--sh-2); }
 .tm-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .tm-note { font-size: var(--fs-sm); color: var(--text-2); }
 .tm-note li { margin: 4px 0; }
+
+/* how a match is worked out: agreement x counts for = match */
+.tm-calc { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.tm-calc > span:not(.op) { display: flex; flex-direction: column; padding: 8px 12px; border-radius: 12px; background: var(--bg-2); min-width: 84px; }
+.tm-calc small { font-size: var(--fs-xs); color: var(--text-3); }
+.tm-calc b { font-size: 1.15rem; font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.tm-calc .res { background: var(--accent-soft); }
+.tm-calc .res b { color: var(--accent-ink); }
+.tm-calc .op { font-size: 1.2rem; color: var(--text-3); }
+
+/* score distributions */
+.tm-hist { display: flex; flex-direction: column; gap: 7px; margin-top: 4px; }
+.tm-hist .row { display: grid; grid-template-columns: 18px minmax(0, 1fr) 40px; align-items: center; gap: 10px; }
+.tm-hist .k { font-weight: 700; font-size: var(--fs-sm); color: var(--text-2); text-align: right; font-variant-numeric: tabular-nums; }
+.tm-hist .bar { height: 14px; border-radius: 7px; background: var(--bg-2); overflow: hidden; }
+.tm-hist .bar > span { display: block; height: 100%; border-radius: 7px; background: var(--accent); min-width: 2px; }
+.tm-hist .v { font-size: var(--fs-xs); color: var(--text-3); text-align: right; font-variant-numeric: tabular-nums; }

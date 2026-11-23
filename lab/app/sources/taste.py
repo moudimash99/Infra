@@ -35,10 +35,10 @@ import score
 conn = sqlite3.connect("file:" + folder + "/bgtaste.db?mode=ro", uri=True, timeout=20)
 conn.row_factory = sqlite3.Row
 results, mine = score.score_all(conn, user)
-keep = ("id", "name", "n", "rated", "corr", "match", "low", "high")
+keep = ("id", "name", "n", "rated", "corr", "match", "low", "high", "evidence", "counts")
 json.dump({"user": {str(g): v for g, v in mine.items()},
            "ures": {str(g): v for g, v in (results[0]["ures"] if results else {}).items()},
-           "reviewers": [dict({k: r[k] for k in keep}, rres={str(g): v for g, v in r["rres"].items()},
+           "reviewers": [dict({k: r.get(k) for k in keep}, rres={str(g): v for g, v in r["rres"].items()},
                               points={str(g): v for g, v in r["points"].items()}) for r in results]}, sys.stdout)
 '''
 
@@ -148,6 +148,37 @@ def shared_lists(s, r, n=6):
     disagree = [g for g in shared if ures[g] * rres[g] < 0][:n]
     loves = sorted((g for g in rres if g not in s["user"] and r["points"][g][0] >= 4), key=lambda g: -rres[g])
     return agree, disagree, loves
+
+
+COMMON_SORTS = {"agree": "Agree most", "differ": "Differ most", "you": "Your score", "them": "Their score",
+                "name": "Name"}
+
+
+def common_games(s, r, sort="agree", names=None):
+    """Every game the user and host r both rated: both scores and BGG's on a 5-point scale, and the taste signal
+    (the product of both sides' distance from what BGG's average predicts: above 0 they lean the same way)."""
+    names = names or {}
+    ures, rres = s["ures"], r["rres"]
+    rows = [{"gid": g, "name": (names.get(g) or {}).get("name") or str(g), "you": s["user"][g][0] / 2,
+             "them": r["points"][g][0], "bgg": s["user"][g][1] / 2, "signal": ures[g] * rres[g],
+             "you_lean": ures[g], "them_lean": rres[g], "weight": r["points"][g][2]}
+            for g in rres if g in ures and g in s["user"]]
+    key = {"agree": lambda x: -x["signal"], "differ": lambda x: x["signal"], "you": lambda x: -x["you"],
+           "them": lambda x: -x["them"], "name": lambda x: x["name"].lower()}.get(sort, lambda x: -x["signal"])
+    return sorted(rows, key=key)
+
+
+def distribution(values, low=1, high=5):
+    """Scores on a 1..5 scale -> [{score, n, pct}] by whole points (half points round up), with the share of the
+    most common bar as 100 for drawing."""
+    bins = {k: 0 for k in range(low, high + 1)}
+    for v in values:
+        if v is None:
+            continue
+        bins[max(low, min(high, int(v + 0.5)))] += 1
+    total, top = sum(bins.values()), max(bins.values(), default=0)
+    return [{"score": k, "n": n, "pct": round(100 * n / total) if total else 0,
+             "bar": round(100 * n / top) if top else 0} for k, n in bins.items()]
 
 
 def recommendations(s, skip=(), limit=None):

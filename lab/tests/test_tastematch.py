@@ -184,3 +184,48 @@ def test_pipeline_page_shows_hours_and_sorting(tmp_path, monkeypatch):
 def test_eta():
     from app.sources import bgt
     assert bgt.eta(0, 5) is None and bgt.eta(100, 0) == "stalled" and bgt.eta(100, 50) == 2
+
+
+def test_common_games_and_distribution():
+    s = result([], {10: (8, 7, 1), 20: (4, 7, 1), 30: (6, 6, 1)}, ures={10: 1.0, 20: -1.5, 30: 0.2})
+    r = host("susd:paul", 0.4, 3, {10: (5, 3.5, 1), 20: (5, 3.5, 0.4), 30: (3, 3, 1), 40: (2, 3.5, 1)},
+             rres={10: 0.8, 20: 0.9, 30: -0.5, 40: -1.0})
+    rows = taste.common_games(s, r, "agree", {10: {"name": "Brass"}})
+    assert [x["gid"] for x in rows] == [10, 30, 20] and rows[0]["name"] == "Brass" and rows[0]["you"] == 4
+    assert [x["gid"] for x in taste.common_games(s, r, "differ")] == [20, 30, 10]
+    assert [x["gid"] for x in taste.common_games(s, r, "them")][0] in (10, 20)
+    d = taste.distribution([5, 5, 4.5, 1, None, 3.4])
+    assert [b["n"] for b in d] == [1, 0, 1, 0, 3] and d[4]["pct"] == 60 and d[4]["bar"] == 100
+
+
+def test_reviewer_page(monkeypatch):
+    import time as _time
+    from starlette.testclient import TestClient
+    from app import site_bgt
+    from app.sources import Reading, bgt
+
+    class Fixed:
+        def __init__(self, data):
+            self.data = data
+
+        def get(self, *args):
+            return Reading(True, self.data, "", _time.time())
+
+    r = host("susd:paul", 0.27, 6, {g: (5 if g % 2 else 2, 3.5, 1 if g != 3 else 0.4) for g in range(1, 8)},
+             rres={g: (0.6 if g % 2 else -0.4) for g in range(1, 8)})
+    r.update(corr=0.85, counts=0.32, evidence=4.7, rated=7, channel="susd", channel_name="SU&SD")
+    s = result([r], {g: (8 if g % 2 else 4, 7, 1) for g in range(1, 7)}, ures={g: (1.0 if g % 2 else -1.0) for g in range(1, 7)})
+    s["at"] = _time.time()
+    monkeypatch.setattr(taste, "scores", Fixed(s))
+    monkeypatch.setattr(taste, "host_verdicts", Fixed({"host": {"channel": "susd", "name": "paul"}, "verdicts": [
+        {"score": 5, "game": "Brass", "game_name": "Brass", "gid": 1, "video_id": "v1", "title": "Brass review", "quote": "great"},
+        {"score": 5, "game": "Ark", "game_name": "Ark", "gid": 2, "video_id": "v2", "title": "Ark review", "quote": ""},
+        {"score": 2, "game": "Monopoly", "game_name": "Monopoly", "gid": 3, "video_id": "v3", "title": "x", "quote": ""}]}))
+    monkeypatch.setattr(taste, "things", Fixed({1: {"name": "Brass", "average": 8, "year": 2018}}))
+    monkeypatch.setattr(bgt, "channel_info", Fixed({"susd": {"name": "Shut Up & Sit Down", "url": ""}}))
+    client = TestClient(site_bgt.app)
+    for sort in ("agree", "differ", "you", "them", "name", "bogus"):
+        t = client.get(f"/reviewers/susd:paul?sort={sort}").text
+        assert "Traceback" not in t and "Every game you both rated" in t and "How they score" in t
+    assert "32%" in t and "+0.85" in t and "Same way" in t and "Opposite" in t and "counts 40%" in t
+    assert "67%" in t                      # two of the three verdicts are 5s

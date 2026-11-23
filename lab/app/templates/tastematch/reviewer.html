@@ -31,6 +31,14 @@
     <div class="big mt-3{{ ' accent' if r.match >= 0.05 }}">{{ signed(r.match) }}</div>
     <div class="mt-4">{{ meter(r.match, r.low, r.high, True) }}{{ scale() }}</div>
     <p class="small soft mt-3">{% if r.match >= 0.05 %}On the {{ r.n }} games you both rated, where {{ hname }} parts from BGG's average, you tend to part the same way{% elif r.match <= -0.05 %}On the {{ r.n }} games you both rated, where {{ hname }} parts from BGG's average, you tend to go the other way{% else %}On the {{ r.n }} games you both rated, {{ hname }}'s scores don't move with yours either way{% endif %}. Likely between {{ signed(r.low) }} and {{ signed(r.high) }}.</p>
+    {% if r.counts is not none %}
+    <div class="tm-calc mt-3" aria-label="How the match is worked out">
+      <span><small>Agreement</small><b>{{ signed(r.corr) }}</b></span><span class="op">×</span>
+      <span><small>Counts for</small><b>{{ (r.counts * 100) | round | int }}%</b></span><span class="op">=</span>
+      <span class="res"><small>Match</small><b>{{ signed(r.match) }}</b></span>
+    </div>
+    <p class="xs muted mt-2">The agreement is measured on the {{ r.n }} games you both rated. They count as {{ r.evidence | round(1) }} solid verdicts (low-confidence verdicts and roundup videos count less), so the agreement keeps {{ (r.counts * 100) | round | int }}% of its weight. The more games you share, the more it keeps: 6 solid games keep 38%, 20 keep 67%, 40 keep 80%. A perfect agreement on a handful of games therefore never reaches the top, and a clear disagreement on many games lands far below zero.</p>
+    {% endif %}
     {% else %}
     <p class="soft mt-3">You have rated only {{ r.n }} of the games {{ hname }} has scored: too few to say. A match needs 5.</p>
     {% endif %}
@@ -58,6 +66,43 @@
     {% if disagree %}<div class="card flush"><div class="list">{% for g in disagree %}{{ vs_row(g) }}{% endfor %}</div></div>
     {% else %}<div class="card">{{ empty("No real disagreement", "On every shared game you lean the same way.", "check-circle") }}</div>{% endif %}
   </div>
+</section>
+{% endif %}
+
+{% if dist_them %}
+<section class="section">
+  {{ section_head("How they score", sub="Their verdicts next to your BGG ratings, on a 5-point scale.") }}
+  <div class="grid md-2 gap-lg">
+    {% for title, d, m, n in [(hname, dist_them, mean, verdicts | length), ("You", dist_you, you_mean, (s.user | length) if s else 0)] %}
+    <div class="card">
+      <div class="card-head"><h3>{{ title }}</h3><span class="small muted">{% if m is not none %}average {{ "%.1f" | format(m) }} · {% endif %}{{ n | comma }} scores</span></div>
+      <div class="tm-hist" role="img" aria-label="{{ title }}: {% for b in d | reverse %}{{ b.score }} points {{ b.pct }}%{{ ', ' if not loop.last }}{% endfor %}">
+        {% for b in d | reverse %}
+        <div class="row"><span class="k">{{ b.score }}</span><span class="bar"><span style="width:{{ b.bar }}%"></span></span><span class="v">{{ b.pct }}%</span></div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="xs muted mt-3">A generous host (lots of 5s) or a harsh one doesn't get a better or worse match for it: each person's scores are first compared with BGG's average on their own scale, so only where they go above or below their usual is counted.</p>
+</section>
+{% endif %}
+
+{% if common %}
+<section class="section" id="common">
+  {{ section_head("Every game you both rated", count=common | length) }}
+  <nav class="seg mb-3" aria-label="Sort">
+    {% for k, label in sorts.items() %}<a href="?sort={{ k }}#common" class="{{ 'on' if sort == k }}">{{ label }}</a>{% endfor %}
+  </nav>
+  <div class="card flush"><div class="list">
+    {% for g in common %}
+    <a class="item" href="{{ R }}/games/{{ g.gid }}">{{ box(g.gid, "s", "thumb box") }}
+      <span class="body"><span class="title">{{ g.name }}</span>
+        <span class="tm-vs"><span>You <b>{{ "%.1f" | format(g.you) }}</b></span><span class="them">{{ hname }} <b>{{ "%.1f" | format(g.them) }}</b></span><span>BGG <b>{{ "%.1f" | format(g.bgg) }}</b></span>{% if g.weight < 0.95 %}<span>counts {{ (g.weight * 100) | round | int }}%</span>{% endif %}</span></span>
+      <span class="badge {{ 'accent' if g.signal > 0 else 'outline' }}">{{ "Same way" if g.signal > 0 else "Opposite" }}</span></a>
+    {% endfor %}
+  </div></div>
+  <p class="xs muted mt-2">"Same way": compared with what BGG's average predicts for each of you, you both liked it more, or both less. "Opposite": one of you liked it more than expected and the other less. Scores are out of 5; your BGG ratings are halved.</p>
 </section>
 {% endif %}
 
