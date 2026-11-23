@@ -17,6 +17,8 @@ metadata:
   name: fm-controller
   namespace: apps
   labels: { app: fm-controller }
+  # Flux leaves this alone (Infra#7): a change restarts it, so it is applied by hand between rounds.
+  annotations: { kustomize.toolkit.fluxcd.io/reconcile: disabled }
 spec:
   replicas: 1
   strategy: { type: Recreate }   # one ledger, one set of locks: never two controllers

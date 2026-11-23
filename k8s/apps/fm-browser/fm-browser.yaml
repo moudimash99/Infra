@@ -24,6 +24,8 @@ metadata:
   name: fm-browser-acer
   namespace: apps
   labels: { app: fm-browser }
+  # Flux leaves this alone (Infra#7): a change restarts it, so it is applied by hand between rounds.
+  annotations: { kustomize.toolkit.fluxcd.io/reconcile: disabled }
 spec:
   serviceName: fm-browser
   replicas: 2

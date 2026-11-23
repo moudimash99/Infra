@@ -1,0 +1,76 @@
+# GitOps (Infra#7): Flux applies k8s/cluster, k8s/apps, k8s/tools and k8s/monitoring from main of this repo (public,
+# so no key). Applied by hand like gotk-components.yaml; Flux does not manage k8s/flux itself.
+#  - prune: false everywhere: Flux never deletes anything, so the objects made outside this repo (the Secrets, the
+#    spirit-island-site ConfigMap, the mail classifier from Email-remove) are safe. Delete by hand, then commit.
+#  - Server-side apply: fields other managers own (the restartedAt annotations written by `rollout restart` and by
+#    unmatched-restart, the replicas the wakers set) are left alone.
+#  - Free Motion's controller and browsers carry kustomize.toolkit.fluxcd.io/reconcile: disabled: a change to them
+#    restarts them, so they stay applied by hand between rounds (burn.mjs off, wait for "FM: DONE", apply, on).
+# Order: cluster (PriorityClasses) before apps and tools.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: infra
+  namespace: flux-system
+spec:
+  url: https://github.com/moudimash99/Infra
+  ref: { branch: main }
+  interval: 5m
+  ignore: |
+    /*
+    !/k8s/
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cluster
+  namespace: flux-system
+spec:
+  sourceRef: { kind: GitRepository, name: infra }
+  path: ./k8s/cluster
+  interval: 10m
+  timeout: 5m
+  prune: false
+  suspend: false
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: tools
+  namespace: flux-system
+spec:
+  sourceRef: { kind: GitRepository, name: infra }
+  path: ./k8s/tools
+  dependsOn: [{ name: cluster }]
+  interval: 10m
+  timeout: 5m
+  prune: false
+  suspend: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: monitoring
+  namespace: flux-system
+spec:
+  sourceRef: { kind: GitRepository, name: infra }
+  path: ./k8s/monitoring
+  dependsOn: [{ name: cluster }]
+  interval: 10m
+  timeout: 5m
+  prune: false
+  suspend: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: apps
+  namespace: flux-system
+spec:
+  sourceRef: { kind: GitRepository, name: infra }
+  path: ./k8s/apps
+  dependsOn: [{ name: cluster }]
+  interval: 10m
+  timeout: 5m
+  prune: false
+  suspend: true
