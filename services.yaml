@@ -134,7 +134,7 @@
   check: "Pod Ready (tcpSocket :8000, liveness after 60 s); Homepage siteMonitor http://boardxplorer.apps.svc"
   probes:
     - {k8s: apps/Deployment/boardxplorer}
-  drift:
+  drift: []
   notes:
     - "Docker fallback on the server: container `boardxplorer` (image boardxplorer-boardxplorer), Exited (137) 3 weeks ago, restart no."
     - "55e7ebe (PR #50: filters kept on back navigation, phone range controls) deployed on 2026-11-22. 6 of the 27 games tests fail, on 89d7eb7 too: they expect pages without a login (302 != 200)."
@@ -171,14 +171,13 @@
   probes:
     - {k8s: apps/Deployment/unmatched}
     - {k8s: apps/CronJob/unmatched-restart, max_age_h: 170}
-  drift:
-    - "Older duplicate clone in Documents/GitHub/unmatched_matcher (branch loser-player, 2026-10-14); not the one deployed."
+  drift: []
   notes:
     - "Since 2026-11-23 the PC clone's origin is the plain https://github.com/moudimash99/unmatched_matcher.git with gh as the login (the old token, \"Desktop PC\", was deleted on GitHub: unmatched_matcher#53)."
     - "The weekly workflow refresh-stats.yml (Mondays 06:00 UTC) commits the new stats and prices straight to main when they changed, after the tests pass on them (since 2026-11-22). Since 2026-11-23 they reach the site without a deploy (unmatched_matcher#54): the pod's init step `stats` fetches the four files from main at each start (a file it can't fetch or parse keeps the image's copy), and the CronJob unmatched-restart restarts the site on Mondays at 08:00 UTC (a Role allows it to patch only this Deployment). status.py does not count commits that change only those files (code.not_in_image). The old branches stats/refresh-2026-10-19..11-09 were deleted on 2026-11-22; a git bundle of them is in /srv/backups/git-branches on the server."
     - "The stats come from main while the code stays at its image: if a change to the stats' format ever lands together with app code, deploy that code before the next Monday restart (the init step only checks the files are valid JSON)."
     - "The restart writes the kubectl.kubernetes.io/restartedAt annotation, which the manifest does not hold: `kubectl diff` shows it, and applying the file removes it (one more restart, harmless)."
-    - "unmatched-tournament is retired (images unmatched-tournament:latest and unmatched_matcher-unmatched:latest still in Docker on the server; no container)."
+    - "unmatched-tournament is retired; its two Docker images on the server were deleted on 2026-11-23 (Infra#11)."
   menu:
     title: Unmatched
     icon: mdi-sword-cross
@@ -252,7 +251,7 @@
   drift:
     - "`live` is the Docker hub's own image (2026-11-01), not a deploy.mjs build: the move to k3s on 2026-11-10 kept it on purpose so the move changed no code (2026-11-10-a168f5d8 was a trial of deploy.mjs's new step 2 on a copy of the data, then `live` was put back), and that day's deploy.mjs run stopped on a flaky test (fixed in de48033). What it serves is main: public/ is byte for byte fm-web's, and server.mjs differs only in a comment and in also finding fm-web's folder when run on a machine (checked 2026-11-22). The next deploy.mjs run replaces it; not redeployed on 2026-11-22 because nothing would change."
   notes:
-    - "Docker fallback on the server: container `freemotion` (image freemotion-hub-freemotion, ~/freemotion-hub compose), Exited (137) 10 days ago, restart no. Never start it while the pod runs."
+    - "The old Docker fallback (container freemotion, image freemotion-hub-freemotion) was deleted on 2026-11-23 (Infra#11); the k3s pod is the only copy. ~/freemotion-hub on the server still holds the compose folder and its .env."
   menu:
     title: Free Motion
     icon: mdi-briefcase-search
