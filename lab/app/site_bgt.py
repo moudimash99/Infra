@@ -6,6 +6,9 @@ pipeline that turns YouTube reviews into verdicts.
   /games                   every game with a verdict; /games/{bgg_id}: BGG's facts and every verdict
   /videos                  the round's reviews; /v/{id}: one review's verdicts and transcript
   /pipeline                how far the round is, what runs now, problems, runs
+  /find, /u/{name}         anyone's matches from their BGG username (sources/visitors.py); ?u={name} on a reviewer
+                           page shows it against that visitor
+  /about                   how it works: where the verdicts come from, how a match is worked out
   /img/{bgg_id}-{s|m|l}.jpg  box art, fetched and shrunk by the lab (images.py)
 """
 import math
@@ -18,15 +21,15 @@ from fastapi import HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 from . import charts, images, store
-from .sources import bgt, taste
+from .sources import Reading, bgt, taste, visitors
 from .web import day_labels, page, site, templates
 
 templates.env.globals.update(STAGES=bgt.STAGES)
 # A host's avatar colour from their id (a better spread than the shared name sum): av-1 .. av-8.
 templates.env.filters["tm_av"] = lambda key: f"av-{zlib.crc32(str(key).encode()) % 8 + 1}"
 FAIL_LINE = re.compile(r"\[\d+/\d+\]\s+FAIL\s+([\w-]{6,20})\s+(.*?)\s+\((.*)\)\s*$")
-app = site("tastematch", [("/", "Home", "home"), ("/reviewers", "Reviewers", "users"), ("/games", "Games", "dices"),
-                          ("/videos", "Videos", "video"), ("/pipeline", "Pipeline", "activity")])
+app = site("tastematch", [("/", "Home", "home"), ("/find", "Find yours", "search"), ("/reviewers", "Reviewers", "users"),
+                          ("/games", "Games", "dices"), ("/videos", "Videos", "video"), ("/pipeline", "Pipeline", "activity")])
 GAME_PAGE = 24
 
 
@@ -69,11 +72,23 @@ def reviewers(request: Request, show: str = "ranked", channel: str = ""):
                 channels=channels, counts=counts, prof=taste.profile.get())
 
 
+def _visitor(request):
+    """(name, their result) when the page was asked for a visitor (?u=name) whose match is ready, else (None, None)."""
+    name = request.query_params.get("u", "")
+    if not name or not visitors.valid(name):
+        return None, None
+    res = visitors.result(name)
+    return (res["username"], res) if res else (None, None)
+
+
 @app.get("/reviewers/{rid}", response_class=HTMLResponse)
 def reviewer(request: Request, rid: str):
     if not re.fullmatch(r"[\w-]{1,20}:[\w.-]{1,60}", rid):
         raise HTTPException(404)
     sc, hv = taste.scores.get(), taste.host_verdicts.get(rid)
+    vname, vres = _visitor(request)
+    if vres:
+        sc = Reading(True, vres, "", vres["at"])
     s = sc.data
     r = s["by_id"].get(rid) if s else None
     if not r and not (hv.data and hv.data["host"]):
@@ -95,7 +110,49 @@ def reviewer(request: Request, rid: str):
                 common=taste.common_games(s, r, sort, things) if r else [], sort=sort, sorts=taste.COMMON_SORTS,
                 dist_them=taste.distribution(scores),
                 dist_you=taste.distribution([v[0] / 2 for v in s["user"].values()]) if s else [],
-                you_mean=(sum(v[0] for v in s["user"].values()) / 2 / len(s["user"])) if s and s["user"] else None)
+                you_mean=(sum(v[0] for v in s["user"].values()) / 2 / len(s["user"])) if s and s["user"] else None,
+                visitor=vname, UQ=("?u=" + quote(vname)) if vname else "")
+
+
+# ---- anyone's matches -----------------------------------------------------------------------------------------------
+
+@app.get("/find", response_class=HTMLResponse)
+def find(request: Request, name: str = ""):
+    name = " ".join(name.split())
+    if name:
+        try:
+            visitors.ask(name)
+            return RedirectResponse(f"{request.scope.get('root_path', '').rstrip('/')}/u/{quote(name)}", status_code=303)
+        except visitors.VisitorError as e:
+            return page(request, "tastematch/find.html", uname=name, error=str(e), stats=taste.stats.get())
+    return page(request, "tastematch/find.html", uname="", error="", stats=taste.stats.get())
+
+
+@app.get("/u/{name}", response_class=HTMLResponse)
+def visitor(request: Request, name: str):
+    name = " ".join(name.split())
+    if not visitors.valid(name):
+        raise HTTPException(404)
+    st, error = visitors.status(name), ""
+    if not st or st["state"] == "error" and request.query_params.get("again") == "1":
+        try:
+            st = visitors.ask(name)
+        except visitors.VisitorError as e:
+            error = str(e)
+    if not st or st["state"] != "done":
+        return page(request, "tastematch/visitor_wait.html", active="/find", uname=name, st=st, error=error)
+    s = visitors.result(name)
+    if not s:
+        raise HTTPException(404)
+    things = taste.things.get().data or {}
+    return page(request, "tastematch/visitor.html", active="/find", uname=s["username"], s=s, st=st, things=things,
+                recs=taste.recommendations(s, limit=12), UQ="?u=" + quote(s["username"]),
+                thin=[r for r in s["reviewers"] if 0 < r["n"] and not r["ranked"]])
+
+
+@app.get("/about", response_class=HTMLResponse)
+def about(request: Request):
+    return page(request, "tastematch/about.html", active="/find", stats=taste.stats.get())
 
 
 # ---- games ----------------------------------------------------------------------------------------------------------

@@ -354,6 +354,7 @@ Not in this repo. Made on the server with `sudo k3s kubectl create secret ...`:
 | tools/tool-logins | passwords of Portainer, Beszel, Uptime Kuma |
 | monitoring/grafana-admin | admin-user, admin-password |
 | tools/alert-smtp | user, password (Gmail app password), to |
+| tools/lab-bgg | BGG_TOKEN, the same as in bg-taste-match's `.env` on the Acer (Taste Match's "Find yours" reads visitors' BGG ratings with it) |
 | tools/homepage-env | HOMEPAGE_VAR_PORTAINER_KEY: a Portainer API key named "homepage" |
 | tools/lab-intake | token: the PC's reports to the lab (the PC keeps it in %USERPROFILE%\.lab-token; `lab/pc-report/install.ps1` makes both) |
 

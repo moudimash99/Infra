@@ -207,6 +207,11 @@ async def serve():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
     store.init()
+    try:
+        from .sources import visitors
+        visitors.resume()          # matches for visitors that were waiting when the lab restarted
+    except Exception:              # noqa: BLE001 - the sites must start even if this fails
+        log.exception("visitor queue not resumed")
     pages = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)),
                                           proxy_headers=True, forwarded_allow_ips="*", access_log=False))
     reports = uvicorn.Server(uvicorn.Config(intake, host="0.0.0.0", port=int(os.environ.get("INTAKE_PORT", 8081)),

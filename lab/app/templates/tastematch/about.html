@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "_m.html" import page_head %}
+{% block title %}How it works · Taste Match{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/tastematch.css?v={{ STATIC_V }}">{% endblock %}
+{% block main %}
+{{ page_head("How it works", "Where the reviewers' scores come from, and how a match is worked out.", "Taste Match") }}
+<div class="tm-prose">
+  <section class="card">
+    <h2>1. The reviews</h2>
+    <p>Taste Match follows {{ stats.data.channels if stats.data else "25" }} YouTube board game channels. Each review's audio is transcribed (Whisper, or YouTube's own captions), and the voices are told apart so a score goes to the host who said it.</p>
+    <p>A language model then reads each transcript and writes down every verdict: which game, which host, how much they liked it on a 1–5 scale, and the sentence that shows it. Every score links to its video and quote, so you can check it.</p>
+    <p class="small soft">These scores are an automatic reading of what was said, not ratings the hosts published. They can be wrong. A host's score that doesn't sound right can be checked against the video in one click.</p>
+  </section>
+  <section class="card">
+    <h2>2. Taste, not hype</h2>
+    <p>Everyone loving a famous game says little about taste. For each person, Taste Match first works out what they would score a game from BGG's average alone, on their own scale. The taste signal is how far their real score sits above or below that.</p>
+    <p>This also takes care of generous and harsh scorers: a host who gives lots of 5s is compared with their own usual, so the 5s alone don't make them match anyone.</p>
+  </section>
+  <section class="card">
+    <h2>3. The match</h2>
+    <p>On the games you and a host both rated, the agreement is how well your taste signals line up: +1 when you always go the same way, −1 when you always go opposite ways.</p>
+    <p>The match is that agreement times how much it counts, and how much it counts grows with the evidence: the shared games, with low-confidence verdicts and roundup videos counting less.</p>
+    <div class="tm-calc mt-3"><span><small>6 solid games</small><b>38%</b></span><span><small>20 games</small><b>67%</b></span><span><small>40 games</small><b>80%</b></span></div>
+    <p class="mt-3">So a perfect agreement on a few games never reaches the top, a good agreement on many games does, and a clear disagreement on many games lands far below zero. Hosts you share fewer than 5 games with are listed but not ranked.</p>
+    <p class="small soft">The likely range on each bar is where 8 in 10 reshuffles of your shared games put the match.</p>
+  </section>
+  <section class="card">
+    <h2>4. Your data</h2>
+    <p>Only your public BoardGameGeek ratings are read, through BGG's API. Nothing is posted to BGG. Your ratings and your result are kept for a day so the pages load quickly, then fetched again on your next visit.</p>
+  </section>
+</div>
+<p class="mt-4"><a class="btn primary" href="{{ R }}/find">{{ icon("search") }}Find your reviewers</a></p>
+{% endblock %}

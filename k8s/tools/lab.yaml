@@ -84,7 +84,7 @@ spec:
       priorityClassName: homelab-critical
       containers:
         - name: lab
-          image: docker.io/library/lab:2026-11-24-host
+          image: docker.io/library/lab:2026-11-24-find
           imagePullPolicy: Never
           ports:
             - { name: http, containerPort: 8080 }
@@ -99,6 +99,9 @@ spec:
             - name: INTAKE_TOKEN
               # Without the Secret the intake refuses every report (401); the pages work either way.
               valueFrom: { secretKeyRef: { name: lab-intake, key: token, optional: true } }
+            - name: BGG_TOKEN
+              # Taste Match's "Find yours": visitors' BGG ratings (sources/visitors.py). Without it, that page says so.
+              valueFrom: { secretKeyRef: { name: lab-bgg, key: BGG_TOKEN, optional: true } }
           securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
           readinessProbe:
             httpGet: { path: /healthz, port: http }

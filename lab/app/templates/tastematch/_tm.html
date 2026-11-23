@@ -29,7 +29,7 @@
 
 {#- One host in a list: rank, avatar, name, channel, the match and its words -#}
 {% macro host_row(r, rank=True, bar=False) -%}
-<a class="item" href="{{ R }}/reviewers/{{ r.id }}">
+<a class="item" href="{{ R }}/reviewers/{{ r.id }}{{ UQ or '' }}">
   {% if rank %}<span class="rank">{{ r.rank if r.ranked else "·" }}</span>{% endif %}
   {{ who(r.name, r.id) }}
   <span class="body">

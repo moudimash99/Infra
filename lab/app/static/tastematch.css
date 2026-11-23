@@ -96,3 +96,21 @@ a.hero:hover { text-decoration: none; box-shadow: var(--sh-2); }
 .tm-hist .bar { height: 14px; border-radius: 7px; background: var(--bg-2); overflow: hidden; }
 .tm-hist .bar > span { display: block; height: 100%; border-radius: 7px; background: var(--accent); min-width: 2px; }
 .tm-hist .v { font-size: var(--fs-xs); color: var(--text-3); text-align: right; font-variant-numeric: tabular-nums; }
+
+/* find your reviewers */
+.tm-find { max-width: 680px; margin: 8px auto 28px; text-align: left; }
+.tm-find-title { font-size: clamp(1.7rem, 5vw, 2.6rem); font-weight: 800; letter-spacing: -.035em; line-height: 1.1; margin: 8px 0 12px; }
+.tm-find-lede { font-size: 1.05rem; line-height: 1.55; margin-bottom: 18px; }
+.tm-find-form { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0 8px; }
+.tm-find-form .input { flex: 1 1 240px; height: 48px; font-size: 1rem; }
+.tm-find-form .btn { height: 48px; padding: 0 18px; }
+.tm-feat-ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-ink); }
+.tm-feat-ic svg { width: 20px; height: 20px; }
+.tm-spin { width: 22px; height: 22px; border-radius: 50%; border: 3px solid var(--bg-2); border-top-color: var(--accent); animation: tm-spin .9s linear infinite; flex: none; }
+@keyframes tm-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .tm-spin { animation-duration: 3s; } }
+
+/* how it works */
+.tm-prose { display: grid; gap: 14px; max-width: 760px; }
+.tm-prose h2 { font-size: 1.15rem; font-weight: 750; margin: 0 0 8px; letter-spacing: -.01em; }
+.tm-prose p { line-height: 1.6; color: var(--text-2); margin: 0 0 8px; }

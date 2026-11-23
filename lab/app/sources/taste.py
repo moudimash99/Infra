@@ -34,7 +34,10 @@ sys.path.insert(0, folder)
 import score
 conn = sqlite3.connect("file:" + folder + "/bgtaste.db?mode=ro", uri=True, timeout=20)
 conn.row_factory = sqlite3.Row
-results, mine = score.score_all(conn, user)
+if user == "-":     # a visitor: their {bgg_id: rating} on stdin
+    results, mine = score.score_all(conn, "visitor", score.user_from_ratings(conn, json.load(sys.stdin)))
+else:
+    results, mine = score.score_all(conn, user)
 keep = ("id", "name", "n", "rated", "corr", "match", "low", "high", "evidence", "counts")
 json.dump({"user": {str(g): v for g, v in mine.items()},
            "ures": {str(g): v for g, v in (results[0]["ures"] if results else {}).items()},
@@ -70,14 +73,25 @@ SHORT = {"Strong match": "Strong", "Good match": "Good", "Slight match": "Slight
          "Slightly different": "Slightly off", "Different taste": "Different"}
 
 
-def _compute():
+def run_score(username=USER, ratings=None, timeout=180):
+    """score.py in a child process against the read-only database: the owner by username, or anyone by ratings
+    ({bgg_id: rating out of 10}). Returns its raw JSON."""
     folder = os.path.abspath(BGT_DIR)
-    run = subprocess.run([sys.executable, "-c", _SCRIPT, folder, USER], capture_output=True, text=True, timeout=180,
-                         cwd=folder, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+    run = subprocess.run([sys.executable, "-c", _SCRIPT, folder, "-" if ratings is not None else username],
+                         input=json.dumps(ratings) if ratings is not None else None, capture_output=True, text=True,
+                         timeout=timeout, cwd=folder, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
     if run.returncode != 0:
         lines = run.stderr.strip().splitlines()
         raise RuntimeError(lines[-1] if lines else f"score.py exited with {run.returncode}")
-    raw = json.loads(run.stdout)
+    return json.loads(run.stdout)
+
+
+def _compute():
+    return build(run_score(), USER)
+
+
+def build(raw, username):
+    """score.py's raw JSON -> the result the pages use: hosts with their words, ranks and channel names."""
     chans = channel_info.get().data or {}
     user = {int(g): tuple(v) for g, v in raw["user"].items()}
     reviewers = []
@@ -93,7 +107,7 @@ def _compute():
     for i, r in enumerate(ranked, 1):
         r["rank"] = i
     return {"user": user, "ures": {int(g): v for g, v in raw["ures"].items()}, "reviewers": reviewers,
-            "by_id": {r["id"]: r for r in reviewers}, "ranked": ranked, "at": time.time(), "username": USER}
+            "by_id": {r["id"]: r for r in reviewers}, "ranked": ranked, "at": time.time(), "username": username}
 
 
 class _Scores:
