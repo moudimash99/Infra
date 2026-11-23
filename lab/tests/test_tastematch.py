@@ -154,7 +154,9 @@ def test_pipeline_page_shows_hours_and_sorting(tmp_path, monkeypatch):
     totals = {**stages, **{k + "_h": v * 0.5 for k, v in stages.items()}, "videos": 1000, "hours": 728.0,
               "hours_to_transcribe": 200.0, "hours_to_download": 50.0, "to_download": 100, "unavailable": 0, "later": 0}
     monkeypatch.setattr(bgt, "progress", Fixed({"channels": {"susd": ch}, "totals": totals, "audio_files": 900,
-        "speed": {"downloads_24h": 3, "audio_hours_downloaded_24h": 2, "transcribed_24h": 1, "audio_hours_transcribed_24h": 1},
+        "speed": {"downloads_24h": 3, "audio_hours_downloaded_24h": 139, "transcribed_24h": 1, "audio_hours_transcribed_24h": 18,
+                  "speakers_hours_24h": 0, "rated_hours_24h": 0, "last_rated": _time.time() - 12 * 86400},
+        "disk": {"free_gb": 500, "guard_gb": 150, "room_gb": 350, "gb_per_hour": 0.05, "room_hours": 7000},
         "scope": {"full": "Shut Up & Sit Down", "n_full": 1, "n_limited": 0}}))
     monkeypatch.setattr(bgt, "now", Fixed({"runs": [], "cron": {}, "youtube_blocked": False, "gpu_paused": False}))
     monkeypatch.setattr(bgt, "activity", Fixed([]))
@@ -175,3 +177,10 @@ def test_pipeline_page_shows_hours_and_sorting(tmp_path, monkeypatch):
         assert "11,966 of 23,436 h" in r.text and "36,030 videos" in r.text
     assert "450 of 728 h" in r.text            # Downloaded: 900 videos at half an hour each, in hours
     assert "900 of 1,000 videos" in r.text and "325 h" in r.text   # Rated, per channel, in hours
+    assert "278 h left" in r.text and "≈ 2.0 days" in r.text        # Downloaded: 728 - 450 = 278 h at 139 h a day
+    assert "not moving" in r.text and "(last rating " in r.text
+
+
+def test_eta():
+    from app.sources import bgt
+    assert bgt.eta(0, 5) is None and bgt.eta(100, 0) == "stalled" and bgt.eta(100, 50) == 2

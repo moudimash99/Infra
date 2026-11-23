@@ -17,6 +17,7 @@ import time
 from . import source, k8s
 from .. import logs
 from ..config import BGT_AUDIO, BGT_DIR
+from ..fmt import to_ts
 
 FETCH_CATEGORIES = ("review", "multi_review", "top_list", "recommendation_list")
 CATEGORY_SQL = "COALESCE(category_override, llm_category, category)"
@@ -83,6 +84,7 @@ def progress():
         text = {r[0] for r in conn.execute("SELECT video_id FROM transcripts")}
         rated = {r[0] for r in conn.execute("SELECT video_id FROM ratings UNION SELECT video_id FROM rated_parts")}
         voices = {r[0] for r in conn.execute("SELECT video_id FROM speaker_transcripts")}
+        first_rated = {r[0]: r[1] for r in conn.execute("SELECT video_id, MIN(rated_at) FROM ratings GROUP BY video_id")}
         # Held back for the next round (select_videos.py): a big channel's first round is only the videos whose
         # titles name a game the user rated; the rest of it waits with category_override 'later'.
         later = {r[0]: r[1] for r in conn.execute(
@@ -148,11 +150,50 @@ def progress():
                   hours_to_download=sum(c.get("hours_to_download", 0) for c in channels.values()),
                   to_download=sum(c["to_download"] for c in channels.values()),
                   unavailable=sum(unavailable.values()), later=sum(later.values()))
+    rated_ts = {i: to_ts(at) for i, at in first_rated.items()}
     speed = {"downloads_24h": len(recent_audio),
              "audio_hours_downloaded_24h": sum(dur.get(i, 0) for i in recent_audio) / 3600,
              "transcribed_24h": len(recent_caps),
-             "audio_hours_transcribed_24h": sum(dur.get(i, 0) for i in recent_caps) / 3600}
-    return {"channels": channels, "totals": totals, "speed": speed, "audio_files": len(audio), "scope": scope}
+             "audio_hours_transcribed_24h": sum(dur.get(i, 0) for i in recent_caps) / 3600,
+             "speakers_hours_24h": sum(dur.get(i, 0) for i, p in diar.items() if _mtime(p) > day) / 3600,
+             "rated_hours_24h": sum(dur.get(i, 0) for i, t in rated_ts.items() if t and t > day) / 3600,
+             "last_rated": max(filter(None, rated_ts.values()), default=None)}
+    return {"channels": channels, "totals": totals, "speed": speed, "audio_files": len(audio), "scope": scope,
+            "disk": disk_room(audio, dur)}
+
+
+MIN_FREE_GB = float(os.environ.get("BGT_MIN_FREE_GB", "150"))    # get_audio.py stops downloading below this
+
+
+def disk_room(audio, dur):
+    """How many more hours of audio fit before get_audio.py's free-space guard stops downloads, from the audio
+    folder's free space and the size per hour of what is already downloaded."""
+    try:
+        st = os.statvfs(BGT_AUDIO)
+    except (OSError, AttributeError):
+        return None
+    free_gb = st.f_bavail * st.f_frsize / 1e9
+    size = hours = 0.0
+    for vid, path in audio.items():
+        if dur.get(vid):
+            try:
+                size += os.path.getsize(path)
+            except OSError:
+                continue
+            hours += dur[vid] / 3600
+    gb_per_h = size / 1e9 / hours if hours > 1 else None
+    room_gb = max(0.0, free_gb - MIN_FREE_GB)
+    return {"free_gb": free_gb, "guard_gb": MIN_FREE_GB, "room_gb": room_gb, "gb_per_hour": gb_per_h,
+            "room_hours": room_gb / gb_per_h if gb_per_h else None}
+
+
+def eta(left_h, done_24h_h):
+    """Days left at the last 24 hours' pace: None when nothing is left, 'stalled' when nothing moved."""
+    if left_h <= 0.5:
+        return None
+    if not done_24h_h or done_24h_h <= 0:
+        return "stalled"
+    return left_h / done_24h_h
 
 
 SORTED_SQL = "(llm_category IS NOT NULL OR category_override IS NOT NULL)"
@@ -223,8 +264,11 @@ def sorter_state(folder, names=None):
         if m:
             pos = (int(m.group(1)), int(m.group(2)))
             break
-    return {"state": "running", "channel": ch, "name": names.get(ch, ch), "pos": pos,
-            "since": _log_time(starts[-1]) if starts else None, "updated": _mtime(out) or None}
+    since, updated = (_log_time(starts[-1]) if starts else None), (_mtime(out) or None)
+    # Pace of this channel's pass so far (titles per hour while running; the waits for the Claude limit come on top).
+    per_hour = pos[0] / ((updated - since) / 3600) if pos and since and updated and updated - since > 300 else None
+    return {"state": "running", "channel": ch, "name": names.get(ch, ch), "pos": pos, "since": since,
+            "updated": updated, "titles_per_hour": per_hour}
 
 
 def _and(words):

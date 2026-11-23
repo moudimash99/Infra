@@ -213,7 +213,7 @@ def pipeline(request: Request):
                 fails.append({"line": f, "run": run["name"], "at": run.get("start"), "vid": m.group(1) if m else None,
                               "title": m.group(2) if m else f, "why": why.replace("unable to download video data: ", "")})
     return page(request, "tastematch/pipeline.html", prog=prog, pipe=now, activity=bgt.activity.get(),
-                sorting=bgt.sorting.get(),
+                sorting=bgt.sorting.get(), eta=bgt.eta,
                 problems=bgt.problems.get(), progress_chart=chart, has_results=bool(bgt.results_file()), fails=fails,
                 whisper_speed=(audio / took) if took > 30 else None,
                 runs=store.job_history(prefix="bg-taste-match", days=7))

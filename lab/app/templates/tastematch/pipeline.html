@@ -3,6 +3,9 @@
 {% from "tastematch/_tm.html" import vthumb with context %}
 {% block title %}Pipeline · Taste Match{% endblock %}
 {% block head %}<link rel="stylesheet" href="/static/tastematch.css?v={{ STATIC_V }}">{% endblock %}
+{% macro eta_text(e) -%}
+{%- if e is none %}done{% elif e == "stalled" %}not moving{% elif e < 1 / 24 %}under an hour{% elif e < 1 %}≈ {{ (e * 24) | round | int }} h{% elif e < 60 %}≈ {{ e | round(1) }} days{% else %}≈ {{ (e / 30) | round | int }} months{% endif -%}
+{%- endmacro %}
 {% block main %}
 {{ page_head("Pipeline", "How YouTube reviews become verdicts: the audio is downloaded, Whisper writes the text, the voices are told apart, then each host's score per game is read from what they said.") }}
 
@@ -20,19 +23,24 @@
     <div class="card-head" style="margin-bottom:4px"><h3>{{ icon("layers") }}This round</h3></div>
     <p class="small muted mb-4">{{ t.videos | comma }} reviews from {{ prog.data.channels | length }} channels, {{ t.hours | round | int | comma }} hours of video</p>
     <div class="steps">
-      {% for key, label, ic, note in [("audio", "Downloaded", "download", "{:,} left · {:,} in the last 24 h".format(t.to_download, sp.downloads_24h)),
-                                      ("text", "Transcribed", "file-text", "{:,} h of audio left{}".format(t.hours_to_transcribe | round | int, (" · ≈ {:,} h on the GPU".format((t.hours_to_transcribe / whisper_speed) | round | int)) if whisper_speed else "")),
-                                      ("speakers", "Speakers found", "mic", "who speaks when"),
-                                      ("rated", "Rated", "star", ("{:,} ready for rating".format(problems.data.waiting_rating)) if problems.data else "")] %}
+      {% set dk = prog.data.disk %}
+      {% for key, label, ic, pace, note in [("audio", "Downloaded", "download", sp.audio_hours_downloaded_24h, ""),
+                                            ("text", "Transcribed", "file-text", sp.audio_hours_transcribed_24h, ""),
+                                            ("speakers", "Speakers found", "mic", sp.speakers_hours_24h, "who speaks when"),
+                                            ("rated", "Rated", "star", sp.rated_hours_24h, ("{:,} videos ready for rating".format(problems.data.waiting_rating)) if problems.data else "")] %}
       {% set paused = pipe.data and pipe.data.gpu_paused and key in ("text", "speakers") %}
-      {% set h = t[key ~ "_h"] or 0 %}
+      {% set h = t[key ~ "_h"] or 0 %}{% set left = t.hours - h %}{% set e = eta(left, pace) %}
       <div class="step"><span class="ic">{{ icon(ic) }}</span>
         <div><div class="what"><b>{{ label }}</b><span>{{ h | round | int | comma }} of {{ t.hours | round | int | comma }} h</span></div>
           <span class="progress{{ ' muted' if paused }}"><span style="width:{{ pct(h, t.hours) }}%"></span></span>
-          <div class="xs muted mt-1">{{ "Paused · " if paused }}{{ t[key] | comma }} of {{ t.videos | comma }} videos{% if note %} · {{ note }}{% endif %}</div></div>
-        <span class="n">{{ h | round | int | comma }} h</span></div>
+          <div class="xs muted mt-1">{{ "Paused · " if paused }}{{ left | round | int | comma }} h left · {{ (pace or 0) | round(1) }} h done in the last 24 h · <b>{{ eta_text(e) }}</b>{% if e and e != "stalled" %} at that pace{% endif %}
+            {%- if key == "rated" and e == "stalled" and sp.last_rated %} (last rating {{ sp.last_rated | ago }}){% endif %}
+            {%- if key == "audio" and dk and dk.room_hours is not none and dk.room_hours < left %} · the disk has room for ≈ {{ dk.room_hours | round | int | comma }} h more before downloads stop ({{ dk.free_gb | round | int }} GB free, the guard keeps {{ dk.guard_gb | round | int }} GB){% endif %}
+            {%- if note %} · {{ note }}{% endif %} · {{ t[key] | comma }} of {{ t.videos | comma }} videos</div></div>
+        <span class="n">{{ eta_text(e) if e else "done" }}</span></div>
       {% endfor %}
     </div>
+    <p class="xs muted mt-3">Time left is hours of video still to do, divided by the hours each stage finished in the last 24 hours. The stages run one after another on each video, so the slowest one sets the pace for the whole round.</p>
     {% set sc = prog.data.scope %}
     {% if sc.full or sc.n_limited %}
     <p class="small soft mt-4">This round:
@@ -66,7 +74,8 @@
     <div class="step"><span class="ic">{{ icon("filter") }}</span>
       <div><div class="what"><b>Sorted</b><span>{{ st.sorted_h | round | int | comma }} of {{ st.hours | round | int | comma }} h</span></div>
         <span class="progress"><span style="width:{{ pct(st.sorted_h, st.hours) }}%"></span></span>
-        <div class="xs muted mt-1">{{ st.sorted | comma }} of {{ st.videos | comma }} videos · {{ (st.hours - st.sorted_h) | round | int | comma }} h ({{ (st.videos - st.sorted) | comma }} videos) left</div></div>
+        <div class="xs muted mt-1">{{ st.sorted | comma }} of {{ st.videos | comma }} videos · {{ (st.hours - st.sorted_h) | round | int | comma }} h ({{ (st.videos - st.sorted) | comma }} videos) left
+          {%- if w and w.state == "running" and w.titles_per_hour %} · <b>{{ eta_text((st.videos - st.sorted) / w.titles_per_hour / 24) }}</b> of sorting at {{ w.titles_per_hour | round | int | comma }} titles an hour, plus the waits for the Claude limit{% endif %}</div></div>
       <span class="n">{{ st.sorted_h | round | int | comma }} h</span></div>
     {% if w %}<p class="small soft mt-3">
       {%- if w.state == "running" %}Sorting {{ w.name }}{% if w.pos %}: {{ w.pos[0] | comma }} of {{ w.pos[1] | comma }} titles{% endif %}{% if w.updated %} · updated {{ w.updated | ago }}{% endif %}.
