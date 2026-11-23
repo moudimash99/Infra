@@ -72,7 +72,8 @@ metadata:
   labels: { app: bg-taste-match }
 spec:
   # Running since 2026-11-23 (user: run it with a heat guard): the Acer's GPU runs hot, so heat_guard.py runs inside
-  # each stage (HEAT_* below). It pauses the work while the GPU or CPU is hot, ends the pass after 15 minutes of
+  # each stage (HEAT_* below). It pauses the work while the GPU or CPU is hot (checked before each piece and every
+  # HEAT_CHECK_EVERY seconds during one, since 2026-11-23 23:45), ends the pass after 15 minutes of
   # waiting or at once at the hard level, and stops the work if it can't read the temperatures. Paused 11-11 to 11-23
   # after a guard run from another machine died and Whisper ran all day up to GPU 85 C / CPU 92 C.
   # The first killable job (moudimash99/Infra#12): it books almost nothing, so it uses the Acer's spare memory and is
@@ -124,13 +125,16 @@ spec:
                 - { name: NVIDIA_DRIVER_CAPABILITIES, value: "compute,utility" }
                 # heat guard (heat_guard.py), degrees C: pause / resume / hard stop, and the longest pause in seconds
                 - { name: HEAT_GUARD, value: "1" }
-                - { name: HEAT_PAUSE_GPU, value: "80" }
+                # GPU 80 / 85 until 2026-11-23 (user: "change the guard and limits for now and we see"); the GTX 1050's
+                # own levels: target 94, slowdown 97. CPU unchanged: the i5-7300HQ's limit is 100 and it already reaches 90.
+                - { name: HEAT_PAUSE_GPU, value: "82" }
                 - { name: HEAT_PAUSE_CPU, value: "90" }
                 - { name: HEAT_RESUME_GPU, value: "70" }
                 - { name: HEAT_RESUME_CPU, value: "80" }
-                - { name: HEAT_HARD_GPU, value: "85" }
+                - { name: HEAT_HARD_GPU, value: "90" }
                 - { name: HEAT_HARD_CPU, value: "95" }
                 - { name: HEAT_MAX_WAIT, value: "900" }
+                - { name: HEAT_CHECK_EVERY, value: "10" }
                 # a stage starts only with this much memory really free on the Acer (deploy/run_gpu.sh)
                 - { name: MIN_FREE_MIB, value: "1280" }
                 - name: HF_TOKEN
