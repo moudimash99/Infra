@@ -254,6 +254,12 @@ groups:
         annotations:
           summary: "cat-monitor: no run has succeeded for over a day"
           description: "Its daily run failed (GPU busy past the 1-hour wait, no recordings, an error, or past its time limit)."
+      - alert: BackupsMissed
+        expr: time() - kube_cronjob_status_last_successful_time{cronjob=~"backup-server|backup-acer"} > 26 * 3600
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.cronjob }}: no good nightly backup in over a day"
+          description: "The nightly copy (k8s/apps/backups) failed or didn't start. Its log names each item that failed: kubectl -n apps get jobs | grep backup, then kubectl -n apps logs job/<the last one>."
       - alert: BgTasteMatchDownloadsStalled
         expr: time() - kube_cronjob_status_last_successful_time{cronjob="bg-taste-match-fetch"} > 12 * 3600
         labels: { severity: warning }

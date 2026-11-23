@@ -353,6 +353,12 @@ kubectl -n monitoring get secret grafana-admin -o go-template='{{index .data "ad
 Before the move to k3s: `~/backups/pre-k3s-20261024-1641/` on the server, and a copy on the PC.
 Tools and monitoring keep their data on local-path volumes (`/var/lib/rancher/k3s/storage/`).
 k3s takes its own database snapshot every 12 hours and keeps 5, in `/var/lib/rancher/k3s/server/db/snapshots/`.
-A restore also needs `/var/lib/rancher/k3s/server/token`. Nothing is copied off the server or the Acer
-on a schedule. The data in `/srv/apps` on the Acer has only two copies from 2026-11-02: its old folders
-on the server, and `~/homelab-backup/2026-11-02/` on the PC, which also holds the `.env` files and tool logins.
+A restore also needs `/var/lib/rancher/k3s/server/token`.
+
+**Nightly, since 2026-11-23** (`k8s/apps/backups/backups.yaml`, entry `backups` in `services.yaml`): each machine's data
+is copied onto the other. `backup-server` (02:40) writes the server's data to `/srv/backups/nightly/server/<day>`;
+`backup-acer` (03:20) writes the Acer's to `/srv/backups/nightly/acer/<day>` over NFS, then copies the server's latest
+night to the Acer's `/var/backups/nightly/server/<day>`. SQLite is copied with its backup API, 7 nights are kept, and
+the copies hold logins and email text (700/600, uid 1000). Restore: scale the app to 0, copy the file back, scale it
+up. Nothing leaves the house yet. Older one-off copies: `~/backups/pre-k3s-20261024-1641/`, the Acer's 2026-11-02 copy
+in `~/homelab-backup/2026-11-02/` on the PC, and `/srv/backups` on the server.

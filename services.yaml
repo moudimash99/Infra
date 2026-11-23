@@ -1111,6 +1111,41 @@
     icon: mdi-package-variant-closed
     description: Image registry (the nodes don't use it yet)
 
+- name: backups
+  what: "Nightly copies of the app data, each machine's onto the other (user 2026-11-23: the Acer's to the server and the server's to the Acer)."
+  kind: scheduled-job
+  system: platform
+  lifecycle: production
+  depends_on: [nfs-exports]
+  runs: "k8s apps/CronJob backup-server on moudimash99 and apps/CronJob backup-acer on acer-laptop"
+  manifest: Infra/k8s/apps/backups/backups.yaml (the script is its ConfigMap backup-script)
+  image: "docker.io/library/python:3.13-slim (standard library only)"
+  schedule:
+    backup-server: "40 2 * * * Europe/Paris"
+    backup-acer: "20 3 * * * Europe/Paris (the mail classifier sleeps then)"
+  url: null
+  data:
+    - "Server: /srv/backups/nightly/server/<day> (hub.db, the driver logins only, the personal site's tracking data, uptime-kuma, grafana, beszel, portainer, the newest k3s snapshot and the token) and /srv/backups/nightly/acer/<day> (from the Acer)"
+    - "Acer: /var/backups/nightly/server/<day> (the server's latest night)"
+    - "The Acer's copies: cat-weight, boardxplorer, unmatched, Games.db, bgtaste.db, captions and speakers, lab.db, email-remove, frigate config and frigate.db, cat-monitor reports"
+    - "Private (logins, email text): folders 700, files 600, uid 1000. 7 nights kept in each place; ~63 MB (server) and ~380 MB (Acer) a night"
+  code: { repo: none (the script is in the manifest), branch: null }
+  deploy: "kubectl apply -f k8s/apps/backups/backups.yaml"
+  check: "Both CronJobs succeed nightly (their log ends with a JSON line listing ok and failed items); alert BackupsMissed after 26 h"
+  probes:
+    - {k8s: apps/CronJob/backup-server, max_age_h: 26}
+    - {k8s: apps/CronJob/backup-acer, max_age_h: 26}
+  drift: []
+  notes:
+    - "SQLite files are copied with SQLite's backup API (consistent while the app writes), then quick_check'ed; portainer.db (BoltDB) is copied as a file while Portainer runs."
+    - "Tested 2026-11-23: both jobs ran by hand with no failed item; cat-weight's copy, restored into a scratch folder on the server, passed integrity_check with the same 150 weights as live."
+    - "Left out on purpose: Frigate recordings, bg-taste-match audio and caches, Prometheus, the registry, the session histories in /srv/apps/freemotion/home, fm-data (git) and code (GitHub). Nothing leaves the house yet: an encrypted copy elsewhere is the user's call (Infra#10)."
+    - "Restore: stop the app (scale to 0), copy the file back, start it."
+  menu:
+    title: Backups
+    icon: mdi-backup-restore
+    description: Nightly copies, each machine's onto the other
+
 - name: nfs-exports
   what: NFS server on the server, sharing Free Motion's data and code with the Acer.
   kind: cluster
@@ -1125,6 +1160,7 @@
   data:
     - "/srv/apps/freemotion/fm-data to 192.168.1.93 (rw,sync)"
     - "/srv/apps/freemotion/ws to 192.168.1.93 (ro,sync)"
+    - "/srv/backups/nightly to 192.168.1.93 (rw,sync,all_squash,anonuid=1000,anongid=1000), since 2026-11-23, for backup-acer"
   code: { repo: none, branch: null }
   deploy: "Edit /etc/exports on the server, exportfs -ra."
   check: "fm-browser-acer and fm-webllm pods start (they mount these); bg-taste-match-llm runs"
@@ -1132,11 +1168,11 @@
     - {systemd: nfs-server}
   drift: []
   notes:
-    - "Used by fm-browser-acer (fm-data rw), fm-webllm (fm-data + ws ro), bg-taste-match-llm (ws ro)."
+    - "Used by fm-browser-acer (fm-data rw), fm-webllm (fm-data + ws ro), bg-taste-match-llm (ws ro), backup-acer (nightly rw)."
   menu:
     title: NFS
     icon: mdi-folder-network
-    description: Free Motion's data and code, server to Acer
+    description: Free Motion's data and code, and the nightly backups, server to Acer
 
 - name: tailscale
   what: Tailscale on the server; Free Motion's agents reach the hub at 100.111.127.103:8791 through it.

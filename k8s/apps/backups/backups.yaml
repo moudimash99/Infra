@@ -1,0 +1,235 @@
+# Nightly backups of the app data (Infra#10, user 2026-11-23: "move the Acer to the server and the server to the Acer").
+#  - backup-server (server, 02:40 Paris): consistent copies of the server's data into /srv/backups/nightly/server/<day>.
+#  - backup-acer (Acer, 03:20 Paris): the Acer's data into the server's /srv/backups/nightly/acer/<day> (NFS export,
+#    all writes as uid 1000), then the server's latest night copied onto the Acer's own disk,
+#    /var/backups/nightly/server/<day>.
+# So each machine's data lives on both. SQLite files are copied with SQLite's backup API (safe while the app writes,
+# WAL included), never with cp; other files are tar.gz. The last 7 nights are kept in each place.
+# Private: the driver logins and the email archiver's files (email text) are in these copies. Folders 700, files 600,
+# owned by uid 1000 (moudimash99), never in a repo or anywhere public.
+# Left out on purpose (big, or easy to make again): Frigate recordings, bg-taste-match audio and caches, Prometheus,
+# the registry, the session histories under /srv/apps/freemotion/home, fm-data (git, pushed) and all code (GitHub).
+# Restore: copy the file back while the app is stopped (scale it to 0), then start it. A test restore of cat-weight's
+# DB was run on 2026-11-23 (see services.yaml, backups).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-script
+  namespace: apps
+data:
+  backup.py: |
+    import datetime, json, os, shutil, sqlite3, sys, tarfile, traceback
+    MODE = sys.argv[1]                       # server | acer
+    DAY = datetime.datetime.now().strftime("%Y-%m-%d")
+    KEEP = 7
+    errors, done = [], []
+
+    def secure(path):
+        for root, dirs, files in os.walk(path):
+            for d in dirs: os.chmod(os.path.join(root, d), 0o700)
+            for f in files: os.chmod(os.path.join(root, f), 0o600)
+        os.chmod(path, 0o700)
+        if os.geteuid() == 0:
+            for root, dirs, files in os.walk(path):
+                for n in dirs + files: os.lchown(os.path.join(root, n), 1000, 1000)
+            os.lchown(path, 1000, 1000)
+
+    def sqlite_copy(src, dst):
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        if os.path.exists(dst): os.remove(dst)
+        s = sqlite3.connect(f"file:{src}?mode=ro", uri=True, timeout=60)
+        d = sqlite3.connect(dst)
+        with d: s.backup(d)
+        ok = d.execute("pragma quick_check").fetchone()[0]
+        s.close(); d.close()
+        if ok != "ok": raise RuntimeError(f"quick_check: {ok}")
+
+    def tar_copy(dst, items, exclude=()):
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        def skip(t):
+            return None if any(x in t.name for x in exclude) else t
+        with tarfile.open(dst, "w:gz") as t:
+            for src, arc in items:
+                if os.path.exists(src): t.add(src, arcname=arc, filter=skip)
+
+    def file_copy(src, dst):
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copy2(src, dst)
+
+    def step(name, fn, *a, **k):
+        try:
+            fn(*a, **k); done.append(name); print("ok   ", name, flush=True)
+        except Exception as e:
+            errors.append(name); print("FAIL ", name, "-", e, flush=True); traceback.print_exc()
+
+    def prune(folder):
+        if not os.path.isdir(folder): return
+        os.chmod(folder, 0o700)
+        if os.geteuid() == 0: os.lchown(folder, 1000, 1000)
+        days = sorted(d for d in os.listdir(folder) if len(d) == 10 and d[4] == "-")
+        for d in days[:-KEEP]:
+            shutil.rmtree(os.path.join(folder, d), ignore_errors=True); print("pruned", folder, d)
+
+    if MODE == "server":
+        out = f"/backup/server/{DAY}"; os.makedirs(out, exist_ok=True)
+        step("freemotion-hub hub.db", sqlite_copy, "/src/freemotion-hub/hub.db", f"{out}/freemotion-hub/hub.db")
+        home = "/src/fm-home"
+        logins = [(f"{home}/{a}/{f}", f"{a}/{f}") for a in (".claude-account1", ".claude-account2", ".claude-account3")
+                  for f in (".credentials.json", ".claude.json", "settings.json")]
+        logins += [(f"{home}/.codex/auth.json", ".codex/auth.json"), (f"{home}/.codex/config.toml", ".codex/config.toml"),
+                   (f"{home}/.copilot", ".copilot"), (f"{home}/.gemini", ".gemini"), (f"{home}/.config/gh", ".config/gh"),
+                   (f"{home}/.gitconfig", ".gitconfig"), (f"{home}/.fm-llm", ".fm-llm")]
+        step("freemotion driver logins", tar_copy, f"{out}/freemotion-home-logins.tar.gz", logins, exclude=("/cache", "/logs", "/tmp"))
+        step("personal-website tracking-data", tar_copy, f"{out}/personal-website-tracking-data.tar.gz", [("/src/tracking-data", "tracking-data")])
+        st = "/src/k3s-storage"
+        for pvc in sorted(os.listdir(st)):
+            if pvc.endswith("_tools_uptime-kuma-data"):
+                step("uptime-kuma kuma.db", sqlite_copy, f"{st}/{pvc}/kuma.db", f"{out}/uptime-kuma/kuma.db")
+            elif pvc.endswith("_monitoring_grafana-data"):
+                step("grafana grafana.db", sqlite_copy, f"{st}/{pvc}/grafana.db", f"{out}/grafana/grafana.db")
+            elif pvc.endswith("_tools_beszel-data"):
+                for db in ("data.db", "auxiliary.db"):
+                    if os.path.exists(f"{st}/{pvc}/{db}"):
+                        step(f"beszel {db}", sqlite_copy, f"{st}/{pvc}/{db}", f"{out}/beszel/{db}")
+            elif pvc.endswith("_tools_portainer-data"):
+                # BoltDB, copied as a file while Portainer runs: may need Portainer's own restore if it is mid-write.
+                step("portainer portainer.db", file_copy, f"{st}/{pvc}/portainer.db", f"{out}/portainer/portainer.db")
+        # The newest by time: names differ (etcd-snapshot-<node>-<ts>, pre-move-116-...), so not by name.
+        snaps = sorted(os.listdir("/src/k3s-snapshots"), key=lambda n: os.path.getmtime(f"/src/k3s-snapshots/{n}"))
+        if snaps:
+            step("k3s latest etcd snapshot", file_copy, f"/src/k3s-snapshots/{snaps[-1]}", f"{out}/k3s/{snaps[-1]}")
+        step("k3s server token", file_copy, "/src/k3s-token", f"{out}/k3s/token")
+        secure(out); prune("/backup/server")
+
+    elif MODE == "acer":
+        out = f"/backup/acer/{DAY}"; os.makedirs(out, exist_ok=True)
+        a = "/src/apps"
+        step("cat-weight", sqlite_copy, f"{a}/cat-weight/cat_data.db", f"{out}/cat-weight/cat_data.db")
+        step("boardxplorer", sqlite_copy, f"{a}/boardxplorer/db.sqlite3", f"{out}/boardxplorer/db.sqlite3")
+        step("unmatched", tar_copy, f"{out}/unmatched.tar.gz", [(f"{a}/unmatched", "unmatched")])
+        step("boardgamefinder Games.db", sqlite_copy, f"{a}/boardgamefinder/data/Games.db", f"{out}/boardgamefinder/Games.db")
+        step("bg-taste-match bgtaste.db", sqlite_copy, f"{a}/bg-taste-match/bgtaste.db", f"{out}/bg-taste-match/bgtaste.db")
+        step("bg-taste-match captions + speakers", tar_copy, f"{out}/bg-taste-match-captions.tar.gz",
+             [(f"{a}/bg-taste-match/captions", "captions"), (f"{a}/bg-taste-match/diar", "diar")])
+        if os.path.exists(f"{a}/lab/lab.db"):
+            step("lab lab.db", sqlite_copy, f"{a}/lab/lab.db", f"{out}/lab/lab.db")
+        step("email-remove (private)", tar_copy, f"{out}/email-remove.tar.gz", [(f"{a}/email-remove", "email-remove")],
+             exclude=("__pycache__",))
+        step("frigate config", tar_copy, f"{out}/frigate-config.tar.gz", [(f"{a}/frigate/config/config.yml", "config/config.yml")])
+        for db in ("frigate.db",):
+            if os.path.exists(f"{a}/frigate/config/{db}"):
+                step(f"frigate {db}", sqlite_copy, f"{a}/frigate/config/{db}", f"{out}/frigate/{db}")
+        step("cat-monitor reports", tar_copy, f"{out}/cat-monitor.tar.gz", [(f"{a}/cat-monitor", "cat-monitor")],
+             exclude=("/code", "__pycache__", ".pt", ".onnx"))
+        secure(out); prune("/backup/acer")
+        # The server's latest night, onto the Acer's own disk.
+        nights = sorted(d for d in os.listdir("/backup/server") if len(d) == 10) if os.path.isdir("/backup/server") else []
+        if nights:
+            dst = f"/local/server/{nights[-1]}"
+            def pull():
+                if os.path.exists(dst): shutil.rmtree(dst)
+                shutil.copytree(f"/backup/server/{nights[-1]}", dst); secure(dst)
+            step(f"server night {nights[-1]} copied to the Acer", pull)
+            prune("/local/server")
+        else:
+            errors.append("no server night to copy"); print("FAIL  no server night to copy")
+
+    print(json.dumps({"mode": MODE, "day": DAY, "ok": done, "failed": errors}))
+    sys.exit(1 if errors else 0)
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-server
+  namespace: apps
+  labels: { app: backups }
+spec:
+  schedule: "40 2 * * *"
+  timeZone: Europe/Paris
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels: { app: backups, side: server }
+        spec:
+          restartPolicy: Never
+          nodeSelector: { kubernetes.io/hostname: moudimash99 }
+          priorityClassName: batch-low
+          containers:
+            - name: backup
+              image: docker.io/library/python:3.13-slim
+              command: ["python", "/script/backup.py", "server"]
+              securityContext: { runAsUser: 0 }   # reads root-owned k3s files; writes owned by uid 1000
+              volumeMounts:
+                - { name: script, mountPath: /script }
+                - { name: out, mountPath: /backup }
+                - { name: hub, mountPath: /src/freemotion-hub }
+                - { name: fm-home, mountPath: /src/fm-home, readOnly: true }
+                - { name: tracking, mountPath: /src/tracking-data, readOnly: true }
+                - { name: storage, mountPath: /src/k3s-storage }
+                - { name: snapshots, mountPath: /src/k3s-snapshots, readOnly: true }
+                - { name: token, mountPath: /src/k3s-token, readOnly: true }
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { memory: 512Mi }
+          volumes:
+            - { name: script, configMap: { name: backup-script } }
+            - { name: out, hostPath: { path: /srv/backups/nightly, type: DirectoryOrCreate } }
+            # SQLite folders are mounted read-write only so SQLite can use the -shm file: the script only reads them.
+            - { name: hub, hostPath: { path: /srv/apps/freemotion-hub, type: Directory } }
+            - { name: fm-home, hostPath: { path: /srv/apps/freemotion/home, type: Directory } }
+            - { name: tracking, hostPath: { path: /home/moudimash99/Personal-Website/tracking-data, type: Directory } }
+            - { name: storage, hostPath: { path: /var/lib/rancher/k3s/storage, type: Directory } }
+            - { name: snapshots, hostPath: { path: /var/lib/rancher/k3s/server/db/snapshots, type: Directory } }
+            - { name: token, hostPath: { path: /var/lib/rancher/k3s/server/token, type: File } }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-acer
+  namespace: apps
+  labels: { app: backups }
+spec:
+  schedule: "20 3 * * *"   # the mail classifier sleeps 23:00-07:00, so the Acer has room
+  timeZone: Europe/Paris
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels: { app: backups, side: acer }
+        spec:
+          restartPolicy: Never
+          nodeSelector: { kubernetes.io/hostname: acer-laptop }
+          tolerations:
+            - { key: dedicated, value: worker, effect: NoSchedule }
+          priorityClassName: batch-low
+          containers:
+            - name: backup
+              image: docker.io/library/python:3.13-slim
+              command: ["python", "/script/backup.py", "acer"]
+              securityContext: { runAsUser: 0 }   # the apps' folders are owned by root or uid 1000
+              volumeMounts:
+                - { name: script, mountPath: /script }
+                - { name: out, mountPath: /backup }
+                - { name: local, mountPath: /local }
+                - { name: apps, mountPath: /src/apps }
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { memory: 512Mi }
+          volumes:
+            - { name: script, configMap: { name: backup-script } }
+            # The server's /srv/backups/nightly (exported to the Acer only; all writes become uid 1000).
+            - { name: out, nfs: { server: 192.168.1.116, path: /srv/backups/nightly } }
+            - { name: local, hostPath: { path: /var/backups/nightly, type: DirectoryOrCreate } }
+            # Read-write only so SQLite can use the -shm file: the script only reads them.
+            - { name: apps, hostPath: { path: /srv/apps, type: Directory } }

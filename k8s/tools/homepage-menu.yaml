@@ -348,8 +348,24 @@ data:
           namespace: kube-system
           app: registry
           podSelector: app=registry
+      - Backups:
+          description: Nightly copies, each machine's onto the other
+          icon: mdi-backup-restore
+          widget:
+            type: prometheusmetric
+            url: http://prometheus.monitoring.svc
+            refreshInterval: 60000
+            metrics:
+            - label: backup-server
+              query: time() - kube_cronjob_status_last_successful_time{namespace="apps",cronjob="backup-server"}
+              format:
+                type: duration
+            - label: backup-acer
+              query: time() - kube_cronjob_status_last_successful_time{namespace="apps",cronjob="backup-acer"}
+              format:
+                type: duration
       - NFS:
-          description: Free Motion's data and code, server to Acer
+          description: Free Motion's data and code, and the nightly backups, server to Acer
           icon: mdi-folder-network
       - Tailscale:
           description: Free Motion's agents reach the hub through it
