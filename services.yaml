@@ -744,7 +744,7 @@
     - {k8s: tools/Deployment/uptime-kuma}
   drift: []
   notes:
-    - "Monitors and notifications live in its own database; some still use 192.168.1.135 (forwarded by tools/old-address)."
+    - "Monitors and notifications live in its own database. Since 2026-11-23 none uses 192.168.1.135: the Frigate check was moved to 192.168.1.93:5000 in kuma.db (backup kuma.db.bak-2026-11-23 in its data folder). tools/old-address stays for Portainer (agent :9001) and Beszel (:45876), whose own databases still hold .135."
     - "Add a check with scripts/kuma.js (usage in its header): add-site copies the site checks' settings and puts it on the status page. 11 checks on 2026-11-22: 6 sites (Sites group), Frigate (Home), 4 tools (Tools)."
   menu:
     title: Uptime Kuma
