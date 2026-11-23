@@ -282,10 +282,11 @@
   deploy: "From the PC, Infra root: `sh lab/build.sh TAG` (builds on the server, imports on the Acer through the PC), set the tag in lab.yaml, apply."
   check: "Readiness/liveness GET /healthz on :8080; Prometheus scrapes :8081/metrics (pod annotations); Homepage Pipelines tiles read /api/summary/*"
   probes:
+    - {pc_task: "\\lab-report"}
     - {k8s: tools/Deployment/lab}
-  drift:
-    - "The PC side is missing: no scheduled task `lab-report` and no %USERPROFILE%\\.lab-token on the PC, so lab/pc-report/report.ps1 does not run and Grafana's PC jobs dashboard has no source. The README says it reports every 10 minutes."
-  notes: []
+  drift: []
+  notes:
+    - "The PC side runs since 2026-11-23: scheduled task `lab-report` (every 10 minutes, lab/pc-report/install.ps1) with %USERPROFILE%\\.lab-token and the Secret tools/lab-intake. It reports only what runs on the PC: Disabled tasks (the archiver, moved to the Acer) and Free Motion (moved to the server, marked by %USERPROFILE%\\.fm-moved.json) are left out."
   menu:
     title: Lab sites
     icon: mdi-flask-outline

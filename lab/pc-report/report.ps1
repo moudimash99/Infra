@@ -30,7 +30,8 @@ function Iso($d) { if ($d -and $d.Year -gt 2000) { $d.ToString('o') } else { $nu
 # 0x41303 never run yet.
 $tasks = @()
 $wanted = Get-ScheduledTask | Where-Object {
-    ($_.TaskPath -eq '\' -and $_.TaskName -in @('GmailRejectionArchiver', 'GmailDailyReview', 'job-scrapers upwork round')) -or
+    # Disabled tasks are jobs that moved off the PC (the archiver went to the Acer on 2026-11-20): not reported.
+    ($_.TaskPath -eq '\' -and $_.State -ne 'Disabled' -and $_.TaskName -in @('GmailRejectionArchiver', 'GmailDailyReview', 'job-scrapers upwork round')) -or
     ($_.TaskPath -eq '\career-ops\' -and $_.State -ne 'Disabled')
 }
 foreach ($t in $wanted) {
@@ -56,7 +57,10 @@ $today = Get-Date -Format 'yyyy-MM-dd'
 
 # ---- Gmail rejection archiver: today's archived emails by kind ---------------------------------------------------
 $log = Join-Path $Coding 'Email-remove\Email-remove\archiver.log'
-if (Test-Path $log) {
+# Only while it runs here: since 2026-11-20 it is the k3s CronJob email-remove on the Acer (the PC task is Disabled
+# and this log is the staging copy's).
+$archTask = Get-ScheduledTask -TaskPath '\' -TaskName 'GmailRejectionArchiver' -ErrorAction SilentlyContinue
+if ((Test-Path $log) -and $archTask -and $archTask.State -ne 'Disabled') {
     $kinds = @{}; $errors = 0; $last = $null; $classify = 0
     foreach ($line in (ReadShared $log 2MB)) {
         if (-not $line.StartsWith($today)) { continue }
@@ -118,7 +122,9 @@ if (Test-Path (Join-Path $dir 'upwork-run.log')) {
 
 # ---- FreeMotion: the last scan and the open inbox items -------------------------------------------------------
 $data = Join-Path $Coding 'fm\fm-data\data'
-if (Test-Path (Join-Path $data 'scan-runs.tsv')) {
+# Only while Free Motion runs on this PC: since 2026-11-11 it runs on the server, and %USERPROFILE%\.fm-moved.json
+# marks this PC's copy as the dev copy (its data is not the live data).
+if ((Test-Path (Join-Path $data 'scan-runs.tsv')) -and -not (Test-Path (Join-Path $env:USERPROFILE '.fm-moved.json'))) {
     $rows = ReadShared (Join-Path $data 'scan-runs.tsv') 4MB | Where-Object { $_ }
     $head = $rows[0] -split "`t"; $last = $rows[-1] -split "`t"
     $row = @{}; for ($k = 0; $k -lt $head.Count; $k++) { $row[$head[$k]] = $last[$k] }
