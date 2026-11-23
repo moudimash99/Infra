@@ -54,6 +54,15 @@ data:
           app: unmatched
           podSelector: app=unmatched
           siteMonitor: http://unmatched.apps.svc
+          widget:
+            type: prometheusmetric
+            url: http://prometheus.monitoring.svc
+            refreshInterval: 60000
+            metrics:
+            - label: Since the last good run
+              query: time() - kube_cronjob_status_last_successful_time{namespace="apps",cronjob="unmatched-restart"}
+              format:
+                type: duration
       - Spirit Island:
           href: https://spirit.machaka.net
           description: Planner for 1 to 6 players
