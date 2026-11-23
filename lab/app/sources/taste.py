@@ -73,17 +73,25 @@ SHORT = {"Strong match": "Strong", "Good match": "Good", "Slight match": "Slight
          "Slightly different": "Slightly off", "Different taste": "Different"}
 
 
+_score_lock = threading.Lock()     # one score.py at a time: the owner's refresh and a visitor's never overlap
+
+
 def run_score(username=USER, ratings=None, timeout=180):
     """score.py in a child process against the read-only database: the owner by username, or anyone by ratings
-    ({bgg_id: rating out of 10}). Returns its raw JSON."""
+    ({bgg_id: rating out of 10}). Returns its raw JSON. One at a time (the Acer's memory is booked, lab README)."""
     folder = os.path.abspath(BGT_DIR)
-    run = subprocess.run([sys.executable, "-c", _SCRIPT, folder, "-" if ratings is not None else username],
-                         input=json.dumps(ratings) if ratings is not None else None, capture_output=True, text=True,
-                         timeout=timeout, cwd=folder, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+    with _score_lock:
+        run = _run_child(folder, username, ratings, timeout)
     if run.returncode != 0:
         lines = run.stderr.strip().splitlines()
         raise RuntimeError(lines[-1] if lines else f"score.py exited with {run.returncode}")
     return json.loads(run.stdout)
+
+
+def _run_child(folder, username, ratings, timeout):
+    return subprocess.run([sys.executable, "-c", _SCRIPT, folder, "-" if ratings is not None else username],
+                         input=json.dumps(ratings) if ratings is not None else None, capture_output=True, text=True,
+                         timeout=timeout, cwd=folder, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
 
 
 def _compute():

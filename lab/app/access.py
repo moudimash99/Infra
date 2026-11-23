@@ -24,6 +24,7 @@ import hmac
 import json
 import logging
 import os
+import re
 import secrets
 import threading
 import time
@@ -208,6 +209,17 @@ async def _finish(scope, send, host):
 # ---- the gate -------------------------------------------------------------------------------------------------
 
 INTERNAL_HOSTS = {"lab.tools.svc", "lab.tools.svc.cluster.local"}   # Homepage's tiles, inside the cluster
+# Taste Match without a login (TM_OPEN_HOSTS, empty = none): only the visitor pages, never the owner's. Every other
+# path on these names is 404, whatever the app would answer, so a new page stays private until it is listed here.
+OPEN_HOSTS = {h.strip().lower() for h in os.environ.get("TM_OPEN_HOSTS", "").split(",") if h.strip()}
+OPEN_PATHS = re.compile(r"/(find|about|healthz|u/[^/]+|img/\d+-[sml]\.jpg|static/[\w./-]+|reviewers/[\w-]{1,20}:[\w.-]{1,60})")
+
+
+def open_path(path, query=""):
+    """May this path be served on an open name? Reviewer pages only for a visitor (?u=), never the owner's match."""
+    if not OPEN_PATHS.fullmatch(path) or "/.." in path:
+        return False
+    return not path.startswith("/reviewers/") or "u=" in query
 DEV = os.environ.get("LAB_DEV") == "1"                               # a development machine: no login anywhere
 
 
@@ -230,6 +242,13 @@ class AccessGate:
         self.app = app
 
     async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and _host(_header(scope, b"host")) in OPEN_HOSTS:
+            path, qs = scope.get("path", ""), scope.get("query_string", b"").decode("latin-1")
+            if path == "/":
+                return await _redirect(send, "/find")
+            if not open_path(path, qs):
+                return await _send(send, 404, [(b"content-type", b"text/plain; charset=utf-8")], b"Not found")
+            return await self.app(scope, receive, send)
         if scope["type"] == "http" and needs_token(_header(scope, b"host"), scope.get("path", "")):
             host, path = _host(_header(scope, b"host")), scope.get("path", "")
             bridged = bool(BRIDGE) and host in PUBLIC_HOSTS

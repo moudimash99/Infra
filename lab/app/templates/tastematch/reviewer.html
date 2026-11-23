@@ -5,7 +5,7 @@
 {% block head %}<link rel="stylesheet" href="/static/tastematch.css?v={{ STATIC_V }}">{% endblock %}
 {% macro vs_row(g) -%}
 {%- set t = things.get(g) or {} -%}
-<a class="item" href="{{ R }}/games/{{ g }}">{{ box(g, "s", "thumb box") }}
+<a class="item" href="{{ ('https://boardgamegeek.com/boardgame/' ~ g) if OPEN else (R ~ '/games/' ~ g) }}">{{ box(g, "s", "thumb box") }}
   <span class="body"><span class="title">{{ t.name or g }}</span>
     <span class="tm-vs"><span>You <b>{{ "%.1f" | format(s.user[g][0] / 2) }}</b></span><span class="them">{{ hname }} <b>{{ "%.1f" | format(r.points[g][0]) }}</b></span><span>BGG <b>{{ "%.1f" | format(s.user[g][1] / 2) }}</b></span></span></span>
   {{ icon("chevron-right", "chev") }}</a>
@@ -92,11 +92,11 @@
 <section class="section" id="common">
   {{ section_head("Every game you both rated", count=common | length) }}
   <nav class="seg mb-3" aria-label="Sort">
-    {% for k, label in sorts.items() %}<a href="?sort={{ k }}#common" class="{{ 'on' if sort == k }}">{{ label }}</a>{% endfor %}
+    {% for k, label in sorts.items() %}<a href="?sort={{ k }}{{ ('&u=' ~ (visitor | urlencode)) if visitor }}#common" class="{{ 'on' if sort == k }}">{{ label }}</a>{% endfor %}
   </nav>
   <div class="card flush"><div class="list">
     {% for g in common %}
-    <a class="item" href="{{ R }}/games/{{ g.gid }}">{{ box(g.gid, "s", "thumb box") }}
+    <a class="item" href="{{ ('https://boardgamegeek.com/boardgame/' ~ g.gid) if OPEN else (R ~ '/games/' ~ g.gid) }}">{{ box(g.gid, "s", "thumb box") }}
       <span class="body"><span class="title">{{ g.name }}</span>
         <span class="tm-vs"><span>You <b>{{ "%.1f" | format(g.you) }}</b></span><span class="them">{{ hname }} <b>{{ "%.1f" | format(g.them) }}</b></span><span>BGG <b>{{ "%.1f" | format(g.bgg) }}</b></span>{% if g.weight < 0.95 %}<span>counts {{ (g.weight * 100) | round | int }}%</span>{% endif %}</span></span>
       <span class="badge {{ 'accent' if g.signal > 0 else 'outline' }}">{{ "Same way" if g.signal > 0 else "Opposite" }}</span></a>
@@ -123,14 +123,14 @@
   {% if verdicts %}
   <div class="card flush"><div class="list">
     {% for v in (verdicts if show_all else verdicts[:30]) %}
-    <a class="item" href="{{ R }}/v/{{ v.video_id }}">{% if v.gid %}{{ box(v.gid, "s", "thumb box") }}{% else %}<span class="thumb box ph">{{ icon("dices") }}</span>{% endif %}
+    <a class="item" href="{{ ('https://www.youtube.com/watch?v=' ~ v.video_id) if OPEN else (R ~ '/v/' ~ v.video_id) }}">{% if v.gid %}{{ box(v.gid, "s", "thumb box") }}{% else %}<span class="thumb box ph">{{ icon("dices") }}</span>{% endif %}
       <span class="body"><span class="title">{{ v.game_name or v.game }}</span>
         {% if v.quote %}<span class="meta wrap clamp-2">“{{ v.quote }}”</span>{% endif %}
         <span class="meta">{{ v.title }}</span></span>
       {{ score(v.score) }}</a>
     {% endfor %}
   </div>
-  {% if verdicts | length > 30 and not show_all %}<div class="card-foot"><span class="muted">{{ verdicts | length - 30 }} more</span><a href="?all=1">Show all{{ icon("chevron-right") }}</a></div>{% endif %}
+  {% if verdicts | length > 30 and not show_all %}<div class="card-foot"><span class="muted">{{ verdicts | length - 30 }} more</span><a href="?all=1{{ ('&u=' ~ (visitor | urlencode)) if visitor }}">Show all{{ icon("chevron-right") }}</a></div>{% endif %}
   </div>
   {% else %}<div class="card">{{ empty("No verdicts", "None of this host's verdicts passed the checks yet.", "quote") }}</div>{% endif %}
 </section>

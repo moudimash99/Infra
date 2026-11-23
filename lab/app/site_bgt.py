@@ -87,6 +87,11 @@ def reviewer(request: Request, rid: str):
         raise HTTPException(404)
     sc, hv = taste.scores.get(), taste.host_verdicts.get(rid)
     vname, vres = _visitor(request)
+    asked = " ".join(request.query_params.get("u", "").split())
+    if asked and not vres:        # a visitor's page never falls back to the owner's match: wait for theirs
+        if not visitors.valid(asked):
+            raise HTTPException(404)
+        return RedirectResponse(f"{request.scope.get('root_path', '').rstrip('/')}/u/{quote(asked)}", status_code=303)
     if vres:
         sc = Reading(True, vres, "", vres["at"])
     s = sc.data

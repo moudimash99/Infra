@@ -134,7 +134,8 @@ def result(name):
     """The built result (as taste.build makes it) for a finished name, cached in memory."""
     key = key_of(name)
     with _db() as c:
-        r = c.execute("SELECT done, result, name FROM visitors WHERE key = ? AND state = 'done'", (key,)).fetchone()
+        r = c.execute("SELECT done, result, name FROM visitors WHERE key = ? AND state = 'done' AND done >= ?",
+                      (key, time.time() - KEEP_S)).fetchone()
     if not r or not r["result"]:
         return None
     hit = _parsed.get(key)
@@ -148,6 +149,13 @@ def result(name):
     return built
 
 
+def purge():
+    """Forget visitors after KEEP_S: their BGG ratings and result go, as the pages say."""
+    with _db() as c:
+        c.execute("""DELETE FROM visitors WHERE state NOT IN ('queued', 'working')
+                     AND COALESCE(done, asked, 0) < ?""", (time.time() - KEEP_S,))
+
+
 def ask(name):
     """Start (or reuse) a match for name. Returns the status; raises VisitorError when it can't be taken now."""
     name = " ".join(name.split())
@@ -155,6 +163,7 @@ def ask(name):
         raise VisitorError("That doesn't look like a BoardGameGeek username.")
     key, now = key_of(name), time.time()
     with _lock:
+        purge()
         st = status(name)
         if st and (st["state"] in ("queued", "working") or (st["state"] == "done" and now - (st["done"] or 0) < KEEP_S)):
             return st
@@ -214,7 +223,8 @@ def run(key):
 
 
 def resume():
-    """After a restart: put back what was waiting or half done."""
+    """After a restart: forget what is over a day old, put back what was waiting or half done."""
+    purge()
     with _db() as c:
         keys = [r[0] for r in c.execute("SELECT key FROM visitors WHERE state IN ('queued', 'working') ORDER BY asked")]
     for k in keys:

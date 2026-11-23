@@ -28,7 +28,7 @@ from starlette.routing import Host, Mount, Route
 from starlette.responses import JSONResponse
 
 from . import logs, store, summary, web
-from .access import AccessGate
+from .access import OPEN_HOSTS, AccessGate
 from .sources import bgt, k8s
 
 log = logging.getLogger("lab")
@@ -79,6 +79,8 @@ async def dev_kit(request):
 DEV = os.environ.get("LAB_DEV") == "1"     # development machine: the sites also under /tastematch, /deals, /catcam
 app = AccessGate(Starlette(routes=[
     *[Host(host, app=sub) for _, host, sub, _ in SITES],
+    # Taste Match without a login: the gate lets only the visitor pages through on these names (access.open_path).
+    *[Host(host, app=sub) for host in sorted(OPEN_HOSTS) for key, _, sub, _ in SITES if key == "tastematch"],
     Route("/healthz", healthz),
     Mount("/api", app=api),
     *([Mount(f"/{key}", app=sub) for key, _, sub, _ in SITES]

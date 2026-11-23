@@ -17,7 +17,10 @@ from fastapi.templating import Jinja2Templates
 from markupsafe import Markup, escape
 
 from . import charts, fmt
+from .access import OPEN_HOSTS
 from .config import TZ
+
+OPEN_NAV = [("/find", "Find yours", "search"), ("/about", "How it works", "info")]
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATIC = os.path.join(HERE, "static")
@@ -59,6 +62,10 @@ def page(request, name, active=None, **ctx):
     """Render a template for the site that got the request. active: the nav path to highlight (default: the
     section the URL is in)."""
     site_ = request.app.state.site
+    host = (request.headers.get("host") or "").split(":")[0].lower().rstrip(".")
+    is_open = host in OPEN_HOSTS
+    if is_open:   # a name without a login: only the public pages in the nav (access.open_path lets nothing else in)
+        site_ = {**site_, "nav": OPEN_NAV}
     root = request.scope.get("root_path", "").rstrip("/")
     path = request.url.path
     rel = (path[len(root):] if root and path.startswith(root) else path) or "/"
@@ -67,7 +74,8 @@ def page(request, name, active=None, **ctx):
                        if rel == h or (h != "/" and rel.startswith(h.rstrip("/") + "/"))), None)
     sites = [{**s, "url": f"/{s['key']}/" if root else s["url"]} for s in SITES.values()]
     return templates.TemplateResponse(request, name, {"R": root, "site": site_, "me": site_["key"], "active": active,
-                                                      "SITES": sites, "path": path, **ctx})
+                                                      "SITES": [] if is_open else sites, "path": path,
+                                                      "OPEN": is_open, **ctx})
 
 
 def day_labels(xs, most=6):

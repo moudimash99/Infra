@@ -51,7 +51,7 @@
 {%- endmacro %}
 
 {% macro game_tile(gid, name, meta=None, badge=None, corner=None) -%}
-<a class="tile" href="{{ R }}/games/{{ gid }}">
+<a class="tile" href="{{ ('https://boardgamegeek.com/boardgame/' ~ gid) if OPEN else (R ~ '/games/' ~ gid) }}">
   <div class="media">{{ box(gid, "m") }}
     {% if badge %}<span class="on-img badge accent">{{ icon("star") }}{{ badge }}</span>{% endif %}
     {% if corner %}<span class="on-img r badge dark">{{ corner }}</span>{% endif %}

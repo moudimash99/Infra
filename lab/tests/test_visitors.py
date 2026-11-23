@@ -110,3 +110,55 @@ def test_pages(lab, monkeypatch):
     assert c.get("/u/%3Cx%3E").status_code == 404
     t = c.get("/about").text
     assert "How it works" in t and "38%" in t and "language model" in t
+
+
+def test_visitors_are_forgotten_after_a_day(lab, monkeypatch):
+    monkeypatch.setattr(visitors, "fetch_ratings", lambda name: {13: 6.5})
+    monkeypatch.setattr(taste, "run_score", lambda ratings=None, timeout=0, **k: raw_result())
+    visitors.ask("old timer")
+    visitors.run(visitors._q.get())
+    assert visitors.result("old timer")
+    with visitors._db() as c:
+        c.execute("UPDATE visitors SET done = done - 2 * 86400, asked = asked - 2 * 86400")
+    assert visitors.result("old timer") is None                     # stale results are not shown
+    visitors.purge()
+    with visitors._db() as c:
+        assert c.execute("SELECT COUNT(*) FROM visitors").fetchone()[0] == 0   # ratings and result deleted
+
+
+def test_open_name_serves_only_the_visitor_pages(lab, monkeypatch):
+    """On a name without a login, every owner page is 404 and the public ones carry none of the owner's data."""
+    from starlette.applications import Starlette
+    from starlette.routing import Host
+    from starlette.testclient import TestClient
+    from app import access, site_bgt
+    access.OPEN_HOSTS.add("open.test")
+    try:
+        monkeypatch.setattr(taste, "stats", Fixed({"verdicts": 9000, "videos": 1200, "week": 5, "channels": 25}))
+        monkeypatch.setattr(taste, "things", Fixed({1: {"name": "Brass", "average": 8, "year": 2018}}))
+        monkeypatch.setattr(taste, "host_verdicts", Fixed({"host": {"channel": "susd", "name": "paul"}, "verdicts": [
+            {"score": 5, "game": "Brass", "game_name": "Brass", "gid": 1, "video_id": "abcdefghijk", "title": "B", "quote": ""}]}))
+        monkeypatch.setattr(visitors, "fetch_ratings", lambda name: {13: 6.5})
+        monkeypatch.setattr(taste, "run_score", lambda ratings=None, timeout=0, **k: raw_result())
+        visitors.ask("Some Body")
+        visitors.run(visitors._q.get())
+        gate = access.AccessGate(Starlette(routes=[Host("open.test", app=site_bgt.app)]))
+        c = TestClient(gate, base_url="https://open.test")
+        r = c.get("/", follow_redirects=False)
+        assert r.status_code in (302, 303, 307) and r.headers["location"] == "/find"
+        for path in ["/reviewers", "/reviewers/susd:paul", "/games", "/games/1", "/videos", "/v/abcdefghijk",
+                     "/pipeline", "/results", "/census", "/search?q=brass", "/img/../pipeline", "/static/../site_bgt.py"]:
+            assert c.get(path, follow_redirects=False).status_code == 404, path
+        for path in ["/find", "/about", "/u/Some Body", "/reviewers/susd:paul?u=Some%20Body"]:
+            r = c.get(path)
+            assert r.status_code == 200, path
+            t = r.text
+            assert taste.USER not in t, path                                  # the owner's name appears nowhere
+            for private in ('href="/pipeline"', 'href="/games/', 'href="/v/', 'href="/videos"', "Machaka lab", "lab.machaka.net"):
+                assert private not in t, (path, private)
+        t = c.get("/reviewers/susd:paul?u=Some%20Body").text
+        assert "https://boardgamegeek.com/boardgame/" in t and "https://www.youtube.com/watch?v=abcdefghijk" in t
+        r = c.get("/reviewers/susd:paul?u=nobody99", follow_redirects=False)
+        assert r.status_code == 303 and r.headers["location"] == "/u/nobody99"     # never the owner's match instead
+    finally:
+        access.OPEN_HOSTS.discard("open.test")

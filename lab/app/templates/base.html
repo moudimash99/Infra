@@ -22,7 +22,7 @@
   </nav>
   <div class="header-end">
     {% block header_end %}{% endblock %}
-    <details class="switch">
+    {% if not OPEN %}<details class="switch">
       <summary class="icon-btn" aria-label="Other sites" title="Other sites">{{ icon("grid") }}</summary>
       <div class="switch-menu">
         <div class="label">Machaka lab</div>
@@ -32,12 +32,13 @@
         {% endfor %}
         <a href="{{ LAB_URL }}"><span class="mark sm lab">{{ icon("mark-lab") }}</span><span><b>Lab</b><small>Every service in the homelab</small></span></a>
       </div>
-    </details>
+    </details>{% endif %}
   </div>
 </div></header>
 <main>
 {% block main %}{% endblock %}
-<footer class="app-foot"><span>{{ site.name }} · read {{ now() | ago }}</span><a href="{{ LAB_URL }}">Machaka lab</a></footer>
+{% if OPEN %}<footer class="app-foot"><span>{{ site.name }} · scores read from YouTube reviews · game data from <a href="https://boardgamegeek.com">BoardGameGeek</a></span><a href="{{ R }}/about">How it works</a></footer>
+{% else %}<footer class="app-foot"><span>{{ site.name }} · read {{ now() | ago }}</span><a href="{{ LAB_URL }}">Machaka lab</a></footer>{% endif %}
 </main>
 <nav class="tabbar" aria-label="{{ site.name }}">
   {% for href, label, ic in site.nav %}<a href="{{ R }}{{ href }}"{% if href == active %} class="on" aria-current="page"{% endif %}>{{ icon(ic) }}<span>{{ label }}</span></a>{% endfor %}
