@@ -179,7 +179,7 @@ of the code and data stopped updating that day.
   and **the classifier asleep at night when idle** (`mail-classifier-waker`, 23:00-07:00, in
   `Email-remove/ml/service/mail-classifier.yaml`), which frees its 0.7-1.1 GiB for the night jobs and Free Motion.
 - Whisper (`bg-taste-match-gpu`) runs hourly since 2026-11-23 with a heat guard inside the job (`heat_guard.py` in
-  that repo: pause at GPU 80 C / CPU 90 C, hard stop at 85 / 95, stop if unreadable), a 64 Mi booking and a 1 Gi
+  that repo: pause at GPU 80 C / CPU 90 C, hard stop at 85 / 95, stop if unreadable), a 64 Mi booking and a 2 Gi
   limit, so it uses spare memory and is killed first. Speaker separation and the cat monitor stay off.
 
 bg-taste-match also has an idle `bg-taste-match-shell` pod with the same mounts, for stages run by hand
