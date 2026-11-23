@@ -280,7 +280,7 @@
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\Infra\lab
     branch: main
-    deployed: "e9c8a43 (tag 2026-11-24-find; Infra/lab is a folder, not a repo of its own, so status.py does not compare it)"
+    deployed: "959f0cc (tag 2026-11-24-open; Infra/lab is a folder, not a repo of its own, so status.py does not compare it)"
   deploy: "From the PC, Infra root: `sh lab/build.sh TAG` (builds on the server, imports on the Acer through the PC), set the tag in lab.yaml, apply."
   check: "Readiness/liveness GET /healthz on :8080; Prometheus scrapes :8081/metrics (pod annotations); Homepage Pipelines tiles read /api/summary/*"
   probes:
@@ -288,7 +288,7 @@
     - {k8s: tools/Deployment/lab}
   drift: []
   notes:
-    - "Taste Match's Find yours (since 2026-11-24, sources/visitors.py): anyone's BGG username -> their rated games from BGG's API -> score.py in a child process -> results in lab.db for a day. One job at a time, 20 waiting, 60 new names an hour. Still behind Cloudflare Access; a public hostname is the owner's decision."
+    - "Taste Match's Find yours (since 2026-11-24, sources/visitors.py): anyone's BGG username -> their rated games from BGG's API -> score.py in a child process -> results in lab.db for a day. One job at a time, 20 waiting, 60 new names an hour; visitors deleted after a day. Still behind Cloudflare Access: TM_OPEN_HOSTS in lab.yaml (empty) would serve only the visitor pages on a name without a login (access.open_path); choosing that name is the owner's decision."
     - "The PC side runs since 2026-11-23: scheduled task `lab-report` (every 10 minutes, lab/pc-report/install.ps1) with %USERPROFILE%\\.lab-token and the Secret tools/lab-intake. It reports only what runs on the PC: Disabled tasks (the archiver, moved to the Acer) and Free Motion (moved to the server, marked by %USERPROFILE%\\.fm-moved.json) are left out."
   menu:
     title: Lab sites
