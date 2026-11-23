@@ -5,8 +5,10 @@
 #    /var/backups/nightly/server/<day>.
 # So each machine's data lives on both. SQLite files are copied with SQLite's backup API (safe while the app writes,
 # WAL included), never with cp; other files are tar.gz. The last 7 nights are kept in each place.
-# Private: the driver logins and the email archiver's files (email text) are in these copies. Folders 700, files 600,
-# owned by uid 1000 (moudimash99), never in a repo or anywhere public.
+# Private: the email archiver's files (email text) are in these copies. Folders 700, files 600, owned by uid 1000
+# (moudimash99), never in a repo or anywhere public. The driver logins and the k3s snapshot + token go only to
+# /srv/backups/server-only/<day> on the server (not exported, not copied to the Acer): NFS trusts the uid a client
+# claims, and every pod on the Acer can reach the export. A copy of those off the server needs encryption first.
 # Left out on purpose (big, or easy to make again): Frigate recordings, bg-taste-match audio and caches, Prometheus,
 # the registry, the session histories under /srv/apps/freemotion/home, fm-data (git, pushed) and all code (GitHub).
 # Restore: copy the file back while the app is stopped (scale it to 0), then start it. A test restore of cat-weight's
@@ -72,6 +74,9 @@ data:
 
     if MODE == "server":
         out = f"/backup/server/{DAY}"; os.makedirs(out, exist_ok=True)
+        # The driver logins and the k3s snapshot + token (which together open every Secret) stay on the server, out of
+        # the NFS export: NFS trusts the uid a client claims, and every pod on the Acer reaches the server's port 2049.
+        priv = f"/private/{DAY}"; os.makedirs(priv, exist_ok=True)
         step("freemotion-hub hub.db", sqlite_copy, "/src/freemotion-hub/hub.db", f"{out}/freemotion-hub/hub.db")
         home = "/src/fm-home"
         logins = [(f"{home}/{a}/{f}", f"{a}/{f}") for a in (".claude-account1", ".claude-account2", ".claude-account3")
@@ -79,7 +84,7 @@ data:
         logins += [(f"{home}/.codex/auth.json", ".codex/auth.json"), (f"{home}/.codex/config.toml", ".codex/config.toml"),
                    (f"{home}/.copilot", ".copilot"), (f"{home}/.gemini", ".gemini"), (f"{home}/.config/gh", ".config/gh"),
                    (f"{home}/.gitconfig", ".gitconfig"), (f"{home}/.fm-llm", ".fm-llm")]
-        step("freemotion driver logins", tar_copy, f"{out}/freemotion-home-logins.tar.gz", logins, exclude=("/cache", "/logs", "/tmp"))
+        step("freemotion driver logins (server only)", tar_copy, f"{priv}/freemotion-home-logins.tar.gz", logins, exclude=("/cache", "/logs", "/tmp"))
         step("personal-website tracking-data", tar_copy, f"{out}/personal-website-tracking-data.tar.gz", [("/src/tracking-data", "tracking-data")])
         st = "/src/k3s-storage"
         for pvc in sorted(os.listdir(st)):
@@ -97,9 +102,10 @@ data:
         # The newest by time: names differ (etcd-snapshot-<node>-<ts>, pre-move-116-...), so not by name.
         snaps = sorted(os.listdir("/src/k3s-snapshots"), key=lambda n: os.path.getmtime(f"/src/k3s-snapshots/{n}"))
         if snaps:
-            step("k3s latest etcd snapshot", file_copy, f"/src/k3s-snapshots/{snaps[-1]}", f"{out}/k3s/{snaps[-1]}")
-        step("k3s server token", file_copy, "/src/k3s-token", f"{out}/k3s/token")
+            step("k3s latest etcd snapshot (server only)", file_copy, f"/src/k3s-snapshots/{snaps[-1]}", f"{priv}/k3s/{snaps[-1]}")
+        step("k3s server token (server only)", file_copy, "/src/k3s-token", f"{priv}/k3s/token")
         secure(out); prune("/backup/server")
+        secure(priv); prune("/private")
 
     elif MODE == "acer":
         out = f"/backup/acer/{DAY}"; os.makedirs(out, exist_ok=True)
@@ -168,6 +174,7 @@ spec:
               volumeMounts:
                 - { name: script, mountPath: /script }
                 - { name: out, mountPath: /backup }
+                - { name: private, mountPath: /private }
                 - { name: hub, mountPath: /src/freemotion-hub }
                 - { name: fm-home, mountPath: /src/fm-home, readOnly: true }
                 - { name: tracking, mountPath: /src/tracking-data, readOnly: true }
@@ -180,6 +187,8 @@ spec:
           volumes:
             - { name: script, configMap: { name: backup-script } }
             - { name: out, hostPath: { path: /srv/backups/nightly, type: DirectoryOrCreate } }
+            # Not exported: the logins and the k3s snapshot + token (see the script).
+            - { name: private, hostPath: { path: /srv/backups/server-only, type: DirectoryOrCreate } }
             # SQLite folders are mounted read-write only so SQLite can use the -shm file: the script only reads them.
             - { name: hub, hostPath: { path: /srv/apps/freemotion-hub, type: Directory } }
             - { name: fm-home, hostPath: { path: /srv/apps/freemotion/home, type: Directory } }

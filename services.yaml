@@ -1125,10 +1125,10 @@
     backup-acer: "20 3 * * * Europe/Paris (the mail classifier sleeps then)"
   url: null
   data:
-    - "Server: /srv/backups/nightly/server/<day> (hub.db, the driver logins only, the personal site's tracking data, uptime-kuma, grafana, beszel, portainer, the newest k3s snapshot and the token) and /srv/backups/nightly/acer/<day> (from the Acer)"
+    - "Server: /srv/backups/nightly/server/<day> (hub.db, the personal site's tracking data, uptime-kuma, grafana, beszel, portainer) and /srv/backups/nightly/acer/<day> (from the Acer); /srv/backups/server-only/<day> (the driver logins only, the newest k3s snapshot and the token: not exported, not copied to the Acer)"
     - "Acer: /var/backups/nightly/server/<day> (the server's latest night)"
     - "The Acer's copies: cat-weight, boardxplorer, unmatched, Games.db, bgtaste.db, captions and speakers, lab.db, email-remove, frigate config and frigate.db, cat-monitor reports"
-    - "Private (logins, email text): folders 700, files 600, uid 1000. 7 nights kept in each place; ~63 MB (server) and ~380 MB (Acer) a night"
+    - "Folders 700, files 600, uid 1000; 7 nights kept in each place; ~46 MB (server, exported), ~17 MB (server only) and ~380 MB (Acer) a night"
   code: { repo: none (the script is in the manifest), branch: null }
   deploy: "kubectl apply -f k8s/apps/backups/backups.yaml"
   check: "Both CronJobs succeed nightly (their log ends with a JSON line listing ok and failed items); alert BackupsMissed after 26 h"
@@ -1141,6 +1141,7 @@
     - "Tested 2026-11-23: both jobs ran by hand with no failed item; cat-weight's copy, restored into a scratch folder on the server, passed integrity_check with the same 150 weights as live."
     - "Left out on purpose: Frigate recordings, bg-taste-match audio and caches, Prometheus, the registry, the session histories in /srv/apps/freemotion/home, fm-data (git) and code (GitHub). Nothing leaves the house yet: an encrypted copy elsewhere is the user's call (Infra#10)."
     - "Restore: stop the app (scale to 0), copy the file back, start it."
+    - "Not private from the Acer's pods: NFS trusts the uid a client claims (all_squash makes it 1000, which owns everything), and every pod on the Acer reaches the server's port 2049 (checked 2026-11-23). So the export holds nothing that opens other systems (logins, k3s token and snapshot stay server-only), but it does hold the email archiver's files (email text) and the tools' databases (password hashes). Encrypting the cross-machine copies is the user's call (Infra#10)."
   menu:
     title: Backups
     icon: mdi-backup-restore

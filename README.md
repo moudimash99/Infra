@@ -359,6 +359,7 @@ A restore also needs `/var/lib/rancher/k3s/server/token`.
 is copied onto the other. `backup-server` (02:40) writes the server's data to `/srv/backups/nightly/server/<day>`;
 `backup-acer` (03:20) writes the Acer's to `/srv/backups/nightly/acer/<day>` over NFS, then copies the server's latest
 night to the Acer's `/var/backups/nightly/server/<day>`. SQLite is copied with its backup API, 7 nights are kept, and
-the copies hold logins and email text (700/600, uid 1000). Restore: scale the app to 0, copy the file back, scale it
+the copies hold email text (700/600, uid 1000; the driver logins and the k3s snapshot and token stay in the
+server-only `/srv/backups/server-only/<day>`, because any pod on the Acer can reach the NFS export). Restore: scale the app to 0, copy the file back, scale it
 up. Nothing leaves the house yet. Older one-off copies: `~/backups/pre-k3s-20261024-1641/`, the Acer's 2026-11-02 copy
 in `~/homelab-backup/2026-11-02/` on the PC, and `/srv/backups` on the server.
