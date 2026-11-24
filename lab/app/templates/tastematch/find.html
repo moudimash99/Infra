@@ -17,9 +17,9 @@
 </section>
 
 <section class="section grid md-3 gap-lg">
-  {% for ic, title, text in [("video", "Reviews, listened to", "Every review from " ~ ((stats.data.channels if stats.data else 25)) ~ " channels is transcribed, and each host's verdict on each game is read from what they said."),
+  {% for ic, title, text in [("video", "Reviews, listened to", "Reviews from " ~ ((stats.data.channels if stats.data else 25)) ~ " channels are transcribed, more every day, and each host's verdict on each game is read from what they said."),
                              ("users", "Matched on taste, not hype", "Loving a game everyone loves says little. What counts is where you and a host both go above or below BGG's average."),
-                             ("trending-up", "Evidence decides", "A match on a few shared games counts less than one on forty, so a lucky streak never tops the list.")] %}
+                             ("trending-up", "Evidence decides", "The more games you share, the more a match counts: a perfect agreement on 5 games counts the same as a fair one on 40.")] %}
   <div class="card"><span class="tm-feat-ic">{{ icon(ic) }}</span><h3 class="mt-3 mb-2">{{ title }}</h3><p class="small soft">{{ text }}</p></div>
   {% endfor %}
 </section>

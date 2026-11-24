@@ -10,13 +10,13 @@
 <div class="tm-filters">
   <nav class="seg" aria-label="Which reviewers">
     {% for key, label in [("ranked", "Ranked"), ("thin", "Too few games"), ("all", "All")] %}
-    <a href="{{ R }}/reviewers?show={{ key }}{{ '&channel=' ~ channel if channel }}"{% if show == key %} class="on"{% endif %}>{{ label }}<span class="n">{{ counts[key] }}</span></a>
+    <a href="{{ R }}/reviewers?show={{ key }}{{ '&channel=' ~ channel if channel }}"{% if show == key %} class="on" aria-current="true"{% endif %}>{{ label }}<span class="n">{{ counts[key] }}</span></a>
     {% endfor %}
   </nav>
   {% if channels | length > 1 %}
   <nav class="seg" aria-label="Channel">
-    <a href="{{ R }}/reviewers?show={{ show }}"{% if not channel %} class="on"{% endif %}>All channels</a>
-    {% for key, name in channels %}<a href="{{ R }}/reviewers?show={{ show }}&channel={{ key }}"{% if channel == key %} class="on"{% endif %}>{{ name }}</a>{% endfor %}
+    <a href="{{ R }}/reviewers?show={{ show }}"{% if not channel %} class="on" aria-current="true"{% endif %}>All channels</a>
+    {% for key, name in channels %}<a href="{{ R }}/reviewers?show={{ show }}&channel={{ key }}"{% if channel == key %} class="on" aria-current="true"{% endif %}>{{ name }}</a>{% endfor %}
   </nav>
   {% endif %}
 </div>

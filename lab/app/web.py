@@ -20,7 +20,7 @@ from . import charts, fmt
 from .access import OPEN_HOSTS
 from .config import TZ
 
-OPEN_NAV = [("/find", "Find yours", "search"), ("/about", "How it works", "info")]
+OPEN_NAV = [("/find", "Find yours", "search"), ("/discover", "Discover", "trending-up"), ("/about", "How it works", "info")]
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATIC = os.path.join(HERE, "static")

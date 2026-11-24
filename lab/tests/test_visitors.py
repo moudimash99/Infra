@@ -100,7 +100,7 @@ def test_pages(lab, monkeypatch):
     r = c.get("/find?name=Some+Body", follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"] == "/u/Some%20Body"
     t = c.get("/u/Some Body").text
-    assert "Finding your reviewers" in t and 'http-equiv="refresh"' in t
+    assert "Finding your reviewers" in t and 'aria-live="polite"' in t and "/u/Some%20Body/status" in t
     visitors.run(visitors._q.get())
     t = c.get("/u/Some Body").text
     assert "Some Body's reviewers" in t and "Your closest match" in t and "/reviewers/susd:paul?u=Some%20Body" in t
@@ -228,8 +228,8 @@ def test_new_pages_owner_and_visitor_and_open(lab, monkeypatch):
     try:
         o = TestClient(access.AccessGate(Starlette(routes=[Host("open.test", app=site_bgt.app)])), base_url="https://open.test")
         assert o.get("/for-you", follow_redirects=False).status_code == 404      # the owner's picks: never public
-        assert o.get("/discover", follow_redirects=False).status_code == 404
-        for path in ["/for-you?u=Some%20Body", "/discover?u=Some%20Body"]:
+        assert o.get("/discover", follow_redirects=False).status_code == 200     # the same for everyone
+        for path in ["/for-you?u=Some%20Body", "/discover"]:
             t = o.get(path).text
             assert taste.USER not in t and 'href="/games/' not in t, path
             assert "boardgamegeek.com/boardgame/" in t or "discover" in path, path   # one host here: no Discover rows
@@ -300,3 +300,97 @@ def test_game_page_cards_and_not_a_verdict(lab, monkeypatch):
     monkeypatch.setattr(taste, "game", Fixed({**base, "id": 1, "name": "Brass", "verdicts": verdicts}))
     t = TestClient(site_bgt.app).get("/games/1").text
     assert "Likely for you" not in t and "Reviewers" in t     # a game you rated: your score, not a guess
+
+
+
+def _open_client():
+    from starlette.applications import Starlette
+    from starlette.routing import Host
+    from starlette.testclient import TestClient
+    from app import access, site_bgt
+    return TestClient(access.AccessGate(Starlette(routes=[Host("open.test", app=site_bgt.app)])),
+                      base_url="https://open.test")
+
+
+def _owner_with_data(monkeypatch):
+    """The owner's match with a marker no visitor result has: game 1 rated 2.2 out of 10 (shown "1.1")."""
+    raw = raw_result()
+    raw["user"]["1"] = [2.2, 7, 1]
+    owner = taste.build(raw, taste.USER)
+    owner["at"] = time.time()
+    monkeypatch.setattr(taste, "scores", Fixed(owner))
+
+
+def test_open_name_never_falls_back_to_the_owner(lab, monkeypatch):
+    """The review's first finding: any ?u= that isn't a ready visitor must not show the owner's match there."""
+    from app import access
+    from app.sources import insights
+    monkeypatch.setattr(insights, "facts", Fixed(fake_facts()))
+    monkeypatch.setattr(taste, "host_verdicts", Fixed({"host": {"channel": "susd", "name": "paul"}, "verdicts": []}))
+    monkeypatch.setattr(taste, "things", Fixed({}))
+    monkeypatch.setattr(taste, "stats", Fixed({"verdicts": 1, "videos": 1, "week": 0, "channels": 1}))
+    _owner_with_data(monkeypatch)
+    monkeypatch.setattr(visitors, "fetch_ratings", lambda name: {13: 6.5})
+    monkeypatch.setattr(taste, "run_score", lambda ratings=None, timeout=0, **k: raw_result())
+    visitors.ask("Some Body")
+    visitors.run(visitors._q.get())
+    access.OPEN_HOSTS.add("open.test")
+    try:
+        o = _open_client()
+        for path in ["/reviewers/susd:paul?u=", "/reviewers/susd:paul?u=%20", "/reviewers/susd:paul?menu=1",
+                     "/reviewers/susd:paul?u=Some%20Body&u=", "/for-you?u=", "/for-you?menu=1", "/for-you?u=%3Cx%3E"]:
+            r = o.get(path, follow_redirects=False)
+            assert r.status_code == 404, (path, r.status_code)
+        r = o.get("/reviewers/susd:paul?u=nobody99", follow_redirects=False)     # a name without a match yet
+        assert r.status_code == 303 and r.headers["location"] == "/u/nobody99"
+        t = o.get("/reviewers/susd:paul?u=&u=Some%20Body").text                  # the last ?u= is the one read
+        assert "Match with Some Body" in t and "You <b>4.0</b>" in t and "<b>1.1</b>" not in t
+        monkeypatch.setattr(taste, "games", Fixed({1: {}}))
+        assert o.get("/img/424242-s.jpg", follow_redirects=False).status_code == 404   # not a reviewed game
+    finally:
+        access.OPEN_HOSTS.discard("open.test")
+
+
+def test_only_find_starts_a_match_and_old_ones_are_forgotten(lab, monkeypatch):
+    from starlette.testclient import TestClient
+    from app import site_bgt
+    monkeypatch.setattr(taste, "stats", Fixed({"verdicts": 1, "videos": 1, "week": 0, "channels": 1}))
+    monkeypatch.setattr(visitors, "fetch_ratings", lambda name: {13: 6.5})
+    monkeypatch.setattr(taste, "run_score", lambda ratings=None, timeout=0, **k: raw_result())
+    c = TestClient(site_bgt.app)
+    t = c.get("/u/bot01").text                       # a crawler visiting /u/... starts nothing
+    assert visitors._q.qsize() == 0 and "No match for bot01 yet" in t and "/find?name=bot01" in t
+    assert c.get("/u/bot01/status").json() == {"state": None, "step": None, "ahead": None, "error": None}
+    c.get("/find?name=old+timer")
+    visitors.run(visitors._q.get())
+    assert c.get("/u/old timer/status").json()["state"] == "done"
+    with visitors._db() as conn:
+        conn.execute("UPDATE visitors SET done = done - 2 * 86400, asked = asked - 2 * 86400")
+    t = c.get("/u/old timer").text                    # a day later: no 404, a clear way to start again
+    assert "No match for old timer yet" in t and visitors._q.qsize() == 0
+    visitors.purge()
+    with visitors._db() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM visitors").fetchone()[0] == 0
+
+
+def test_queue_position_and_per_client_limit(lab, monkeypatch):
+    first = visitors.ask("first one")
+    second = visitors.ask("second one")
+    assert first["ahead"] == 0 and second["ahead"] == 1                # not counting yourself
+    monkeypatch.setattr(visitors, "_current", "someone else")
+    assert visitors.status("first one")["ahead"] == 1                   # plus the match being worked on
+    monkeypatch.setattr(visitors, "PER_CLIENT_HOUR", 2)
+    visitors.ask("aaa1", client="1.2.3.4")
+    visitors.ask("aaa2", client="1.2.3.4")
+    with pytest.raises(visitors.VisitorError, match="a lot of matches"):
+        visitors.ask("aaa3", client="1.2.3.4")
+    assert visitors.ask("bbb1", client="5.6.7.8")["state"] == "queued"   # another client isn't held back
+
+
+def test_six_plus_players_includes_bigger_games(lab, monkeypatch):
+    from app.sources import insights
+    f = fake_facts()
+    f["games"][8].update(min_p=7, max_p=10)                               # Dixit, as a 7-10 player game here
+    monkeypatch.setattr(insights, "facts", Fixed(f))
+    s = taste.build(raw_result(), "x")
+    assert 8 in [e["gid"] for e in insights.for_you(s, players=6)]

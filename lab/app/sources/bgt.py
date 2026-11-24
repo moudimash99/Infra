@@ -414,23 +414,6 @@ def video(vid):
                       "diar": has(os.path.join(BGT_DIR, "diar"), ".json"), "voices": bool(sp)}}
 
 
-@source("bgt.search", ttl=60)
-def search(q):
-    q = q.strip()
-    if len(q) < 2:
-        return []
-    conn = db()
-    try:
-        like = f"%{q}%"
-        rows = conn.execute(f"""SELECT v.id, v.channel, v.title, v.duration, v.timestamp, {CATEGORY_SQL} AS category,
-                   (SELECT COUNT(*) FROM ratings r WHERE r.video_id = v.id) AS n_ratings
-                   FROM videos v WHERE v.title LIKE ? OR v.id IN (SELECT video_id FROM ratings WHERE game LIKE ?)
-                   ORDER BY v.timestamp DESC LIMIT 60""", (like, like)).fetchall()
-    finally:
-        conn.close()
-    return [dict(r) for r in rows]
-
-
 def results_file():
     p = os.path.join(BGT_DIR, "results.html")
     return p if os.path.exists(p) else None

@@ -14,12 +14,12 @@
   </form>
   <nav class="seg" aria-label="Which games">
     {% for key, label in [("all", "All"), ("rated", "You rated"), ("unrated", "Not rated")] %}
-    <a href="{{ R }}/games?{{ qs }}&show={{ key }}&sort={{ sort }}"{% if show == key %} class="on"{% endif %}>{{ label }}<span class="n">{{ counts[key] | comma }}</span></a>
+    <a href="{{ R }}/games?{{ qs }}&show={{ key }}&sort={{ sort }}"{% if show == key %} class="on" aria-current="true"{% endif %}>{{ label }}<span class="n">{{ counts[key] | comma }}</span></a>
     {% endfor %}
   </nav>
   <nav class="seg" aria-label="Order">
     {% for key, label in [("reviewed", "Most reviewed"), ("score", "Top scored"), ("name", "A–Z")] %}
-    <a href="{{ R }}/games?{{ qs }}&show={{ show }}&sort={{ key }}"{% if sort == key %} class="on"{% endif %}>{{ label }}</a>
+    <a href="{{ R }}/games?{{ qs }}&show={{ show }}&sort={{ key }}"{% if sort == key %} class="on" aria-current="true"{% endif %}>{{ label }}</a>
     {% endfor %}
   </nav>
 </div>

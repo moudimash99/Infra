@@ -5,8 +5,9 @@ from .fmt import ago
 from .sources import bgf, bgt, k8s
 
 
-def _pct(part, whole):
-    return f"{round(100 * part / whole)}%" if whole else "-"
+def _hours(part, whole):
+    """'1,495 of 10,172 h': the round's progress in hours of video, as the Taste Match site shows it."""
+    return f"{part:,.0f} of {whole:,.0f} h" if whole else "-"
 
 
 # Taste Match's tile row per stage: (row, stage key in the progress totals, the CronJob that does it).
@@ -33,7 +34,7 @@ def _running(run):
 
 
 def taste_match():
-    """Each stage: how far this round is (% of its videos) and what the stage is doing, when that's news."""
+    """Each stage: how far this round is (hours of video) and what the stage is doing, when that's news."""
     prog, now = bgt.progress.get(), bgt.now.get()
     state = {}
     if now.ok and now.data:
@@ -54,7 +55,7 @@ def taste_match():
     if prog.ok and prog.data:
         t = prog.data["totals"]
         for row, key, _ in STAGE_ROWS:
-            out[row] = " · ".join(filter(None, [_pct(t[key], t["videos"]), state.get(row)]))
+            out[row] = " · ".join(filter(None, [_hours(t.get(key + "_h", 0), t["hours"]), state.get(row)]))
     return out
 
 

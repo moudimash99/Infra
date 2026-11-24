@@ -236,3 +236,23 @@ def test_grouping_by_game_and_host():
                                 {"from": "own", "kind": "top list", "confidence": "low", "score": 4, "video": "y"}], "Paul", "SU&SD")
     assert notes[0]["text"] == "SU&SD's team verdict (Paul isn't in this video)" and not notes[0]["plain"]
     assert notes[1]["text"] == "in a top list, said without much certainty"
+
+
+def test_homepage_tile_counts_hours(monkeypatch):
+    import time as _time
+    from app import summary
+    from app.sources import Reading, bgt
+
+    class Fixed:
+        def __init__(self, data):
+            self.data = data
+            self.ok = True
+
+        def get(self, *args):
+            return Reading(True, self.data, "", _time.time())
+
+    totals = {"videos": 100, "hours": 10172.4, "audio_h": 1495.2, "text_h": 748.0, "speakers_h": 670.0, "rated_h": 433.0}
+    monkeypatch.setattr(bgt, "progress", Fixed({"totals": totals}))
+    monkeypatch.setattr(bgt, "now", Fixed({"runs": [], "cron": {}, "youtube_blocked": False}))
+    tile = summary.taste_match()
+    assert tile["download"] == "1,495 of 10,172 h" and tile["rate"] == "433 of 10,172 h" and "%" not in str(tile)

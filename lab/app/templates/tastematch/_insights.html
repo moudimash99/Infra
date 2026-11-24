@@ -12,8 +12,8 @@
   {% if p.up or p.down %}
   <div class="tm-taste-col">
     <h4>{{ label }}</h4>
-    {% for i in p.up %}<div class="tm-lean up"><span class="nm" title="{{ i.name }}">{{ i.name }}</span><span class="bar"><span style="width:{{ [i.lean * 100, 100] | min | round | int }}%"></span></span><span class="v">+{{ "%.1f" | format(i.lean) }}</span><span class="n" title="rated games with it">{{ i.n }}</span></div>{% endfor %}
-    {% for i in p.down %}<div class="tm-lean down"><span class="nm" title="{{ i.name }}">{{ i.name }}</span><span class="bar"><span style="width:{{ [(0 - i.lean) * 100, 100] | min | round | int }}%"></span></span><span class="v">−{{ "%.1f" | format(0 - i.lean) }}</span><span class="n" title="rated games with it">{{ i.n }}</span></div>{% endfor %}
+    {% for i in p.up %}<div class="tm-lean up"><span class="nm" title="{{ i.name }}">{{ i.name }}</span><span class="bar"><span style="width:{{ [i.lean * 100, 100] | min | round | int }}%"></span></span><span class="v">+{{ "%.1f" | format(i.lean) }}</span><span class="n" title="rated games with it" aria-label="from {{ i.n }} rated games">{{ i.n }}</span></div>{% endfor %}
+    {% for i in p.down %}<div class="tm-lean down"><span class="nm" title="{{ i.name }}">{{ i.name }}</span><span class="bar"><span style="width:{{ [(0 - i.lean) * 100, 100] | min | round | int }}%"></span></span><span class="v">−{{ "%.1f" | format(0 - i.lean) }}</span><span class="n" title="rated games with it" aria-label="from {{ i.n }} rated games">{{ i.n }}</span></div>{% endfor %}
   </div>
   {% endif %}{% endfor %}
 </div>

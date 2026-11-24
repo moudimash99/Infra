@@ -203,6 +203,11 @@ async def poller():
             await asyncio.to_thread(poll_once)
         except Exception:
             log.exception("poll failed")
+        try:
+            from .sources import visitors
+            await asyncio.to_thread(visitors.purge)       # "kept for a day" holds even when nobody new comes
+        except Exception:
+            log.exception("visitor purge failed")
         await asyncio.sleep(120)
 
 
@@ -220,7 +225,9 @@ def warm_up():
 
 
 async def serve():
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    # force: an imported library may have configured the root logger already, which made this a no-op and hid the
+    # lab's own messages (sources failing, the warm-up) from the pod's log.
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s", force=True)
     logging.getLogger("httpx").setLevel(logging.WARNING)
     store.init()
     try:

@@ -154,6 +154,11 @@ def _reviewed(s):
     return out
 
 
+def reviewed_ids(s):
+    """The games named hosts scored with their own verdicts."""
+    return set(_reviewed(s))
+
+
 def for_you(s, players=None, weight="", max_time=None, limit=24):
     """Reviewed games the person hasn't rated, best first by likely(), filtered by player count, weight band and
     play time. Each: {gid, name, likely, bgg, n (BGG ratings), why, fans: [(host, score)], hosts, loved, facts}."""
@@ -164,7 +169,8 @@ def for_you(s, players=None, weight="", max_time=None, limit=24):
         x = f.get(g)
         if not x or g in s["user"] or x["expansion"]:      # expansions: only worth it with the base game
             continue
-        if players and not ((x["min_p"] or 0) <= players <= (x["max_p"] or 99)):
+        if players and not ((x["min_p"] or 0) <= players <= (x["max_p"] or 99)
+                            or (players >= 6 and (x["max_p"] or 0) >= players)):      # "6+": six or more
             continue
         if weight and not (x["weight"] and lo <= x["weight"] < hi):
             continue

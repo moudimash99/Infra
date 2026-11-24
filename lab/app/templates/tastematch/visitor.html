@@ -8,7 +8,7 @@
 <header class="page-head">
   <span class="eyebrow">Taste Match</span>
   <h1 class="page-title">{{ uname }}'s reviewers</h1>
-  <p class="page-sub">{{ st.rated | comma }} games rated on BoardGameGeek; {{ s.user | length | comma }} of them have reviews here. Compared with {{ s.reviewers | length }} hosts {{ s.at | ago }}.</p>
+  <p class="page-sub">{{ st.rated | comma }} games rated on BoardGameGeek; {{ with_reviews | comma }} of them reviewed here. Compared with {{ s.reviewers | length }} hosts {{ s.at | ago }}.</p>
 </header>
 
 {% set top = s.ranked[0] if s.ranked else None %}

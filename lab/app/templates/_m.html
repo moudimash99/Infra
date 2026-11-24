@@ -57,7 +57,7 @@
 {%- endmacro %}
 
 {% macro unreadable(r, what) -%}
-{% if not r.ok %}{{ alert("Couldn't read " ~ what ~ ": " ~ r.error ~ (". Showing the last good read." if r.data else "."), "bad") }}{% endif %}
+{% if not r.ok %}{{ alert("Couldn't read " ~ what ~ (" right now" if OPEN else (": " ~ r.error)) ~ (". Showing the last good read." if r.data else "."), "bad") }}{% endif %}
 {%- endmacro %}
 
 {% macro runs_table(runs, limit=10) -%}

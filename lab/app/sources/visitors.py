@@ -28,6 +28,7 @@ NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.\- ]{1,39}")     # BGG usernames: let
 KEEP_S = 86400              # a result is reused for a day
 QUEUE_MAX = 20
 PER_HOUR = 60
+PER_CLIENT_HOUR = 8         # new names one client (IP) may ask for in an hour
 SCHEMA = """CREATE TABLE IF NOT EXISTS visitors (key TEXT PRIMARY KEY, name TEXT, state TEXT, step TEXT, error TEXT,
             asked REAL, done REAL, rated INTEGER, ratings TEXT, result TEXT)"""
 
@@ -102,6 +103,8 @@ _q = queue.Queue()
 _lock = threading.Lock()
 _worker = None
 _recent = []            # times of new requests, for PER_HOUR
+_by_client = {}         # client -> times of their new requests, for PER_CLIENT_HOUR
+_current = None         # the name being worked on now
 _parsed = {}            # key -> (done, built result): the pages read the same result many times
 
 
@@ -126,7 +129,9 @@ def status(name):
         return None
     out = dict(r)
     if out["state"] == "queued":
-        out["ahead"] = _q.qsize()
+        with _q.mutex:
+            waiting = list(_q.queue)
+        out["ahead"] = (waiting.index(out["key"]) if out["key"] in waiting else 0) + (1 if _current else 0)
     return out
 
 
@@ -156,8 +161,9 @@ def purge():
                      AND COALESCE(done, asked, 0) < ?""", (time.time() - KEEP_S,))
 
 
-def ask(name):
-    """Start (or reuse) a match for name. Returns the status; raises VisitorError when it can't be taken now."""
+def ask(name, client=None):
+    """Start (or reuse) a match for name. Returns the status; raises VisitorError when it can't be taken now.
+    client: who asks (their IP), for PER_CLIENT_HOUR."""
     name = " ".join(name.split())
     if not valid(name):
         raise VisitorError("That doesn't look like a BoardGameGeek username.")
@@ -170,6 +176,13 @@ def ask(name):
         _recent[:] = [t for t in _recent if now - t < 3600]
         if len(_recent) >= PER_HOUR or _q.qsize() >= QUEUE_MAX:
             raise VisitorError("Lots of people are matching right now. Try again in a few minutes.")
+        if client:
+            mine = _by_client[client] = [t for t in _by_client.get(client, []) if now - t < 3600]
+            if len(mine) >= PER_CLIENT_HOUR:
+                raise VisitorError("You've started a lot of matches in the last hour. Try again a bit later.")
+            mine.append(now)
+            for c in [c for c, ts in _by_client.items() if not ts or now - ts[-1] > 3600]:
+                del _by_client[c]
         _recent.append(now)
         with _db() as c:
             c.execute("""INSERT INTO visitors (key, name, state, step, error, asked) VALUES (?, ?, 'queued', '', '', ?)
@@ -188,13 +201,16 @@ def _start():
 
 
 def _work():
+    global _current
     while True:
         key = _q.get()
+        _current = key
         try:
             run(key)
         except Exception:      # noqa: BLE001 - one visitor's failure must not stop the queue
             log.exception("visitor %s failed", key)
         finally:
+            _current = None
             _q.task_done()
 
 
@@ -213,7 +229,7 @@ def run(key):
              ratings=json.dumps(ratings))
         raw = taste.run_score(ratings=ratings, timeout=300)
         if not raw.get("user"):
-            raise VisitorError("None of the games you rated have reviews here yet.")
+            raise VisitorError("None of the games you rated are in Taste Match's data yet.")
         _set(key, state="done", step="", done=time.time(), result=json.dumps(raw))
     except VisitorError as e:
         _set(key, state="error", step="", error=str(e))

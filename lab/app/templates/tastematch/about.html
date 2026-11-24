@@ -21,17 +21,17 @@
     <p>On the games you and a host both rated, the agreement is how well your taste signals line up: +1 when you always go the same way, −1 when you always go opposite ways.</p>
     <p>The match is that agreement times how much it counts, and how much it counts grows with the evidence: the games you both rated, with low-confidence verdicts and roundup videos counting less. When a channel's team gives a verdict ("we love it"), it stands in at half weight for the channel's regular hosts who didn't give their own, never for guests. Paid showcases and "most anticipated" lists don't count: they aren't verdicts on games the hosts played.</p>
     <div class="tm-calc mt-3"><span><small>6 solid games</small><b>38%</b></span><span><small>20 games</small><b>67%</b></span><span><small>40 games</small><b>80%</b></span></div>
-    <p class="mt-3">So a perfect agreement on a few games never reaches the top, a good agreement on many games does, and a clear disagreement on many games lands far below zero. Hosts who rated fewer than 5 of your games themselves are listed but not ranked.</p>
+    <p class="mt-3">So a perfect agreement on 5 games counts the same as a fair one (+0.4) on 40, a good agreement on many games scores highest, and a clear disagreement on many games lands far below zero. Hosts who rated fewer than 5 of your games themselves are listed but not ranked.</p>
     <p class="small soft">The likely range on each bar is where 8 in 10 reshuffles of your shared games put the match.</p>
   </section>
   <section class="card">
     <h2>4. What it can and can't tell you</h2>
-    <p>We tested it on the owner's 143 ratings, hiding one game at a time and guessing it. BGG's average, put on the person's own scale, misses by 0.59 points out of 5 on average. Adding the person's taste profile (the kinds of game, designers and mechanics they rate above or below that) brings it to 0.58. Adding the reviewers' scores made the guess worse.</p>
+    <p>We tested it in November 2026 on a collection of 143 rated games, hiding one game at a time and guessing it. BGG's average, put on the person's own scale, misses by 0.59 points out of 5 on average. Adding the person's taste profile (the kinds of game, designers and mechanics they rate above or below that) brings it to 0.58. Adding the reviewers' scores made the guess worse.</p>
     <p>So Taste Match doesn't promise a forecast from the reviewers. It shows which hosts lean your way and on which games, what they actually said, and where your own taste leans, with every number traceable to a video. As more reviews are read, these tests will be run again.</p>
   </section>
   <section class="card">
     <h2>5. Your data</h2>
-    <p>Only your public BoardGameGeek ratings are read, through BGG's API. Nothing is posted to BGG. Your ratings and your result are kept for a day so the pages load quickly, then fetched again on your next visit.</p>
+    <p>Only your public BoardGameGeek ratings are read, through BGG's API. Nothing is posted to BGG. Your ratings and your result are kept for a day so the pages load quickly, then deleted; coming back later starts a fresh match from your current ratings.</p>
   </section>
 </div>
 <p class="mt-4"><a class="btn primary" href="{{ R }}/find">{{ icon("search") }}Find your reviewers</a></p>

@@ -40,7 +40,7 @@
       <span><small>Counts for</small><b>{{ (r.counts * 100) | round | int }}%</b></span><span class="op">=</span>
       <span class="res"><small>Match</small><b>{{ signed(r.match) }}</b></span>
     </div>
-    <p class="xs muted mt-2">The agreement is measured on the {{ r.n }} games you both rated. They count as {{ r.evidence | round(1) }} solid verdicts (low-confidence verdicts and roundup videos count less), so the agreement keeps {{ (r.counts * 100) | round | int }}% of its weight. The more games you share, the more it keeps: 6 solid games keep 38%, 20 keep 67%, 40 keep 80%. A perfect agreement on a handful of games therefore never reaches the top, and a clear disagreement on many games lands far below zero.</p>
+    <p class="xs muted mt-2">The agreement is measured on the {{ r.n }} games you both rated. They count as {{ r.evidence | round(1) }} solid verdicts (low-confidence verdicts and roundup videos count less), so the agreement keeps {{ (r.counts * 100) | round | int }}% of its weight. The more games you share, the more it keeps: 6 solid games keep 38%, 20 keep 67%, 40 keep 80%. So a perfect agreement on 5 games counts the same as a fair one (+0.4) on 40, and a clear disagreement on many games lands far below zero.</p>
     {% endif %}
     {% else %}
     <p class="soft mt-3">You have rated only {{ r.n }} of the games {{ hname }} has scored: too few to say. A match needs 5.</p>
@@ -52,7 +52,7 @@
 <section class="section">
 <div class="kpis">
   {{ kpi("In common", r.n if r else 0, "games you both rated", "link") }}
-  {{ kpi("Games scored", r.rated if r else (verdicts | map(attribute="gid") | unique | list | length), "by " ~ hname, "dices") }}
+  {{ kpi("Games scored", groups | length, "by " ~ hname, "dices") }}
   {{ kpi("Average score", ("%.1f" | format(mean)) if mean is not none else "-", "their usual score", "star", "/5" if mean is not none else None) }}
   {{ kpi("Verdicts", verdicts | length, "in " ~ (verdicts | map(attribute="video_id") | unique | list | length) ~ " reviews", "quote") }}
 </div>
@@ -103,7 +103,7 @@
   {% set n_lent = common | selectattr("lent") | list | length %}
   {{ section_head("Games you have in common", count=common | length, sub=(((common | length) - n_lent) ~ " rated by " ~ hname ~ (("; " ~ n_lent ~ " more where " ~ (r.channel_name or "the channel") ~ "'s team verdict stands for " ~ hname ~ ", counted at half weight") if n_lent else "") ~ ".")) }}
   <nav class="seg mb-3" aria-label="Sort">
-    {% for k, label in sorts.items() %}<a href="?sort={{ k }}{{ ('&u=' ~ (visitor | urlencode)) if visitor }}#common" class="{{ 'on' if sort == k }}">{{ label }}</a>{% endfor %}
+    {% for k, label in sorts.items() %}<a href="?sort={{ k }}{{ ('&u=' ~ (visitor | urlencode)) if visitor }}{{ '&all=1' if show_all }}#common" class="{{ 'on' if sort == k }}"{% if sort == k %} aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}
   </nav>
   <div class="card flush"><div class="list">
     {% for g in common %}
@@ -143,7 +143,7 @@
       {{ score(gr.score) }}</div>
     {% endfor %}
   </div>
-  {% if groups | length > 30 and not show_all %}<div class="card-foot"><span class="muted">{{ groups | length - 30 }} more games</span><a href="?all=1{{ ('&u=' ~ (visitor | urlencode)) if visitor }}">Show all{{ icon("chevron-right") }}</a></div>{% endif %}
+  {% if groups | length > 30 and not show_all %}<div class="card-foot"><span class="muted">{{ groups | length - 30 }} more games</span><a href="?all=1&sort={{ sort }}{{ ('&u=' ~ (visitor | urlencode)) if visitor }}">Show all{{ icon("chevron-right") }}</a></div>{% endif %}
   </div>
   {% else %}<div class="card">{{ empty("No verdicts", "None of this host's verdicts passed the checks yet.", "quote") }}</div>{% endif %}
 </section>

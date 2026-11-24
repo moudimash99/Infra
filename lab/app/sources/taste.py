@@ -22,7 +22,6 @@ log = logging.getLogger("lab.taste")
 USER = os.environ.get("TM_USER", "moudimash99")
 MIN_SHARED = 5           # as build_results.py: fewer shared games than this and a host is listed, not ranked
 REFRESH = 600
-REJECTED = ("mention", "someone_else", "voice_conflict")    # verdicts the checks found weren't the host's own
 ACCEPTED_SQL = "COALESCE(r.attribution, '') NOT IN ('mention', 'someone_else', 'voice_conflict')"
 
 # Runs in the child: score.py from the pipeline's own folder, on a connection that can only read.
@@ -128,6 +127,7 @@ class _Scores:
         self.reading = None
         self._lock = threading.Lock()
         self._busy = False
+        self._busy_lock = threading.Lock()     # check-and-set of _busy: one background refresh at a time
 
     def _run(self):
         prev = self.reading
@@ -151,8 +151,11 @@ class _Scores:
                 if self.reading is r:
                     self._run()
             return self.reading
-        if time.time() - r.read_at > REFRESH and not self._busy:
-            self._busy = True
+        if time.time() - r.read_at > REFRESH:
+            with self._busy_lock:
+                if self._busy:
+                    return r
+                self._busy = True
             threading.Thread(target=self._background, daemon=True).start()
         return r
 

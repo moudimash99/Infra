@@ -22,6 +22,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 from . import charts, images, store
 from .sources import Reading, bgt, insights, taste, visitors
+from .access import OPEN_HOSTS
 from .web import day_labels, page, site, templates
 
 templates.env.globals.update(STAGES=bgt.STAGES)
@@ -70,31 +71,59 @@ def reviewers(request: Request, show: str = "ranked", channel: str = ""):
     counts = {"ranked": sum(r["ranked"] for r in everyone), "thin": sum(not r["ranked"] for r in everyone),
               "all": len(everyone)}
     return page(request, "tastematch/reviewers.html", sc=sc, s=s, rows=rows, show=show, channel=channel,
-                channels=channels, counts=counts, prof=taste.profile.get())
+                channels=channels, counts=counts)
+
+
+def _root(request):
+    return request.scope.get("root_path", "").rstrip("/")
+
+
+def _is_open(request):
+    """Is this request for a name without a login (access.OPEN_HOSTS)? Pages there never show the owner's data."""
+    return (request.headers.get("host") or "").split(":")[0].lower().rstrip(".") in OPEN_HOSTS
+
+
+def _asked(request):
+    """The visitor name a page was asked for (the last ?u=, as Starlette reads it), or None without ?u=."""
+    if "u" not in request.query_params:
+        return None
+    return " ".join(request.query_params.get("u", "").split())
 
 
 def _visitor(request):
-    """(name, their result) when the page was asked for a visitor (?u=name) whose match is ready, else (None, None)."""
-    name = request.query_params.get("u", "")
+    """(name, their result) when ?u= names a visitor whose match is ready, else (None, None)."""
+    name = _asked(request)
     if not name or not visitors.valid(name):
         return None, None
     res = visitors.result(name)
     return (res["username"], res) if res else (None, None)
 
 
+def _for_whom(request):
+    """The match a page is about -> (Reading of it, visitor name or None, None), or (None, None, response) when the
+    page must answer otherwise: ?u= naming someone whose match isn't ready -> their page; a bad ?u= -> 404; on an
+    open name without a visitor -> 404, so the owner's match is never shown there."""
+    asked = _asked(request)
+    vname, vres = _visitor(request)
+    if vres:
+        return Reading(True, vres, "", vres["at"]), vname, None
+    if asked is not None:
+        if not visitors.valid(asked):
+            raise HTTPException(404)
+        return None, None, RedirectResponse(f"{_root(request)}/u/{quote(asked)}", status_code=303)
+    if _is_open(request):
+        raise HTTPException(404)
+    return taste.scores.get(), None, None
+
+
 @app.get("/reviewers/{rid}", response_class=HTMLResponse)
 def reviewer(request: Request, rid: str):
     if not re.fullmatch(r"[\w-]{1,20}:[\w.-]{1,60}", rid):
         raise HTTPException(404)
-    sc, hv = taste.scores.get(), taste.host_verdicts.get(rid)
-    vname, vres = _visitor(request)
-    asked = " ".join(request.query_params.get("u", "").split())
-    if asked and not vres:        # a visitor's page never falls back to the owner's match: wait for theirs
-        if not visitors.valid(asked):
-            raise HTTPException(404)
-        return RedirectResponse(f"{request.scope.get('root_path', '').rstrip('/')}/u/{quote(asked)}", status_code=303)
-    if vres:
-        sc = Reading(True, vres, "", vres["at"])
+    sc, vname, answer = _for_whom(request)       # a visitor's page never falls back to the owner's match
+    if answer:
+        return answer
+    hv = taste.host_verdicts.get(rid)
     s = sc.data
     r = s["by_id"].get(rid) if s else None
     if not r and not (hv.data and hv.data["host"]):
@@ -123,13 +152,20 @@ def reviewer(request: Request, rid: str):
 
 # ---- anyone's matches -----------------------------------------------------------------------------------------------
 
+def _client(request):
+    """Who is asking (their IP: Cloudflare's header first), for the per-client limit."""
+    fwd = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+    return request.headers.get("cf-connecting-ip") or fwd or (request.client.host if request.client else "")
+
+
 @app.get("/find", response_class=HTMLResponse)
 def find(request: Request, name: str = ""):
+    """The only page that starts a match (a visit to /u/{name} never does, so a crawler can't fill the queue)."""
     name = " ".join(name.split())
     if name:
         try:
-            visitors.ask(name)
-            return RedirectResponse(f"{request.scope.get('root_path', '').rstrip('/')}/u/{quote(name)}", status_code=303)
+            visitors.ask(name, client=_client(request))
+            return RedirectResponse(f"{_root(request)}/u/{quote(name)}", status_code=303)
         except visitors.VisitorError as e:
             return page(request, "tastematch/find.html", uname=name, error=str(e), stats=taste.stats.get())
     return page(request, "tastematch/find.html", uname="", error="", stats=taste.stats.get())
@@ -140,48 +176,36 @@ def visitor(request: Request, name: str):
     name = " ".join(name.split())
     if not visitors.valid(name):
         raise HTTPException(404)
-    st, error = visitors.status(name), ""
-    if not st or st["state"] == "error" and request.query_params.get("again") == "1":
-        try:
-            st = visitors.ask(name)
-        except visitors.VisitorError as e:
-            error = str(e)
-    if not st or st["state"] != "done":
-        return page(request, "tastematch/visitor_wait.html", active="/find", uname=name, st=st, error=error)
-    s = visitors.result(name)
+    st = visitors.status(name)
+    s = visitors.result(name) if st and st["state"] == "done" else None
+    if st and st["state"] == "done" and not s:      # over a day old: forgotten; a new match starts from /find
+        st = None
     if not s:
-        raise HTTPException(404)
+        return page(request, "tastematch/visitor_wait.html", active="/find", uname=name, st=st)
     things = taste.things.get().data or {}
     return page(request, "tastematch/visitor.html", active="/find", uname=s["username"], s=s, st=st, things=things,
                 UQ="?u=" + quote(s["username"]),
                 taste_prof=insights.taste_profile(s), picks=insights.for_you(s, limit=8),
+                with_reviews=len(set(s["user"]) & insights.reviewed_ids(s)),
                 thin=[r for r in s["reviewers"] if 0 < r["n"] and not r["ranked"]])
 
 
-def _whose(request):
-    """The match result a page is about: a visitor's (?u=, ready) or the owner's. -> (s, visitor name or None)."""
-    vname, vres = _visitor(request)
-    if vres:
-        return vres, vname
-    return taste.scores.get().data, None
-
-
-def _wait_for(request):
-    """A redirect to the visitor's wait page when ?u= names someone whose result isn't ready, else None."""
-    asked = " ".join(request.query_params.get("u", "").split())
-    if not asked or _visitor(request)[1]:
-        return None
-    if not visitors.valid(asked):
+@app.get("/u/{name}/status")
+def visitor_status(name: str):
+    """For the wait page's quiet polling: {state, step, ahead, error}."""
+    name = " ".join(name.split())
+    if not visitors.valid(name):
         raise HTTPException(404)
-    return RedirectResponse(f"{request.scope.get('root_path', '').rstrip('/')}/u/{quote(asked)}", status_code=303)
+    st = visitors.status(name) or {}
+    return {k: st.get(k) for k in ("state", "step", "ahead", "error")}
 
 
 @app.get("/for-you", response_class=HTMLResponse)
 def for_you(request: Request, players: int = 0, weight: str = "", time: int = 0):
-    wait = _wait_for(request)
-    if wait:
-        return wait
-    s, vname = _whose(request)
+    sc, vname, answer = _for_whom(request)
+    if answer:
+        return answer
+    s = sc.data
     players = players if 1 <= players <= 12 else 0
     weight = weight if weight in insights.WEIGHT_BANDS else ""
     time = time if time in (30, 60, 90, 120, 180) else 0
@@ -193,12 +217,9 @@ def for_you(request: Request, players: int = 0, weight: str = "", time: int = 0)
 
 @app.get("/discover", response_class=HTMLResponse)
 def discover(request: Request):
-    wait = _wait_for(request)
-    if wait:
-        return wait
-    s, vname = _whose(request)
-    return page(request, "tastematch/discover.html", active="/discover", s=s, d=insights.discover(s) if s else None,
-                visitor=vname, UQ=("?u=" + quote(vname)) if vname else "")
+    """The same for everyone: it is made from the hosts' verdicts only (no one's ratings are shown)."""
+    s = taste.scores.get().data
+    return page(request, "tastematch/discover.html", active="/discover", d=insights.discover(s) if s else None)
 
 
 @app.get("/about", response_class=HTMLResponse)
@@ -234,15 +255,14 @@ def games(request: Request, q: str = "", show: str = "all", sort: str = "reviewe
     shown = rows[(pg["page"] - 1) * GAME_PAGE: pg["page"] * GAME_PAGE]
     n_rated = sum(1 for v in rated_of.values() if v is not None)
     counts = {"all": len(every), "rated": n_rated, "unrated": len(every) - n_rated}
-    return page(request, "tastematch/games.html", g=g, rows=shown, pg=pg, q=q, show=show, sort=sort, counts=counts,
-                s=s)
+    return page(request, "tastematch/games.html", g=g, rows=shown, pg=pg, q=q, show=show, sort=sort, counts=counts,)
 
 
 @app.get("/games/{gid}", response_class=HTMLResponse)
 def game(request: Request, gid: int):
     canon = taste.canonical.get().data or {}
     if canon.get(gid, gid) != gid:          # an edition: its game's page
-        return RedirectResponse(f"{request.scope.get('root_path', '').rstrip('/')}/games/{canon[gid]}", 301)
+        return RedirectResponse(f"{_root(request)}/games/{canon[gid]}", 302)     # editions are regrouped: not 301
     r = taste.game.get(gid)
     if r.ok and r.data is None:
         raise HTTPException(404)
@@ -264,7 +284,9 @@ def game(request: Request, gid: int):
 
 
 @app.get("/img/{gid}-{size}.jpg")
-async def box_art(gid: int, size: str):
+async def box_art(request: Request, gid: int, size: str):
+    if _is_open(request) and gid not in (taste.games.get().data or {}):   # open names: reviewed games only, so
+        raise HTTPException(404)                                         # the images say nothing of a collection
     return await images.serve("bgg", gid, size, lambda: taste.image_url(gid))
 
 

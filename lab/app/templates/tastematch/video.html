@@ -44,7 +44,7 @@
   <div class="card flush"><div class="list">
     {% for x in counted %}{% set gid = canon.get(x.bgg_id, x.bgg_id) if x.bgg_id else None %}
     <div class="item" style="align-items:flex-start">
-      {% if gid %}<a href="{{ R }}/games/{{ gid }}">{{ box(gid, "s", "thumb box") }}</a>{% else %}<span class="thumb box ph">{{ icon("dices") }}</span>{% endif %}
+      {% if gid %}<a href="{{ R }}/games/{{ gid }}" tabindex="-1" aria-hidden="true">{{ box(gid, "s", "thumb box") }}</a>{% else %}<span class="thumb box ph">{{ icon("dices") }}</span>{% endif %}
       <div class="body">
         {% if gid %}<a class="strong" href="{{ R }}/games/{{ gid }}">{{ x.game }}</a>{% else %}<span class="strong">{{ x.game }}</span>{% endif %}
         <div class="row wrap mt-1" style="gap:6px">
