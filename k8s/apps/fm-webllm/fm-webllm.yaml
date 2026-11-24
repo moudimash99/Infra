@@ -11,7 +11,8 @@
 # keep using http://fm-webllm:8933, which is now fm-webllm-waker, a 20 MB gatekeeper. It starts this Deployment
 # (replicas 0 -> 1) when a call or a health check comes in, holds the call until the helper answers (up to 5 min;
 # then it answers 503 and the caller treats the website as busy), and stops it after 30 min without calls, so its
-# 1 GiB booking on the Acer is free the rest of the time. Its pace and cap live in files on /web-llm, so a restart
+# booking on the Acer is free the rest of the time. Booking 512Mi since 2026-11-24 (was 1Gi; 15-day peak 295 MiB, measured
+# while the controller's website writers were off, so kept well above it). Its pace and cap live in files on /web-llm, so a restart
 # loses nothing. The helper itself is behind fm-webllm-backend. A start takes ~10-60 s.
 apiVersion: v1
 kind: Service
@@ -79,7 +80,7 @@ spec:
             - { name: state, mountPath: /web-llm }
             - { name: shm, mountPath: /dev/shm }
           resources:
-            requests: { cpu: 200m, memory: 1Gi }
+            requests: { cpu: 200m, memory: 512Mi }
             limits: { memory: 2Gi }
       volumes:
         - name: ws

@@ -63,7 +63,9 @@ spec:
                 - { name: work, mountPath: /work }
                 - { name: audio, mountPath: /work/audio }
               resources:
-                requests: { cpu: 100m, memory: 256Mi }
+                # 128Mi since 2026-11-24 (was 256Mi; median 155, peak 529 MiB): booked low on purpose, lowest rank,
+                # so it starts when the Acer is nearly full and is the first pushed out if memory runs low.
+                requests: { cpu: 100m, memory: 128Mi }
                 limits: { memory: 1Gi }
           volumes:
             - name: work
@@ -258,8 +260,9 @@ spec:
             - { name: work, mountPath: /work }
             - { name: audio, mountPath: /work/audio }
           resources:
+            # Limit 512Mi since 2026-11-24 (was 2Gi; 7-day peak 122 MiB): a shell, only a runaway would reach it.
             requests: { cpu: 10m, memory: 64Mi }
-            limits: { memory: 2Gi }
+            limits: { memory: 512Mi }
       volumes:
         - name: work
           hostPath: { path: /srv/apps/bg-taste-match, type: Directory }

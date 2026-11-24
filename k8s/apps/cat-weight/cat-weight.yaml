@@ -44,7 +44,8 @@ spec:
             periodSeconds: 20
           resources:
             requests: { cpu: 10m, memory: 192Mi }
-            limits: { memory: 256Mi }
+            # 384Mi since 2026-11-24 (was 256Mi): it peaked at 206 MiB plus 148 MiB in swap, pressed against its limit.
+            limits: { memory: 384Mi }
       volumes:
         - name: data
           hostPath: { path: /srv/apps/cat-weight, type: Directory }

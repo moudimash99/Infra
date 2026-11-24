@@ -112,8 +112,9 @@ spec:
             periodSeconds: 60
             failureThreshold: 3
           resources:
-            # 192Mi since 2026-11-23: its 3-day peak was 157 MiB, and the Acer is booked full.
-            requests: { cpu: 20m, memory: 192Mi }
+            # 384Mi since 2026-11-24 (192Mi on 11-23 from a 157 MiB 3-day peak; it then grew to 345 MiB). A critical pod
+            # books what it uses, so memory-pressure eviction on the Acer passes it over.
+            requests: { cpu: 20m, memory: 384Mi }
             limits: { memory: 768Mi }
           volumeMounts:
             - { name: lab, mountPath: /srv/lab }
