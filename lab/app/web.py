@@ -37,8 +37,8 @@ SITES = {
               "tagline": "Board game bargains on Okkazeo"},
     "catcam": {"key": "catcam", "name": "Cat cam", "url": "https://catcam.machaka.net",
                "tagline": "Simba and Nala, day by day"},
-    "machines": {"key": "machines", "name": "Machines", "url": "https://lab.machaka.net/machines",
-                 "tagline": "Where each machine's memory goes"},
+    "machines": {"key": "machines", "name": "Homelab", "url": "https://lab.machaka.net/machines/",
+                 "tagline": "Is everything all right, and why"},
 }
 
 

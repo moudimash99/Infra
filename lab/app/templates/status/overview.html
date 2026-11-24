@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% from "_m.html" import unreadable %}
+{% block title %}Overview · Homelab{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ R }}/static/status.css?v={{ STATIC_V }}">{% endblock %}
+
+{%- macro dot(state) -%}<span class="sdot {{ state }}" aria-hidden="true"></span>{%- endmacro -%}
+{%- macro bad(state) -%}{{ 1 if state in ("bad", "warn") else 0 }}{%- endmacro -%}
+{%- macro mshort(m) -%}{% if m and m != "*" %}{{ mname(m) }}{% endif %}{%- endmacro -%}
+
+{% block main %}
+{{ unreadable(reading, "the homelab's numbers") }}
+{% if d %}
+{% set n_bad = d.problems | selectattr("state", "in", ["bad", "warn"]) | list | length %}
+<header class="ov-head">
+  <h1 class="ov-verdict {{ 'bad' if n_bad else 'ok' }}" id="ov-verdict">{% if n_bad %}{{ n_bad }} thing{{ "s" if n_bad > 1 }} to look at{% else %}All good{% endif %}</h1>
+  <p class="ov-sub">Checked {{ clock(d.at) }} · reload for fresh numbers</p>
+</header>
+
+<div class="filters" id="filters" role="search">
+  <div class="seg" data-f="m" role="group" aria-label="Machine">
+    <button type="button" data-v="" class="on">All machines</button>
+    {% for node, name in MACHINES %}<button type="button" data-v="{{ node }}">{{ name }}</button>{% endfor %}
+  </div>
+  <label class="sel"><span class="sr">Project</span>
+    <select data-f="p" aria-label="Project">
+      <option value="">All projects</option>
+      {% for g in d.groups %}<option value="{{ g }}">{{ g }}</option>{% endfor %}
+    </select></label>
+  <label class="toggle"><input type="checkbox" data-f="only"><span>Problems only</span></label>
+</div>
+
+<div class="qgrid">
+
+  {# ---- Anything wrong? ---- #}
+  <section class="qcard wide" id="wrong" data-card>
+    <div class="qhead"><h2>Anything wrong?</h2><span class="qchip" data-chip></span></div>
+    <ul class="items" data-limit="6">
+      {% for p in d.problems %}
+      <li class="it" data-m="{{ p.m or '*' }}" data-p="{{ p.p or '*' }}" data-bad="{{ bad(p.state) }}">
+        {{ dot(p.state) }}
+        <div class="txt"><b>{{ p.text }}</b>{% if p.why %}<small>{{ p.why }}{% if p.since %} · since {{ clock(p.since) }}{% endif %}</small>{% endif %}</div>
+        <span class="tags">{% if p.m and p.m != "*" %}<span class="tag">{{ mname(p.m) }}</span>{% endif %}{% if p.p and p.p != "*" %}<span class="tag">{{ p.p }}</span>{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="none ok-line" data-none>{{ dot("ok") }} Nothing wrong.</p>
+  </section>
+
+  {# ---- How are the machines? ---- #}
+  <section class="qcard wide" id="machines" data-card>
+    <div class="qhead"><h2>How are the machines?</h2><span class="qchip" data-chip></span></div>
+    <div class="items mtiles">
+      {% for m in d.machines %}
+      <article class="it mtile" data-m="{{ m.node }}" data-p="*" data-bad="{{ bad(m.state) }}">
+        <div class="mt-head">{{ dot(m.state) }}<b>{{ m.name }}</b><span class="muted xs">{{ W[m.state] }}</span></div>
+        <dl class="facts4">
+          {% for key, label in [("mem", "Memory"), ("cpu", "CPU"), ("disk", "Disk"), ("temp", "Temperature")] %}{% set f = m.facts[key] %}
+          <div class="f {{ f.state }}"><dt>{{ label }}</dt><dd><b>{{ f.value }}</b> <span class="muted">{{ f.of }}</span>
+            <span class="meter"><span style="width:{{ [f.pct, 100] | min }}%"></span></span>
+            {% if f.why %}<small>{{ f.why }}</small>{% endif %}</dd></div>
+          {% endfor %}
+        </dl>
+        <a class="more" href="{{ R }}/memory?m={{ m.node }}">Where the memory goes {{ icon("chevron-right") }}</a>
+      </article>
+      {% endfor %}
+      {% set pc = d.pc %}{% set pc_bad = pc.tasks | selectattr("state", "equalto", "bad") | list %}
+      <article class="it mtile" data-m="pc" data-p="*" data-bad="{{ 1 if pc_bad else 0 }}">
+        <div class="mt-head">{{ dot("warn" if pc_bad else "info" if pc.stale else "ok") }}<b>PC</b><span class="muted xs">{{ "Off or asleep" if pc.stale else "On" }}</span></div>
+        <p class="small">{% if pc.age is not none %}Last report {{ dur(pc.age) }} ago{% else %}No report yet{% endif %}. {{ pc.tasks | length }} scheduled task{{ "s" if pc.tasks | length != 1 }}, {{ pc_bad | length }} failing.</p>
+        <p class="xs muted">The PC reports its tasks every 10 minutes while it's on. Its memory and CPU aren't measured.</p>
+        <a class="more" href="#pc">Its tasks {{ icon("chevron-right") }}</a>
+      </article>
+    </div>
+  </section>
+
+  {# ---- What's using them? ---- #}
+  <section class="qcard" id="using" data-card>
+    <div class="qhead"><h2>What's using them?</h2>
+      <div class="seg sm" data-tabs role="tablist"><button type="button" class="on" data-tab="mem">Memory</button><button type="button" data-tab="cpu">CPU</button></div></div>
+    <ul class="items" data-limit="5" data-pane="mem">
+      {% for r in d.mem_rows %}
+      <li class="it" data-m="{{ r.machine }}" data-p="{{ r.p or '' }}" data-bad="0">
+        <div class="txt"><b>{{ r.name }}</b><small>{{ r.machine_name }}{% if r.p %} · {{ r.p }}{% endif %}</small></div>
+        <span class="val">{{ size(r.now) }}<span class="bar"><span style="width:{{ (100 * (r.share or 0)) | round(1) }}%"></span></span><small>{{ (100 * (r.share or 0)) | round | int }}% of {{ r.machine_name }}</small></span>
+      </li>
+      {% endfor %}
+    </ul>
+    <ul class="items" data-limit="5" data-pane="cpu" hidden>
+      {% for r in d.cpu_rows %}
+      <li class="it" data-m="{{ r.machine }}" data-p="{{ r.p or '' }}" data-bad="0">
+        <div class="txt"><b>{{ r.name }}</b><small>{{ mname(r.machine) }}{% if r.p %} · {{ r.p }}{% endif %}</small></div>
+        <span class="val">{{ "%.1f" | format(r.cores) }} cores<span class="bar cpu"><span style="width:{{ (100 * (r.share or 0)) | round(1) }}%"></span></span><small>{{ (100 * (r.share or 0)) | round | int }}% of {{ mname(r.machine) }}</small></span>
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="none" data-none>Nothing for this filter.</p>
+    <a class="all-link" href="{{ R }}/memory">All {{ d.n_users }}, with search and filters {{ icon("chevron-right") }}</a>
+  </section>
+
+  {# ---- Did the jobs run? ---- #}
+  <section class="qcard" id="jobs" data-card>
+    <div class="qhead"><h2>Did the jobs run?</h2><span class="qchip" data-chip></span></div>
+    <ul class="items" data-limit="6">
+      {% for j in d.jobs %}
+      <li class="it" data-m="{{ j.m or '' }}" data-p="{{ j.p or '' }}" data-bad="{{ bad(j.state) }}">
+        {{ dot(j.state) }}
+        <div class="txt"><b>{{ j.name }}</b><small>{{ j.text }}{% if j.why %} · {{ j.why }}{% endif %}</small></div>
+        <span class="tags">{% if j.p %}<span class="tag">{{ j.p }}</span>{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="none" data-none>No jobs for this filter.</p>
+  </section>
+
+  {# ---- Who gets in? ---- #}
+  <section class="qcard" id="gets-in" data-card>
+    <div class="qhead"><h2>Who's waiting for room?</h2><span class="qchip" data-chip></span></div>
+    <ul class="items" data-limit="8">
+      {% for w in d.waiting %}
+      <li class="it" data-m="{{ w.m or '*' }}" data-p="{{ w.p or '' }}" data-bad="{{ bad(w.state) }}">
+        {{ dot(w.state) }}<div class="txt"><b>{{ w.name }}</b><small>waiting {{ dur(w.age) }} for room{% if w.need %}: it books {{ size(w.need) }}{% endif %}</small></div>
+      </li>
+      {% endfor %}
+      {% for e in d.pushed %}
+      <li class="it" data-m="{{ e.m or '*' }}" data-p="{{ e.p or '' }}" data-bad="0">
+        {{ dot("info") }}<div class="txt"><b>{{ e.name }}</b><small>pushed out at {{ clock(e.at) }} to make room for {{ e.by }}; it starts again when there's room</small></div>
+      </li>
+      {% endfor %}
+      {% for m in d.machines %}
+      <li class="it booking" data-m="{{ m.node }}" data-p="*" data-bad="0">
+        <div class="txt"><b>{{ m.name }}: {{ (100 * m.booked_share) | round | int }}% booked</b>
+          <small>pods reserved {{ size(m.booked) }} of {{ size(m.allocatable) }}; they really use {{ size(m.used_pods) }}</small>
+          <span class="meter two" aria-hidden="true"><span class="b" style="width:{{ [100 * m.booked_share, 100] | min }}%"></span><span class="u" style="width:{{ [100 * m.used_pods / m.allocatable, 100] | min if m.allocatable else 0 }}%"></span></span></div>
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="xs muted">A pod starts only when its booking fits. On the Acer a higher-ranked pod pushes a lower one out; it comes back when there's room.</p>
+  </section>
+
+  {# ---- The GPU ---- #}
+  {% if d.gpu %}{% set g = d.gpu %}
+  <section class="qcard" id="gpu" data-card>
+    <div class="qhead"><h2>Is the GPU busy?</h2><span class="qchip" data-chip></span></div>
+    <div class="items">
+      <div class="it" data-m="acer-laptop" data-p="*" data-bad="{{ 1 if (g.temp or 0) > 85 else 0 }}">
+        <div class="txt"><b>{{ "%.0f" | format(g.util or 0) }}% busy</b><small>{% if g.users %}{% for name, pct in g.users %}{{ name }} ({{ "%.0f" | format(pct) }}%){{ ", " if not loop.last }}{% endfor %}{% else %}nobody is using it{% endif %}</small></div>
+        <span class="val">{{ size(g.mem) }}<small>of {{ size(g.mem_total) }} · {{ "%.0f" | format(g.temp or 0) }} °C</small></span>
+      </div>
+    </div>
+    <p class="none" data-none>The GPU is in the Acer.</p>
+  </section>
+  {% endif %}
+
+  {# ---- Sites ---- #}
+  <section class="qcard" id="sites" data-card>
+    <div class="qhead"><h2>Are the sites up?</h2><span class="qchip" data-chip></span></div>
+    <ul class="items chips-list">
+      {% for s in d.sites %}
+      <li class="it" data-m="*" data-p="{{ s.p or '' }}" data-bad="{{ bad(s.state) }}">
+        {{ dot(s.state) }}<a href="{{ s.url }}">{{ s.name }}</a><small>{% if s.state == "ok" %}{{ s.ms }} ms{% elif s.state == "unknown" %}not checked{% else %}down{% endif %}</small>
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="none" data-none>No site for this filter.</p>
+  </section>
+
+  {# ---- The PC's tasks ---- #}
+  <section class="qcard" id="pc" data-card>
+    <div class="qhead"><h2>Did the PC's tasks run?</h2><span class="qchip" data-chip></span></div>
+    <ul class="items" data-limit="6">
+      {% for t in d.pc.tasks %}
+      <li class="it" data-m="pc" data-p="{{ t.p or '' }}" data-bad="{{ bad(t.state) }}">
+        {{ dot(t.state) }}<div class="txt"><b>{{ t.name }}</b><small>{{ t.note or t.status }}{% if t.last %} · last run {{ clock(t.last) }}{% endif %}</small></div>
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="none" data-none>No PC task for this filter.</p>
+  </section>
+
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="{{ R }}/static/status.js?v={{ STATIC_V }}" defer></script>{% endblock %}

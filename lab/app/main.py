@@ -3,7 +3,8 @@
   tastematch.machaka.net  the review pipeline (site_bgt)
   deals.machaka.net       BoardGameFinder's deals (site_deals)
   catcam.machaka.net      the cats: flash of the day, camera, weights (site_cats)
-  lab.machaka.net/machines  where each machine's memory goes (site_machines; the rest of lab.machaka.net is Homepage)
+  lab.machaka.net/machines  the homelab overview, and where each machine's memory goes (site_status, site_machines;
+                            the rest of lab.machaka.net is Homepage)
 
 Each checks the Cloudflare Access login itself (access.py); a name not yet in the Access application signs in
 through lab.machaka.net's login (the bridge, lab.machaka.net/lab-sso). lab.machaka.net is Homepage; its tiles read
@@ -46,7 +47,7 @@ SITES = [(key, os.environ.get(env, host), importlib.import_module(f".{module}", 
 # Sites under a path of another name: lab.machaka.net is Homepage's, Traefik sends only /machines here.
 PATH_SITES = [(key, os.environ.get(env, host), path, importlib.import_module(f".{module}", __package__).app, title)
               for key, env, host, path, module, title in [
-                  ("machines", "HOST_MACHINES", "lab.machaka.net", "/machines", "site_machines", "Machines")]
+                  ("machines", "HOST_MACHINES", "lab.machaka.net", "/machines", "site_status", "Homelab")]
               if not _ONLY or key in _ONLY]
 
 # ---- in-cluster API for Homepage -------------------------------------------------------------------------------
@@ -206,6 +207,14 @@ def poll_once():
         store.save_log(job, logs.summarize(job["cronjob"] or job["name"], text), logs.tail(text, 60))
 
 
+async def overview_refresher():
+    """The homelab overview's numbers, read again every minute (sources/overview.keep_fresh)."""
+    from .sources import overview
+    while True:
+        await asyncio.to_thread(overview.keep_fresh)
+        await asyncio.sleep(60)
+
+
 async def poller():
     while True:
         try:
@@ -250,11 +259,12 @@ async def serve():
     reports = uvicorn.Server(uvicorn.Config(intake, host="0.0.0.0", port=int(os.environ.get("INTAKE_PORT", 8081)),
                                             access_log=False))
     pages.install_signal_handlers = reports.install_signal_handlers = lambda: None
-    task = asyncio.create_task(poller())
+    tasks = [asyncio.create_task(poller()), asyncio.create_task(overview_refresher())]
     try:
         await asyncio.gather(pages.serve(), reports.serve())
     finally:
-        task.cancel()
+        for task in tasks:
+            task.cancel()
 
 
 if __name__ == "__main__":

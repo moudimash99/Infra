@@ -2,7 +2,9 @@
 """The Homepage menu (lab.machaka.net), made from services.yaml: one tile per entry, grouped by its system.
 
 Writes k8s/tools/homepage-menu.yaml: ConfigMap tools/homepage-menu with Homepage's services.yaml and settings.yaml
-(the rest of Homepage's config stays in k8s/tools/homepage.yaml). After a change to services.yaml:
+(the rest of Homepage's config stays in k8s/tools/homepage.yaml), and catalog.json for the lab's overview page
+(lab.machaka.net/machines): which menu group (project) each service and each of its Kubernetes objects, Docker
+containers and PC tasks belongs to, so the page can filter by project. After a change to services.yaml:
   python scripts/menu.py            (--check also asks the cluster that every tile's pods exist)
   kubectl apply -f k8s/tools/homepage-menu.yaml && kubectl -n tools rollout restart deploy/homepage
 
@@ -17,6 +19,7 @@ An entry's optional `menu:` block overrides any of these (title, description, hr
 siteMonitor URL, widget; href: null or pods: null for none). hide: true leaves the entry off. extra: [Homepage
 tiles, as Homepage writes them] adds tiles after it in the same group.
 """
+import json
 import os
 import re
 import subprocess
@@ -124,6 +127,27 @@ def build(services):
     return menu, {**SETTINGS, "layout": layout}
 
 
+def catalog(services):
+    """{"groups": [menu headings in order], "services": {name: {group, title, what}}, "objects": {probe: {service,
+    max_age_h}}}, probes as services.yaml writes them: "apps/CronJob/cat-flash", "docker:cadvisor", "pc_task:\\lab-report".
+    max_age_h is the probe's own limit (a job is late past it, the same rule as status.py)."""
+    group_of = {system: heading for heading, systems, _ in GROUPS for system in systems}
+    out = {"groups": [heading for heading, _, _ in GROUPS], "services": {}, "objects": {}}
+    for svc in services:
+        group = group_of.get(svc.get("system"), "Other")
+        out["services"][svc["name"]] = {"group": group, "title": (svc.get("menu") or {}).get("title") or svc["name"],
+                                        "what": first_sentence(svc.get("what") or "", 140)}
+        for probe in svc.get("probes") or []:
+            for kind in ("k8s", "docker", "pc_task"):
+                if kind in probe:
+                    key = str(probe[kind]) if kind == "k8s" else f"{kind}:{probe[kind]}"
+                    obj = {"service": svc["name"]}
+                    if probe.get("max_age_h"):          # a job late past this (the same rule as status.py)
+                        obj["max_age_h"] = probe["max_age_h"]
+                    out["objects"].setdefault(key, obj)
+    return out
+
+
 class Literal(str):
     pass
 
@@ -142,7 +166,8 @@ def main():
     dump = lambda d: yaml.dump(d, Dumper=Dumper, sort_keys=False, allow_unicode=True, width=200)
     cm = {"apiVersion": "v1", "kind": "ConfigMap",
           "metadata": {"name": "homepage-menu", "namespace": "tools"},
-          "data": {"settings.yaml": Literal(dump(settings)), "services.yaml": Literal(dump(menu))}}
+          "data": {"settings.yaml": Literal(dump(settings)), "services.yaml": Literal(dump(menu)),
+                   "catalog.json": Literal(json.dumps(catalog(services), indent=1, ensure_ascii=False) + "\n")}}
     head = ("# MADE BY scripts/menu.py from services.yaml: do not edit by hand. Change services.yaml (an entry's\n"
             "# menu: block) or the script, run it, then apply this file and restart Homepage:\n"
             "#   kubectl apply -f k8s/tools/homepage-menu.yaml && kubectl -n tools rollout restart deploy/homepage\n")
