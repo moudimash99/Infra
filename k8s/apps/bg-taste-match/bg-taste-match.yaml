@@ -24,6 +24,13 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 0
+      # Pushed out by the scheduler (a higher-ranked pod needing the Acer's booked memory, e.g. the lab restarting
+      # on a deploy): not a failure, the pod is made again and get_audio.py skips what is downloaded (as for gpu).
+      # Until 2026-11-24 a push-out ended the pass as failed and status.py reported the stage as stale.
+      podFailurePolicy:
+        rules:
+          - action: Ignore
+            onPodConditions: [{ type: DisruptionTarget }]
       template:
         metadata:
           labels: { app: bg-taste-match, stage: fetch }
