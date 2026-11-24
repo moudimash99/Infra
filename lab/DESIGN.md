@@ -10,6 +10,37 @@
 > one-minute code from lab.machaka.net/lab-sso becomes a cookie for that name; `app/access.py`). The rest of this
 > document is the first design, kept for its data notes.
 
+## Taste Match (tastematch.machaka.net), 2026-11-24
+
+What it is for: finding the board game YouTube reviewers whose taste follows yours, and using what they said, with
+every number traceable to a video. The owner's pages and anyone's (a BGG username on /find) work the same way.
+
+Pages: Home (closest match, top matches, picked for you, your taste profile, the round), For you (picks with
+reasons and filters), Discover (hidden gems, less than the hype, divisive), Reviewers and a page per host (the match
+and its sum, every game in common and where each score came from, both score distributions, the host's own taste),
+Games and a page per game (each host once, with all their videos), Find yours, How it works, Pipeline.
+
+Rules the pages keep:
+- One scale: every score is out of 5 (BGG's 10-point ratings halved); match numbers are agreements, -1 to +1.
+- Every score says where it came from: a host's own review, a top list, a roundup, a team verdict standing in
+  for a regular host (never for a guest). Paid showcases and "most anticipated" lists are labelled and never
+  counted (bg-taste-match config.VIDEO_KINDS, read by the lab).
+- No forecast the data doesn't back. Measured 2026-11-24 on a collection of 143 rated games, hiding one game at a
+  time (points out of 5 off): BGG's average on the person's own scale 0.59; plus the person's taste profile
+  (category, designer, mechanic, shrunk on few games) 0.58; adding matched hosts' or all reviewers' scores 0.60 at
+  best, up to 0.72. So "likely for you" uses BGG and the profile only; reviewers are shown as reasons and evidence.
+  BGG averages from few ratings count less (as if 100 more people had rated the game typically). Re-measure as
+  more reviews are rated, with the method above.
+- A host is ranked from 5 shared games of their own; the match is the agreement times e / (e + 10), e the shared
+  games counted by verdict weight (bg-taste-match README, "How a match is scored").
+- Wording says only what the code does; no claim without a number behind it ("a perfect agreement on 5 games
+  counts the same as a fair one on 40").
+
+Visitors (sources/visitors.py): only /find starts a match (8 new names per client an hour, 60 in all, 20
+waiting); a match is kept a day, then deleted (purged every poll). TM_OPEN_HOSTS (empty) would serve only the
+visitor pages, Discover and How it works on a name without a login (access.open_path, the app's _for_whom and the
+open-name test check that no page there can show the owner's data). Going public is the owner's decision.
+
 One private web app that answers, for each thing the homelab runs, the question its owner actually has:
 "is it working, what did it find, and what needs me?". Phone first: most visits are from a phone.
 

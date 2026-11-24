@@ -8,8 +8,8 @@ Every number they return is on the site's one scale, points out of 5 (BGG's 10-p
   BGG's average counts for less when few people rated the game: it is pulled toward a typical game's
   average as if BGG_PRIOR more people had rated it typically (a new game rated 9.0 by its 300 backers counts as
   about 8.5). Measured on the owner's 143 ratings (2026-11-24, leaving one game out at a time): off by 0.58 points
-  out of 5 on average, against 0.59 for BGG's average alone; the matched hosts' scores made it worse (0.60 to
-  0.72), so they are shown as reasons and never mixed into the number.
+  out of 5 on average, against 0.59 for BGG's average alone; the matched hosts' scores made it no better (0.60 at
+  best, up to 0.72; re-measured after the host merges), so they are shown as reasons, never mixed into the number.
 - discover(s): across named hosts' own verdicts, games they score above (hidden gems) or below (less than the
   hype) what their usual line from BGG's average expects, and where they disagree most (divisive).
 - host_profile(r): the taste profile of one host, from their verdicts.
