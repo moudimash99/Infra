@@ -15,6 +15,7 @@
 {% block main %}
 {{ page_head("Discover", "What the reviewers think that BGG's crowd doesn't, across every host and every rated review" ~ (" (" ~ (d.games | comma) ~ " games with 3 or more reviewers)" if d else "") ~ ".", "Taste Match") }}
 {% if d %}
+{% if can_hide %}<p class="small muted mb-3">{% if show_rated %}Showing games you rated too. <a href="{{ R }}/discover">Hide them</a>{% else %}Games you rated are left out{% if hidden %} ({{ hidden }} here){% endif %}. <a href="{{ R }}/discover?rated=1">Show them</a>{% endif %}</p>{% endif %}
 <section class="section grid md-3 gap-lg">
   {% for key, title, sub in [("gems", "Hidden gems", "Reviewers like these more than BGG's average says they would."),
                              ("overrated", "Less than the hype", "Reviewers like these less than BGG's average says."),

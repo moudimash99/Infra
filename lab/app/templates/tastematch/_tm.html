@@ -39,7 +39,7 @@
   </span>
   <span class="trail">
     {% if r.ranked %}<span class="tm-num{{ ' accent' if r.match >= 0.05 }}">{{ signed(r.match) }}</span>{% endif %}
-    <span class="meta">{{ r.n }} game{{ "s" if r.n != 1 }}</span>
+    <span class="meta">{{ r.n }} game{{ "s" if r.n != 1 }}{% if r.lent %} · +{{ r.lent }} team{% endif %}</span>
   </span>
   {{ icon("chevron-right", "chev") }}
 </a>

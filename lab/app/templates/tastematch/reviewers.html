@@ -38,7 +38,8 @@
       <li>For each game, the taste signal is how far a score sits from what BGG's average predicts for that person: everyone loving Brass says little, loving a game BGG shrugs at says a lot.</li>
       <li>The match is how well your signals and a host's line up on the games you both rated, from −1 (opposite) to +1 (the same), times how much that evidence counts: a perfect agreement on 5 games counts the same as a fair one (+0.4) on 40.</li>
       <li>The bar shows the likely range: where 8 in 10 reshuffles of your shared games put the match.</li>
-      <li>Hosts who rated fewer than 5 of your games themselves are listed under “Too few games”, not ranked. A channel's team verdict stands in for its regular hosts at half weight, never for guests.</li>
+      <li>A channel's team verdict ("we love it") stands in for each host who gave none of their own in that video, at half weight times how much they were on the team then: a regular host nearly fully, a one-video guest barely.</li>
+      <li>To be ranked a host needs 5 of your games: each one they rated themselves counts 1, each one only the team's verdict covers counts its weight. The others are under “Too few games”.</li>
     </ul>
     {% if s %}<p class="xs muted mt-3">{{ s.reviewers | length }} hosts from {{ s.reviewers | map(attribute="channel") | unique | list | length }} channels, against your {{ s.user | length }} rated games. Computed {{ s.at | ago }}.</p>{% endif %}
   </div>

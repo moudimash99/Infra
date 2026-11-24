@@ -33,18 +33,12 @@
   <div class="card">{{ empty("No reviewer to rank yet", "You share fewer than 5 rated games with every host so far. Rate more games on BGG, or come back as more reviews are added.", "users") }}</div>
   {% endif %}
   {% if thin %}
-  <details class="more mt-2"><summary>{{ thin | length }} hosts rated fewer than 5 of your games themselves</summary>
+  <details class="more mt-2"><summary>{{ thin | length }} hosts have fewer than 5 of your games (their own verdicts count 1, the team's by weight)</summary>
     <div class="card flush"><div class="list">{% for r in thin %}{{ host_row(r, False) }}{% endfor %}</div></div>
   </details>
   {% endif %}
 </section>
 
-{% if picks %}
-<section class="section">
-  {{ section_head("Picked for you", R ~ "/for-you" ~ UQ, "More, with filters", sub="Reviewed games you haven't rated that fit your taste profile, with the reasons.") }}
-  <div class="tm-picks">{% for e in picks %}{{ pick_card(e) }}{% endfor %}</div>
-</section>
-{% endif %}
 
 {% if taste_prof %}
 <section class="section">

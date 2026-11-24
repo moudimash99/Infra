@@ -58,12 +58,6 @@
 </section>
 {% endif %}
 
-{% if picks %}
-<section class="section">
-  {{ section_head("Picked for you", R ~ "/for-you", "More, with filters", sub="Reviewed games you haven't rated that fit your taste profile, with the reasons.") }}
-  <div class="tm-picks">{% for e in picks %}{{ pick_card(e) }}{% endfor %}</div>
-</section>
-{% endif %}
 
 {% if taste_prof %}
 <section class="section">

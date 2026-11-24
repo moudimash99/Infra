@@ -222,7 +222,7 @@ def test_new_pages_owner_and_visitor_and_open(lab, monkeypatch):
     assert "Concordia" not in c.get("/for-you?players=6").text and "u=Some%20Body" in c.get("/for-you?u=Some%20Body").text
     assert "Hidden gems" in c.get("/discover").text
     t = c.get("/u/Some Body").text
-    assert "Picked for you" in t and "Your taste profile" in t and "Economic" in t
+    assert "Picked for you" not in t and "Your taste profile" in t and "Economic" in t   # For you is in development
     assert c.get("/for-you?u=nobody99", follow_redirects=False).headers["location"] == "/u/nobody99"
     access.OPEN_HOSTS.add("open.test")
     try:
@@ -394,3 +394,63 @@ def test_six_plus_players_includes_bigger_games(lab, monkeypatch):
     monkeypatch.setattr(insights, "facts", Fixed(f))
     s = taste.build(raw_result(), "x")
     assert 8 in [e["gid"] for e in insights.for_you(s, players=6)]
+
+
+
+def test_ranking_counts_team_verdicts_by_weight(lab):
+    """Option 2: the team inference stands; a guest lent only the team's verdicts (tiny weight) isn't ranked."""
+    raw = raw_result()
+    guest = dict(raw["reviewers"][0], id="rahdo:nato", name="NATO", n=0, lent=5, rank_n=0.29, match=-0.01)
+    regular = dict(raw["reviewers"][0], id="susd:paul", n=4, lent=3, rank_n=5.4, match=0.3)
+    raw["reviewers"] = [regular, guest]
+    s = taste.build(raw, "x")
+    assert s["by_id"]["susd:paul"]["ranked"] and not s["by_id"]["rahdo:nato"]["ranked"]
+    assert [r["id"] for r in s["ranked"]] == ["susd:paul"]
+
+
+def test_discover_leaves_out_your_games_unless_asked(lab, monkeypatch):
+    from starlette.testclient import TestClient
+    from app import site_bgt
+    from app.sources import insights
+    monkeypatch.setattr(insights, "facts", Fixed(fake_facts()))
+    owner = taste.build(raw_result(), taste.USER)
+    owner["at"] = time.time()
+    monkeypatch.setattr(taste, "scores", Fixed(owner))
+    row = {"gid": 1, "name": "Brass", "bgg": 4.0, "n": 50000, "hosts": 3, "above": 0.8, "spread": 1.2, "mean": 4.5,
+           "high": ({"name": "Paul"}, 5), "low": ({"name": "Tom"}, 3), "facts": {"year": 2018}}
+    other = dict(row, gid=7, name="Concordia")
+    monkeypatch.setattr(insights, "discover", lambda s: {"gems": [dict(row), dict(other)], "overrated": [], "divisive": [], "games": 2})
+    c = TestClient(site_bgt.app)
+    t = c.get("/discover").text                     # the owner rated game 1 (Brass): left out
+    assert "Concordia" in t and "Brass" not in t and "Games you rated are left out (1 here)" in t
+    t = c.get("/discover?rated=1").text
+    assert "Brass" in t and "Hide them" in t
+
+
+def test_video_scores_say_out_of_5_and_expansions_are_labelled(lab, monkeypatch):
+    from starlette.testclient import TestClient
+    from app import site_bgt
+    from app.sources import bgt, insights
+    monkeypatch.setattr(insights, "facts", Fixed(fake_facts()))
+    owner = taste.build(raw_result(), taste.USER)
+    owner["at"] = time.time()
+    monkeypatch.setattr(taste, "scores", Fixed(owner))
+    monkeypatch.setattr(taste, "profile", Fixed({"games": {}}))
+    monkeypatch.setattr(taste, "canonical", Fixed({}))
+    monkeypatch.setattr(bgt, "channel_info", Fixed({"susd": {"name": "Shut Up & Sit Down", "url": ""}}))
+    monkeypatch.setattr(bgt, "video_kinds", Fixed([]))
+    base = {"id": 7, "name": "Concordia", "year": 2013, "rank": 30, "average": 7.9, "average_weight": 3.0,
+            "min_players": 2, "max_players": 5, "playing_time": 100, "description": "", "designers": [],
+            "mechanics": [], "categories": [], "min_time": None, "max_time": None, "min_age": None, "users_rated": 30000}
+    vs = [{"video_id": "a", "rid": "susd:paul", "score": 3, "confidence": "high", "quote": "fine", "attribution": "own",
+           "rated_at": "", "host": "Paul", "channel": "susd", "title": "Concordia review", "duration": 600, "game": "Concordia",
+           "kind": "review", "not_a_verdict": None},
+          {"video_id": "b", "rid": "susd:paul", "score": 1, "confidence": "high", "quote": "meh", "attribution": "own",
+           "rated_at": "", "host": "Paul", "channel": "susd", "title": "Concordia: Salsa", "duration": 600,
+           "game": "Concordia: Salsa Expansion", "kind": "review", "not_a_verdict": "about an expansion, not counted here"}]
+    monkeypatch.setattr(taste, "game", Fixed({**base, "verdicts": vs}))
+    t = TestClient(site_bgt.app).get("/games/7").text
+    assert '3<i>/5</i>' in t and 'title="Score in this video, out of 5"' in t
+    assert "about an expansion, not counted here" in t and "average 3.0 out of 5" in t
+    t = TestClient(site_bgt.app).get("/for-you").text
+    assert "In development" in t

@@ -52,7 +52,7 @@ def home(request: Request):
     sc, prof = taste.scores.get(), taste.profile.get()
     s = sc.data
     return page(request, "tastematch/home.html", sc=sc, s=s, prof=prof, stats=taste.stats.get(),
-                taste_prof=insights.taste_profile(s) if s else None, picks=insights.for_you(s, limit=4) if s else [],
+                taste_prof=insights.taste_profile(s) if s else None,
                 things=taste.things.get().data or {}, recent=taste.recent.get(), prog=bgt.progress.get(),
                 pipe=bgt.now.get())
 
@@ -185,7 +185,7 @@ def visitor(request: Request, name: str):
     things = taste.things.get().data or {}
     return page(request, "tastematch/visitor.html", active="/find", uname=s["username"], s=s, st=st, things=things,
                 UQ="?u=" + quote(s["username"]),
-                taste_prof=insights.taste_profile(s), picks=insights.for_you(s, limit=8),
+                taste_prof=insights.taste_profile(s),
                 with_reviews=len(set(s["user"]) & insights.reviewed_ids(s)),
                 thin=[r for r in s["reviewers"] if 0 < r["n"] and not r["ranked"]])
 
@@ -216,10 +216,20 @@ def for_you(request: Request, players: int = 0, weight: str = "", time: int = 0)
 
 
 @app.get("/discover", response_class=HTMLResponse)
-def discover(request: Request):
-    """The same for everyone: it is made from the hosts' verdicts only (no one's ratings are shown)."""
+def discover(request: Request, rated: str = ""):
+    """Made from the hosts' verdicts only. For the owner (never on an open name) it leaves out the games they rated,
+    since it is for finding games; ?rated=1 shows them too."""
     s = taste.scores.get().data
-    return page(request, "tastematch/discover.html", active="/discover", d=insights.discover(s) if s else None)
+    d = insights.discover(s) if s else None
+    show_rated = rated == "1" or _is_open(request)
+    hidden = 0
+    if d and not show_rated:
+        mine = set(s["user"])
+        for key in ("gems", "overrated", "divisive"):
+            hidden += sum(1 for r in d[key] if r["gid"] in mine)
+            d[key] = [r for r in d[key] if r["gid"] not in mine]
+    return page(request, "tastematch/discover.html", active="/discover", d=d, show_rated=show_rated,
+                hidden=hidden, can_hide=not _is_open(request))
 
 
 @app.get("/about", response_class=HTMLResponse)

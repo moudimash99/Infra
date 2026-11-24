@@ -21,7 +21,7 @@
     </div>
     <div class="tm-trio mt-4">
       {{ kpi("You", ("%.1f" | format(mine.rating / 2)) if mine.rating else "–", "your BGG rating" if mine.rating else ("in your collection" if mine.own else "not rated"), None, "/5" if mine.rating else None) }}
-      {% if likely %}{{ kpi("Likely for you", "%.1f" | format(likely.value), "from BGG's average and your taste", None, "/5") }}
+      {% if likely %}{{ kpi("Likely for you", "%.1f" | format(likely.value), "estimate in development", None, "/5") }}
       {% else %}{{ kpi("Reviewers", ("%.1f" | format(avg)) if avg is not none else "–", (n_scores ~ " verdict" ~ ("s" if n_scores != 1 else "")) if avg is not none else "no verdict yet", None, "/5" if avg is not none else None) }}{% endif %}
       {{ kpi("BGG", ("%.1f" | format(g.average / 2)) if g.average else "–", ((g.users_rated | comma) ~ " ratings") if g.users_rated else None, None, "/5" if g.average else None) }}
     </div>
@@ -45,7 +45,7 @@
         </div>
         <span class="meta">{{ (chans.get(h.channel) or {}).get("name", h.channel) }}{% if h.unnamed %} · the transcript didn't say who{% endif %}</span>
         {% if top.quote %}<p class="quote mt-2">{{ top.quote }}</p>{% endif %}
-        <span class="tm-vids">{% for v in h["items"] %}<a href="{{ ('https://www.youtube.com/watch?v=' ~ v.video_id) if OPEN else (R ~ '/v/' ~ v.video_id) }}"><b>{{ "%.0f" | format(v.score) if v.score is not none else "?" }}</b> {{ v.title }}{% if v.not_a_verdict %} <i>({{ v.not_a_verdict }})</i>{% endif %}</a>{% endfor %}</span>
+        <span class="tm-vids">{% for v in h["items"] %}<a href="{{ ('https://www.youtube.com/watch?v=' ~ v.video_id) if OPEN else (R ~ '/v/' ~ v.video_id) }}"><b title="Score in this video, out of 5">{{ "%.0f" | format(v.score) if v.score is not none else "?" }}<i>/5</i></b> {{ v.title }}{% if v.not_a_verdict %} <i>({{ v.not_a_verdict }})</i>{% endif %}</a>{% endfor %}</span>
       </div>
       {{ score(h.score) }}
     </div>

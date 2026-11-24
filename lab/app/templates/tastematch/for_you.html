@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_m.html" import page_head, empty %}
+{% from "_m.html" import page_head, empty, alert %}
 {% from "tastematch/_insights.html" import pick_card, taste_card with context %}
 {% block title %}For you · Taste Match{% endblock %}
 {% block head %}<link rel="stylesheet" href="/static/tastematch.css?v={{ STATIC_V }}">{% endblock %}
@@ -14,7 +14,8 @@
 {%- endmacro %}
 {% block main %}
 {% if visitor %}<a class="back" href="{{ R }}/u/{{ visitor | urlencode }}">{{ icon("chevron-left") }}{{ visitor }}'s reviewers</a>{% endif %}
-{{ page_head("Games for " ~ (visitor if visitor else "you"), "Reviewed games " ~ ("they haven't" if visitor else "you haven't") ~ " rated, ranked by what BGG's average and " ~ ("their" if visitor else "your") ~ " taste profile suggest. Each one says why.", "Taste Match") }}
+{{ page_head("Games for " ~ (visitor if visitor else "you"), "Reviewed games " ~ ("they haven't" if visitor else "you haven't") ~ " rated, ranked by what BGG's average and " ~ ("their" if visitor else "your") ~ " taste profile suggest. Each one says why.", "In development") }}
+{{ alert("The ranking leans heavily on BGG's average for now, so it favours the highest-rated games more than your taste. It is being reworked.", "info", "In development") }}
 <div class="tm-filters">
   <nav class="seg" aria-label="Players">
     {% for p, label in [(0, "Any players"), (1, "Solo"), (2, "2"), (3, "3"), (4, "4"), (5, "5"), (6, "6+")] %}<a href="{{ q(players_=p) }}" class="{{ 'on' if players == p }}"{% if players == p %} aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}

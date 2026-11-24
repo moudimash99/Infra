@@ -37,7 +37,7 @@ if user == "-":     # a visitor: their {bgg_id: rating} on stdin
     results, mine = score.score_all(conn, "visitor", score.user_from_ratings(conn, json.load(sys.stdin)))
 else:
     results, mine = score.score_all(conn, user)
-keep = ("id", "name", "n", "rated", "corr", "match", "low", "high", "evidence", "counts")
+keep = ("id", "name", "n", "lent", "rank_n", "rated", "corr", "match", "low", "high", "evidence", "counts")
 json.dump({"user": {str(g): v for g, v in mine.items()},
            "ures": {str(g): v for g, v in (results[0]["ures"] if results else {}).items()},
            "reviewers": [dict({k: r.get(k) for k in keep}, rres={str(g): v for g, v in r["rres"].items()},
@@ -108,7 +108,9 @@ def build(raw, username):
         r.update(name=nice_name(r["name"]), channel=ch, channel_name=(chans.get(ch) or {}).get("name", ch),
                  rres={int(g): v for g, v in r["rres"].items()},
                  points={int(g): tuple(v) for g, v in r["points"].items()},
-                 sources={int(g): v for g, v in (r.get("sources") or {}).items()}, ranked=r["n"] >= MIN_SHARED)
+                 sources={int(g): v for g, v in (r.get("sources") or {}).items()},
+                 # 5 games to be ranked: own games count 1, team-only games their weight (score.py rank_n)
+                 ranked=(r.get("rank_n") if r.get("rank_n") is not None else r["n"]) >= MIN_SHARED)
         r["label"], r["badge"] = label(r)
         r["short"] = SHORT.get(r["label"], r["label"])
         reviewers.append(r)
@@ -344,7 +346,7 @@ def game(gid):
         if not g:
             return None
         verdicts = [dict(r) for r in conn.execute(f"""
-            SELECT r.video_id, r.reviewer_id AS rid, r.score, r.confidence, r.quote, r.attribution, r.rated_at,
+            SELECT r.video_id, r.reviewer_id AS rid, r.score, r.confidence, r.quote, r.game AS game, r.attribution, r.rated_at,
                    w.name AS host, w.channel, v.title, v.duration
             FROM ratings r JOIN games g ON g.name = r.game LEFT JOIN bgg_canonical c ON c.id = g.bgg_id
             JOIN reviewers w ON w.id = r.reviewer_id JOIN videos v ON v.id = r.video_id
@@ -357,6 +359,9 @@ def game(gid):
         v["host"] = nice_name(v["host"])
         v["kind"], weight = kind_of(v["title"])
         v["not_a_verdict"] = NOT_A_VERDICT.get(v["kind"]) if weight == 0 else None
+        if (not v["not_a_verdict"] and "expansion" in (v.get("game") or "").lower()
+                and (v.get("game") or "").strip().lower() != (g["name"] or "").strip().lower()):
+            v["not_a_verdict"] = "about an expansion, not counted here"     # as score.py leaves it out
     return {**{k: g[k] for k in g.keys() if k != "record"}, "verdicts": verdicts,
             "description": html.unescape(rec.get("description") or "").strip(), "designers": rec.get("designers") or [],
             "mechanics": rec.get("mechanics") or [], "categories": rec.get("categories") or [],
