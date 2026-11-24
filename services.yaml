@@ -197,7 +197,7 @@
   url: "http://192.168.1.93:5000 (home network only; 8554 RTSP, 8555 WebRTC tcp+udp on the Acer; also 192.168.1.135:5000 via tools/old-address)"
   data:
     - "hostPath /srv/apps/frigate/config on the Acer (config.yml with the camera password, Frigate DB; not in git). /srv on the Acer is on the 1 TB disk since the 2026-11-19 SSD failure (README edit in progress, 2026-11-20)."
-    - "hostPath /var/lib/frigate/media on the Acer 1 TB disk (recordings; read by cat-monitor, cat-flash)"
+    - "hostPath /var/lib/frigate/media on the Acer 1 TB disk (recordings; read by cat-flash)"
     - "hostPath /etc/localtime; emptyDir cache 1Gi and shm 128Mi (memory)"
   code:
     repo: none (upstream image); config only on the Acer
@@ -551,7 +551,7 @@
   data:
     - "hostPath /srv/apps/bg-taste-match on the Acer (code + bgtaste.db + captions; never copy bgtaste.db over)"
     - "hostPath /var/lib/bg-taste-match/audio on the Acer: the system volume (ubuntu-vg/ubuntu-lv, 914 GB, shared with k3s), not a separate disk; get_audio.py stops downloads below MIN_FREE_GB (150) free"
-    - "hostPath /srv/apps/gpu-lock (shared GPU lock with cat-monitor)"
+    - "hostPath /srv/apps/gpu-lock (GPU lock; was shared with cat-monitor until 2026-11-24)"
     - "NFS 192.168.1.116:/srv/apps/freemotion/ws read-only (llm job runs fm-llm's web-llm.py)"
     - "Secret apps/bg-taste-match (HF_TOKEN)"
   code:
@@ -611,23 +611,21 @@
         label: Rated
 
 - name: cat-camera-jobs
-  what: "Cat camera jobs from the Cat-Camera repo: cat-flash (flash of the day video) and cat-monitor (feeding monitor, YOLO on the GPU)."
+  what: "Cat camera job from the Cat-Camera repo: cat-flash (flash of the day video). The feeding monitor cat-monitor was removed on 2026-11-24."
   kind: scheduled-job
   system: cats
   lifecycle: production
   depends_on: [frigate]
-  runs: "k8s apps/CronJob cat-flash and apps/CronJob cat-monitor on acer-laptop; PC Task Scheduler copy CatCameraFeedingMonitor (disabled)"
+  runs: "k8s apps/CronJob cat-flash on acer-laptop; PC Task Scheduler copy CatCameraFeedingMonitor (disabled)"
   manifest: Infra/k8s/apps/cat-monitor/cat-monitor.yaml
-  image: "cat-monitor for both: Python, PyTorch and the model only, built on the server from ~/build/cat-monitor (pull Never)"
+  image: "cat-monitor: Python, PyTorch and the model only, built on the server from ~/build/cat-monitor (pull Never)"
   schedule:
     cat-flash: "20 0,19 * * * Europe/Paris (1 h limit, backoffLimit 1)"
-    cat-monitor: "16 3 * * * Europe/Paris (3 h limit; GPU, waits on the GPU lock; SUSPENDED live)"
   url: "none (flash and status on https://catcam.machaka.net through the lab)"
   data:
     - "hostPath /srv/apps/cat-monitor on the Acer (reports, flash/ videos)"
     - "hostPath /srv/apps/cat-monitor/code on the Acer (the scripts, read-only)"
     - "hostPath /var/lib/frigate/media/recordings (read-only, Frigate's recordings)"
-    - "hostPath /srv/apps/gpu-lock (cat-monitor only)"
   code:
     repo: C:\Users\Moudimash99\Documents\GitHub\Cat-Camera (github.com/moudimash99/Cat-Camera)
     branch: main
@@ -635,19 +633,16 @@
     deployed: "main 05a2324 (2026-11-22): the Acer's /srv/apps/cat-monitor/code (automated_feeder_monitor.py, daily_flash.py, feeding_pipeline.py) matches the PC's files (md5 checked); copied by hand, previous feeding_pipeline.py kept as feeding_pipeline.py.bak-2026-11-22"
   deploy: "Scripts: copy to /srv/apps/cat-monitor/code on the Acer (no script found). Image: build Dockerfile.monitor on the server, import on the Acer, set the tag, apply."
   check: >-
-    cat-flash: good run within 38 h (longest gap 19 h x 2); cat-monitor: suspended, no expectation (alert
-    CatMonitorMissed at 26 h, quiet while it is suspended since 2026-11-22).
+    cat-flash: good run within 38 h (longest gap 19 h x 2).
   probes:
     - {k8s: apps/CronJob/cat-flash, max_age_h: 38}
-    - {k8s: apps/CronJob/cat-monitor, paused_on_purpose: true}
   drift:
-    - "cat-monitor is suspend: true ON PURPOSE, live and in the manifest (GPU heat: GPU jobs only on nights the user allows, see bg-taste-match). The CatMonitorMissed alert (26 h) skips it while it is suspended (rule changed 2026-11-22; before, it kept firing)."
-    - "README says cat-monitor runs 02:16, 10:16, 18:16 and alerts after 17 h; the manifest runs it once a day at 03:16, and the rule is 26 h."
+    - "2026-11-24: the lab (catcam page job cards, the summary's monitor line) still asks for CronJob cat-monitor, which no longer exists; it shows as not found / no run. To tidy in the lab's code."
   notes:
     - "The server's ~/Cat-Camera clone is on main (its commit '19' of 2026-02-07 merged on 2026-11-22); its data folders cat/, benchmark_results/ and output/ (~9 GB) are gitignored."
     - "cat-flash rank batch-make-room since 2026-11-20: it may stop the mail classifier for its ~4 minutes. The 2026-11-20 19:20 run started at 20:13 when the classifier restarted and finished at 20:14."
     - "cat-flash last good run 2026-11-11 19:24; runs of 2026-11-19 00:20, 19:20 and 2026-11-20 00:20 failed with DeadlineExceeded (1 h)."
-    - "cat-monitor last good run 2026-11-10 04:27; 11-11 and 11-12 hit the 3 h limit, then it was suspended."
+    - "cat-monitor last good run 2026-11-10 04:27; 11-11 and 11-12 hit the 3 h limit, then it was suspended. Removed 2026-11-24 (user): cat detection moves into the live Frigate with the Simba/Nala model (Cat-Camera#7, #10); its CronJob and the CatMonitorMissed alert are gone, its reports stay in /srv/apps/cat-monitor."
     - "2026-11-22: every result before 05a2324 is suspect. Batched FP16 on the PC's GTX 1660 found no cats at all (Nala at the bowl 21 Nov 12:51 counted 0 s), and one misnamed frame gave a cat the other's whole session. Both fixed in 05a2324 (FP32 unless CATCAM_HALF=1; sessions per cat). Whether FP16 batches also failed on the Acer's GTX 1050 was not checked."
     - "2026-11-22: the 21 Nov blocks were run on the PC (night-gpu/rerun.sh, 3 streams, about 2.4 h per 8-hour block) and pushed to the Acer's rolling_runs. The CronJob's 'once 1' looks at only the last hour, and its 2560Mi request does not fit on the Acer as booked now."
     - "PC task CatCameraFeedingMonitor (Documents\\GitHub\\Cat-Camera\\automated_feeder_monitor.py once 8, every 8 h): Disabled since 2026-09-13."
@@ -662,8 +657,6 @@
       refreshInterval: 300000
       display: list
       mappings:
-      - field: monitor
-        label: Monitor
       - field: flash
         label: Flash
       - field: weighed

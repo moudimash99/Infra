@@ -246,14 +246,6 @@ groups:
         annotations:
           summary: "BoardGameFinder's page fetcher: no full day in over a day"
           description: "Its 10:00-04:00 run stopped early (Okkazeo refused 5 pages in a row, or it was killed) or didn't start, so the nightly run had few or no fresh prices. Its log: kubectl -n apps get jobs | grep boardgamefinder-fetch, then kubectl -n apps logs job/<the last one>"
-      - alert: CatMonitorMissed
-        expr: |
-          time() - kube_cronjob_status_last_successful_time{cronjob="cat-monitor"} > 26 * 3600
-          unless on (namespace, cronjob) kube_cronjob_spec_suspend == 1
-        labels: { severity: warning }
-        annotations:
-          summary: "cat-monitor: no run has succeeded for over a day"
-          description: "Its daily run failed (GPU busy past the 1-hour wait, no recordings, an error, or past its time limit)."
       - alert: BackupsMissed
         expr: time() - kube_cronjob_status_last_successful_time{cronjob=~"backup-server|backup-acer"} > 26 * 3600
         labels: { severity: warning }

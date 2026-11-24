@@ -180,7 +180,6 @@ of the code and data stopped updating that day.
 |---|---|---|---|
 | boardgamefinder | daily 05:00 Paris (07:00 until 2026-11-20) | Acer | `/srv/apps/boardgamefinder/{data,Log}` |
 | cat-flash | 00:20 and 19:20 Paris, ~4 min, CPU | Acer | `/srv/apps/cat-monitor/flash`; reads `/var/lib/frigate/media/recordings` |
-| cat-monitor | 03:16 Paris, GPU; **paused on purpose** (GPU heat) | Acer | `/srv/apps/cat-monitor`; reads `/var/lib/frigate/media/recordings` |
 | bg-taste-match-fetch / -gpu / -llm | every 2 h / hourly, **paused on purpose** (GPU heat) / hourly 20:45-08:45 | Acer | `/srv/apps/bg-taste-match` (code + data), audio in `/var/lib/bg-taste-match/audio` (1 TB disk) |
 | email-remove (the Gmail archiver) | every 3 min (moved from the PC on 2026-11-20) | Acer | `/srv/apps/email-remove` (code + private data, mode 700); Secret `email-remove` |
 
@@ -279,7 +278,7 @@ database, not in this repo:
 - Beszel, for every machine: down for 2 min; CPU or memory above 90% for 10 min; disk above 85%.
   Settings → Notifications in Beszel to change them. On the Acer its agent is the NVIDIA variant, so Beszel
   also shows the GTX 1050's load, memory, temperature and power.
-- Prometheus (since 2026-11-10): 38 rules in `k8s/monitoring/alert-rules.yml`, sent by Alertmanager. Its config
+- Prometheus (since 2026-11-10): 40 rules in `k8s/monitoring/alert-rules.yml`, sent by Alertmanager. Its config
   is in the repo, but the addresses aren't: an init container copies `user` and `to` from the Secret into it.
   Critical alerts repeat every 3 hours while they last, warnings every 12, and each one mails again once resolved.
   The rules cover what Beszel can't see:
@@ -289,8 +288,8 @@ database, not in this repo:
     above 85/92 °C, flat out for two days;
   - Kubernetes: a container killed for memory or near its limit, crash loops, a pod that can't start (missing
     image, bad config) or stays Pending, a Deployment or DaemonSet short of pods, a scrape target down;
-  - scheduled jobs: any Job that fails (or runs past its time limit), BoardGameFinder with no good run in 26 h,
-    no cat feeding report in 26 h (these two stay quiet while their CronJob is suspended on purpose),
+  - scheduled jobs: any Job that fails (or runs past its time limit), BoardGameFinder with no good run in 26 h
+    (quiet while its CronJob is suspended on purpose),
     bg-taste-match downloads stalled 12 h, any other Job running over 6 h;
   - Frigate: camera below 1 fps, no metrics, detector slower than 100 ms, storage under 10%;
   - itself: emails failing, broken rules, Prometheus unable to reach Alertmanager.

@@ -136,8 +136,6 @@ data:
             refreshInterval: 300000
             display: list
             mappings:
-            - field: monitor
-              label: Monitor
             - field: flash
               label: Flash
             - field: weighed
@@ -478,7 +476,7 @@ data:
       "cat-camera-jobs": {
        "group": "Cats",
        "title": "Cat cam",
-       "what": "Cat camera jobs from the Cat-Camera repo: cat-flash (flash of the day video) and cat-monitor (feeding monitor, YOLO on the GPU)",
+       "what": "Cat camera job from the Cat-Camera repo: cat-flash (flash of the day video)",
        "url": "https://catcam.machaka.net"
       },
       "portainer": {
@@ -685,9 +683,6 @@ data:
       "apps/CronJob/cat-flash": {
        "service": "cat-camera-jobs",
        "max_age_h": 38
-      },
-      "apps/CronJob/cat-monitor": {
-       "service": "cat-camera-jobs"
       },
       "tools/Deployment/portainer": {
        "service": "portainer"
