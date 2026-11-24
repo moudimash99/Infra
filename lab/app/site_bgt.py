@@ -50,8 +50,7 @@ def _pager(page_no, total, per):
 def home(request: Request):
     sc, prof = taste.scores.get(), taste.profile.get()
     s = sc.data
-    recs = taste.recommendations(s, skip=(prof.data or {}).get("owned", ()), limit=8) if s else []
-    return page(request, "tastematch/home.html", sc=sc, s=s, prof=prof, recs=recs, stats=taste.stats.get(),
+    return page(request, "tastematch/home.html", sc=sc, s=s, prof=prof, stats=taste.stats.get(),
                 taste_prof=insights.taste_profile(s) if s else None, picks=insights.for_you(s, limit=4) if s else [],
                 things=taste.things.get().data or {}, recent=taste.recent.get(), prog=bgt.progress.get(),
                 pipe=bgt.now.get())
@@ -154,7 +153,7 @@ def visitor(request: Request, name: str):
         raise HTTPException(404)
     things = taste.things.get().data or {}
     return page(request, "tastematch/visitor.html", active="/find", uname=s["username"], s=s, st=st, things=things,
-                recs=taste.recommendations(s, limit=12), UQ="?u=" + quote(s["username"]),
+                UQ="?u=" + quote(s["username"]),
                 taste_prof=insights.taste_profile(s), picks=insights.for_you(s, limit=8),
                 thin=[r for r in s["reviewers"] if 0 < r["n"] and not r["ranked"]])
 
@@ -225,9 +224,8 @@ def games(request: Request, q: str = "", show: str = "all", sort: str = "reviewe
             continue
         if q and q.lower() not in e["name"].lower():
             continue
-        rows.append({**e, "rated": rated, "say": taste.matches_say(s, e["gid"]) if s else None})
+        rows.append({**e, "rated": rated})
     keys = {"reviewed": lambda e: (-len(e["hosts"]), -e["avg"], e["name"].lower()),
-            "matches": lambda e: (e["say"] is None, -(e["say"] or 0), -len(e["hosts"]), e["name"].lower()),
             "score": lambda e: (-round(e["avg"], 2), -len(e["hosts"]), e["name"].lower()),
             "name": lambda e: e["name"].lower()}
     sort = sort if sort in keys else "reviewed"
@@ -255,11 +253,13 @@ def game(request: Request, gid: int):
     # Hosts who match the user first, closest first; then everyone else by score.
     verdicts.sort(key=lambda v: (not (v["m"] and v["m"]["ranked"]),
                                  -(v["m"]["match"] if v["m"] and v["m"]["ranked"] else 0), -(v["score"] or 0)))
-    scores = [v["score"] for v in verdicts if v["score"] is not None]
+    scores = [v["score"] for v in verdicts if v["score"] is not None and not v.get("not_a_verdict")
+              and not (v.get("host") or "").lower().startswith(("unknown", "team"))]
     hosts = taste.by_host(verdicts)
     hosts.sort(key=lambda h: h["unnamed"])                 # keeps the match order; unnamed speakers last
     return page(request, "tastematch/game.html", active="/games", r=r, g=r.data, verdicts=verdicts, mine=mine, hosts=hosts,
-                say=taste.matches_say(s, gid) if s else None, avg=(sum(scores) / len(scores)) if scores else None,
+                likely=insights.likely(s, gid) if s and not mine.get("rating") else None,
+                avg=(sum(scores) / len(scores)) if scores else None, n_scores=len(scores),
                 chans=bgt.channel_info.get().data or {})
 
 

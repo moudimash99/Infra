@@ -34,19 +34,6 @@ def test_agree_disagree_loves():
     assert agree == [10] and differ == [20] and loves == [30]
 
 
-def test_games_your_matches_love():
-    user = {1: (8, 7, 1)}
-    close = host("susd:paul", 0.4, 12, {1: (5, 3.5, 1), 2: (5, 3.5, 1), 3: (4, 3.5, 1), 4: (3, 3.5, 1)})
-    far = host("hc:tony", -0.3, 12, {2: (5, 3.5, 1), 5: (5, 3.5, 1)})           # doesn't match: ignored
-    thin = host("npi:elaine", 0.9, 2, {6: (5, 3.5, 1)})                          # too few shared: ignored
-    s = result([close, far, thin], user)
-    recs = taste.recommendations(s)
-    assert [e["gid"] for e in recs] == [2, 3]                                     # 5 beats 4; rated, scored 3: out
-    assert recs[0]["fans"][0][0]["id"] == "susd:paul" and recs[0]["score"] == 5
-    assert [e["gid"] for e in taste.recommendations(s, skip={2})] == [3]         # owned games are skipped
-    assert taste.matches_say(s, 2) == 5 and taste.matches_say(s, 5) is None
-
-
 def test_scores_run_score_py_read_only(tmp_path, monkeypatch):
     """The child process imports score.py from the pipeline's folder and gets a connection that can't write."""
     folder = tmp_path / "bgt"
@@ -228,7 +215,7 @@ def test_reviewer_page(monkeypatch):
     client = TestClient(site_bgt.app)
     for sort in ("agree", "differ", "you", "them", "name", "bogus"):
         t = client.get(f"/reviewers/susd:paul?sort={sort}").text
-        assert "Traceback" not in t and "Every game you both rated" in t and "How they score" in t
+        assert "Traceback" not in t and "Games you have in common" in t and "How they score" in t
     assert "32%" in t and "+0.85" in t and "Same way" in t and "Opposite" in t and "counts 40%" not in t
     assert "team verdict (Paul isn" in t                       # a lent team verdict says so, in words
     assert "67%" in t                      # two of the three verdicts are 5s

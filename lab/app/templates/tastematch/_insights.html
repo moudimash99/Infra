@@ -12,12 +12,12 @@
   {% if p.up or p.down %}
   <div class="tm-taste-col">
     <h4>{{ label }}</h4>
-    {% for i in p.up %}<div class="tm-lean up"><span class="nm">{{ i.name }}</span><span class="bar"><span style="width:{{ [i.lean / 2 * 100, 100] | min | round | int }}%"></span></span><span class="v">+{{ "%.1f" | format(i.lean) }}</span><span class="n">{{ i.n }}</span></div>{% endfor %}
-    {% for i in p.down %}<div class="tm-lean down"><span class="nm">{{ i.name }}</span><span class="bar"><span style="width:{{ [(0 - i.lean) / 2 * 100, 100] | min | round | int }}%"></span></span><span class="v">−{{ "%.1f" | format(0 - i.lean) }}</span><span class="n">{{ i.n }}</span></div>{% endfor %}
+    {% for i in p.up %}<div class="tm-lean up"><span class="nm" title="{{ i.name }}">{{ i.name }}</span><span class="bar"><span style="width:{{ [i.lean * 100, 100] | min | round | int }}%"></span></span><span class="v">+{{ "%.1f" | format(i.lean) }}</span><span class="n" title="rated games with it">{{ i.n }}</span></div>{% endfor %}
+    {% for i in p.down %}<div class="tm-lean down"><span class="nm" title="{{ i.name }}">{{ i.name }}</span><span class="bar"><span style="width:{{ [(0 - i.lean) * 100, 100] | min | round | int }}%"></span></span><span class="v">−{{ "%.1f" | format(0 - i.lean) }}</span><span class="n" title="rated games with it">{{ i.n }}</span></div>{% endfor %}
   </div>
   {% endif %}{% endfor %}
 </div>
-<p class="xs muted mt-3">Points out of 10 above (+) or below (−) what BGG's average predicts for {{ "you" if who_ == "You" else who_ }}, on games with that trait. The small number is how many rated games it rests on; few games pull the number toward 0.</p>
+<p class="xs muted mt-3">Points out of 5 above (+) or below (−) what BGG's average predicts for {{ "you" if who_ == "You" else who_ }}, on games with that trait. The small number is how many rated games it rests on; few games pull the number toward 0.</p>
 {% else %}<p class="small soft">{{ empty_text }}</p>{% endif %}
 {%- endmacro %}
 
@@ -32,6 +32,6 @@
     {% if e.fans %}<span class="tm-why">{{ icon("thumbs-up") }}<span>{% for r, sc in e.fans[:3] %}<b>{{ r.name }}</b> {{ "%.0f" | format(sc) }}/5{{ ", " if not loop.last }}{% endfor %}{% if e.fans | length > 3 %} +{{ e.fans | length - 3 }}{% endif %}</span></span>
     {% elif e.loved %}<span class="tm-why">{{ icon("thumbs-up") }}<span>{{ e.loved }} of {{ e.hosts }} reviewers loved it</span></span>{% endif %}
   </span>
-  <span class="tm-exp"><small>likely for you</small><b>{{ "%.1f" | format(e.expected) }}</b><small>BGG {{ "%.1f" | format(e.bgg) }}</small></span>
+  <span class="tm-exp"><small>likely for you</small><b>{{ "%.1f" | format(e.likely) }}<i>/5</i></b><small>BGG {{ "%.1f" | format(e.facts.average / 2) }} · {{ e.n | comma }} ratings</small></span>
 </a>
 {%- endmacro %}

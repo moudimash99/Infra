@@ -104,7 +104,7 @@ def test_pages(lab, monkeypatch):
     visitors.run(visitors._q.get())
     t = c.get("/u/Some Body").text
     assert "Some Body's reviewers" in t and "Your closest match" in t and "/reviewers/susd:paul?u=Some%20Body" in t
-    assert "Games your matches love" in t
+    assert "Games your matches love" not in t                  # one recommendation section: Picked for you
     t = c.get("/reviewers/susd:paul?u=Some%20Body").text
     assert "Match with Some Body&#39;s taste" in t and "Some Body's reviewers" in t and "Traceback" not in t
     assert c.get("/u/%3Cx%3E").status_code == 404
@@ -165,19 +165,20 @@ def test_open_name_serves_only_the_visitor_pages(lab, monkeypatch):
 
 
 def fake_facts():
-    return {1: {"name": "Brass", "year": 2018, "average": 8.0, "weight": 3.9, "min_p": 2, "max_p": 4, "time": 120,
-                "links": {("category", "Economic"), ("designer", "Martin Wallace")}, "expansion": False},
-            2: {"name": "Ark", "year": 2019, "average": 8.1, "weight": 3.7, "min_p": 1, "max_p": 4, "time": 150,
-                "links": {("category", "Animals"), ("category", "Party Game")}, "expansion": False},
-            7: {"name": "Concordia", "year": 2013, "average": 7.9, "weight": 3.0, "min_p": 2, "max_p": 5, "time": 100,
-                "links": {("category", "Economic")}, "expansion": False},
-            8: {"name": "Dixit", "year": 2008, "average": 7.2, "weight": 1.2, "min_p": 3, "max_p": 6, "time": 30,
-                "links": {("category", "Party Game")}, "expansion": False},
-            9: {"name": "Brass: Extra", "year": 2020, "average": 9.5, "weight": 3, "min_p": 2, "max_p": 4, "time": 60,
-                "links": {("category", "Economic")}, "expansion": True},
-            **{g: {"name": f"G{g}", "year": 2000, "average": 7, "weight": 2, "min_p": 2, "max_p": 4, "time": 60,
-                   "links": {("category", "Economic")} if g % 2 else {("category", "Party Game")}, "expansion": False} for g in (3, 4, 5, 6)}}
-
+    games = {1: {"name": "Brass", "year": 2018, "average": 8.0, "n": 50000, "weight": 3.9, "min_p": 2, "max_p": 4,
+                 "time": 120, "links": {("category", "Economic"), ("designer", "Martin Wallace")}, "expansion": False},
+             2: {"name": "Ark", "year": 2019, "average": 8.1, "n": 40000, "weight": 3.7, "min_p": 1, "max_p": 4,
+                 "time": 150, "links": {("category", "Animals"), ("category", "Party Game")}, "expansion": False},
+             7: {"name": "Concordia", "year": 2013, "average": 7.9, "n": 30000, "weight": 3.0, "min_p": 2, "max_p": 5,
+                 "time": 100, "links": {("category", "Economic")}, "expansion": False},
+             8: {"name": "Dixit", "year": 2008, "average": 7.2, "n": 60000, "weight": 1.2, "min_p": 3, "max_p": 6,
+                 "time": 30, "links": {("category", "Party Game")}, "expansion": False},
+             9: {"name": "Brass: Extra", "year": 2020, "average": 9.5, "n": 500, "weight": 3, "min_p": 2, "max_p": 4,
+                 "time": 60, "links": {("category", "Economic")}, "expansion": True},
+             **{g: {"name": f"G{g}", "year": 2000, "average": 7, "n": 5000, "weight": 2, "min_p": 2, "max_p": 4,
+                    "time": 60, "expansion": False,
+                    "links": {("category", "Economic")} if g % 2 else {("category", "Party Game")}} for g in (3, 4, 5, 6)}}
+    return {"games": games, "typical": 7.0}
 
 def test_insights_profile_picks_discover(lab, monkeypatch):
     from app.sources import insights
@@ -188,12 +189,12 @@ def test_insights_profile_picks_discover(lab, monkeypatch):
     assert [i["name"] for i in prof["category"]["down"]] == ["Party Game"]
     picks = insights.for_you(s)
     assert [e["gid"] for e in picks] == [7, 8] and picks[0]["why"][0]["name"] == "Economic"   # 9, an expansion: never
-    assert picks[0]["expected"] > picks[1]["expected"]
+    assert picks[0]["likely"] > picks[1]["likely"] and all(1 <= e["likely"] <= 5 for e in picks)
     assert [e["gid"] for e in insights.for_you(s, players=6)] == [8]
     assert [e["gid"] for e in insights.for_you(s, weight="light")] == [8]
     assert insights.for_you(s, max_time=60)[0]["gid"] == 8
     d = insights.discover(s, min_hosts=1)
-    assert d["games"] == 8 and d["gems"] and d["gems"][0]["z"] > 0 and d["overrated"][0]["z"] < 0
+    assert d["games"] == 8 and d["gems"] and d["gems"][0]["above"] > 0 and d["overrated"][0]["above"] < 0
 
 
 def test_new_pages_owner_and_visitor_and_open(lab, monkeypatch):
@@ -243,3 +244,59 @@ def test_team_verdicts_and_unnamed_are_not_extra_opinions():
     unknown = {"name": "unknown 3", "rres": {1: 1.0, 2: 0.0, 3: 0.2}, "points": {1: (5, 7, 1), 2: (3, 7, 1), 3: (4, 7, 1)}}
     said = insights._reviewed({"reviewers": [paul, unknown]})
     assert set(said) == {1, 2} and len(said[1]) == 1          # game 3 was only the team's word; 'unknown' is nobody
+
+
+def test_bgg_average_counts_less_when_few_rated_it():
+    from app.sources import insights
+    big = {"average": 9.0, "n": 100000}
+    backers = {"average": 9.0, "n": 300}
+    assert round(insights.bgg_average(big, 7.12), 2) == 9.0
+    assert round(insights.bgg_average(backers, 7.12), 1) == 8.5         # as the For you page says
+    assert insights.bgg_average({"average": 9.0, "n": 0}, 7.12) == 7.12
+
+
+def test_likely_for_you_is_out_of_5_with_reasons(lab, monkeypatch):
+    from app.sources import insights
+    monkeypatch.setattr(insights, "facts", Fixed(fake_facts()))
+    s = taste.build(raw_result(), "x")
+    econ, party = insights.likely(s, 7), insights.likely(s, 8)
+    assert 1 <= party["value"] < econ["value"] <= 5 and econ["why"][0]["name"] == "Economic"
+    assert econ["bgg"] == insights.bgg_average(fake_facts()["games"][7], 7.0) / 2
+    assert insights.likely(s, 12345) is None
+    prof = insights.taste_profile(s)
+    assert 0 < prof["category"]["up"][0]["lean"] <= 2.5                    # points out of 5
+
+
+def test_game_page_cards_and_not_a_verdict(lab, monkeypatch):
+    from starlette.testclient import TestClient
+    from app import site_bgt
+    from app.sources import bgt, insights
+    import re as _re
+    monkeypatch.setattr(insights, "facts", Fixed(fake_facts()))
+    owner = taste.build(raw_result(), taste.USER)
+    owner["at"] = time.time()
+    monkeypatch.setattr(taste, "scores", Fixed(owner))
+    monkeypatch.setattr(taste, "profile", Fixed({"games": {1: {"rating": 8}}}))
+    monkeypatch.setattr(taste, "canonical", Fixed({}))
+    monkeypatch.setattr(bgt, "channel_info", Fixed({"susd": {"name": "Shut Up & Sit Down", "url": ""}}))
+    monkeypatch.setattr(bgt, "video_kinds", Fixed([("anticipated", _re.compile("most anticipated", _re.I), 0.0)]))
+    base = {"id": 7, "name": "Concordia", "year": 2013, "rank": 30, "average": 7.9, "average_weight": 3.0,
+            "min_players": 2, "max_players": 5, "playing_time": 100, "description": "", "designers": [],
+            "mechanics": [], "categories": [], "min_time": None, "max_time": None, "min_age": None, "users_rated": 30000}
+    verdicts = [{"video_id": "a", "rid": "susd:paul", "score": 5, "confidence": "high", "quote": "great",
+                 "attribution": "own", "rated_at": "", "host": "Paul", "channel": "susd", "title": "Concordia review",
+                 "duration": 600},
+                {"video_id": "b", "rid": "susd:paul", "score": 1, "confidence": "high", "quote": "can't wait",
+                 "attribution": "own", "rated_at": "", "host": "Paul", "channel": "susd",
+                 "title": "Our most anticipated games", "duration": 600}]
+    for v in verdicts:
+        v["kind"], w = bgt.kind_of(v["title"])
+        v["not_a_verdict"] = bgt.NOT_A_VERDICT.get(v["kind"]) if w == 0 else None
+    monkeypatch.setattr(taste, "game", Fixed({**base, "verdicts": verdicts}))
+    t = TestClient(site_bgt.app).get("/games/7").text
+    assert "Traceback" not in t and "Likely for you" in t and "Your matches" not in t
+    assert "hoping, before playing it" in t                    # the anticipated list is labelled...
+    assert "average 5.0 out of 5" in t                          # ...and left out of the reviewers' average
+    monkeypatch.setattr(taste, "game", Fixed({**base, "id": 1, "name": "Brass", "verdicts": verdicts}))
+    t = TestClient(site_bgt.app).get("/games/1").text
+    assert "Likely for you" not in t and "Reviewers" in t     # a game you rated: your score, not a guess

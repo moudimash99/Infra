@@ -59,6 +59,28 @@ def channel_info():
     return {}
 
 
+@source("bgt.video_kinds", ttl=3600)
+def video_kinds():
+    """[(name, compiled title pattern, weight)] from the project's config.VIDEO_KINDS (read as data, not run), the
+    same list score.py weighs verdicts by: showcases and "most anticipated" lists weigh 0."""
+    tree = ast.parse(open(os.path.join(BGT_DIR, "config.py"), encoding="utf-8").read())
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == "VIDEO_KINDS":
+            return [(name, re.compile(pattern, re.I), weight) for name, pattern, weight in ast.literal_eval(node.value)]
+    return []
+
+
+def kind_of(title):
+    """(kind name, weight) of a video from its title; ("review", 1.0) when no kind matches."""
+    for name, pattern, weight in video_kinds.get().data or []:
+        if pattern.search(title or ""):
+            return name, weight
+    return "review", 1.0
+
+
+NOT_A_VERDICT = {"showcase": "in a paid showcase, not a verdict", "anticipated": "hoping, before playing it"}
+
+
 @source("bgt.channels", ttl=3600)
 def channel_names():
     """key -> name."""

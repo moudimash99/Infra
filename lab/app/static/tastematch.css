@@ -158,3 +158,5 @@ a.hero:hover { text-decoration: none; box-shadow: var(--sh-2); }
 
 /* phone tab bar: the five main sections; the pipeline and Find yours are linked from Home */
 @media (max-width: 899px) { body[data-site="tastematch"] .tabbar a:nth-child(n+6) { display: none; } }
+.tm-exp b i { font-style: normal; font-size: .5em; font-weight: 650; color: var(--text-3); margin-left: 1px; }
+.tm-vids a i { font-style: normal; color: var(--text-3); }

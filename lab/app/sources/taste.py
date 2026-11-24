@@ -16,7 +16,7 @@ import threading
 import time
 
 from . import Reading, source
-from .bgt import BGT_DIR, CATEGORY_SQL, FETCH_CATEGORIES, channel_info, db
+from .bgt import BGT_DIR, CATEGORY_SQL, FETCH_CATEGORIES, NOT_A_VERDICT, channel_info, db, kind_of
 
 log = logging.getLogger("lab.taste")
 USER = os.environ.get("TM_USER", "moudimash99")
@@ -186,7 +186,8 @@ def common_games(s, r, sort="agree", names=None):
     rows = [{"gid": g, "name": (names.get(g) or {}).get("name") or str(g), "you": s["user"][g][0] / 2,
              "them": r["points"][g][0], "bgg": s["user"][g][1] / 2, "signal": ures[g] * rres[g],
              "you_lean": ures[g], "them_lean": rres[g], "weight": r["points"][g][2],
-             "notes": source_notes(r.get("sources", {}).get(g, []), r["name"], r.get("channel_name", ""))}
+             "notes": source_notes(r.get("sources", {}).get(g, []), r["name"], r.get("channel_name", "")),
+             "lent": bool(r.get("sources", {}).get(g)) and all(x.get("from") == "team" for x in r["sources"][g])}
             for g in rres if g in ures and g in s["user"]]
     key = {"agree": lambda x: -x["signal"], "differ": lambda x: x["signal"], "you": lambda x: -x["you"],
            "them": lambda x: -x["them"], "name": lambda x: x["name"].lower()}.get(sort, lambda x: -x["signal"])
@@ -222,7 +223,7 @@ def by_game(verdicts):
         key = v.get("gid") or v.get("game")
         groups.setdefault(key, {"gid": v.get("gid"), "name": v.get("game_name") or v.get("game"), "items": []})["items"].append(v)
     for gr in groups.values():
-        scores = [v["score"] for v in gr["items"] if v["score"] is not None]
+        scores = [v["score"] for v in gr["items"] if v["score"] is not None and not v.get("not_a_verdict")]
         gr["score"] = sum(scores) / len(scores) if scores else None
         gr["changed"] = len(set(scores)) > 1
         gr["quote"] = next((v["quote"] for v in gr["items"] if v.get("quote")), "")
@@ -240,7 +241,7 @@ def by_host(verdicts):
                                      "channel": v.get("channel"), "m": v.get("m"), "items": [], "unnamed": unnamed})
         gr["items"].append(v)
     for gr in groups.values():
-        scores = [v["score"] for v in gr["items"] if v["score"] is not None]
+        scores = [v["score"] for v in gr["items"] if v["score"] is not None and not v.get("not_a_verdict")]
         gr["score"] = sum(scores) / len(scores) if scores else None
         gr["changed"] = len(set(scores)) > 1
     return list(groups.values())
@@ -257,36 +258,6 @@ def distribution(values, low=1, high=5):
     total, top = sum(bins.values()), max(bins.values(), default=0)
     return [{"score": k, "n": n, "pct": round(100 * n / total) if total else 0,
              "bar": round(100 * n / top) if top else 0} for k, n in bins.items()]
-
-
-def recommendations(s, skip=(), limit=None):
-    """Games the user hasn't rated that hosts who match them (ranked, match above 0) score 4 or more: the more such
-    hosts and the closer they match, the higher. -> [{gid, score (their mean), fans: [(host, score)], weight}]"""
-    games = {}
-    for r in s["ranked"]:
-        if r["match"] <= 0:
-            continue
-        for g, (score, _avg, _w) in r["points"].items():
-            if g in s["user"] or g in skip or score < 4:
-                continue
-            e = games.setdefault(g, {"gid": g, "fans": [], "weight": 0.0})
-            e["fans"].append((r, score))
-            e["weight"] += r["match"] * (score - 3)
-    out = sorted(games.values(), key=lambda e: (-e["weight"], -len(e["fans"])))
-    for e in out:
-        e["fans"].sort(key=lambda f: -f[0]["match"])
-        e["score"] = sum(sc for _, sc in e["fans"]) / len(e["fans"])
-    return out[:limit] if limit else out
-
-
-def matches_say(s, gid):
-    """The game's score from the hosts who match the user, weighted by how closely (None when none rated it)."""
-    num = den = 0.0
-    for r in s["ranked"]:
-        if r["match"] > 0 and gid in r["points"]:
-            num += r["match"] * r["points"][gid][0]
-            den += r["match"]
-    return num / den if den else None
 
 
 # ---- from the database ------------------------------------------------------------------------------------------
@@ -336,15 +307,18 @@ def games():
     info = things.get().data or {}
     conn = db()
     try:
-        rows = conn.execute(f"""SELECT COALESCE(c.canonical_id, g.bgg_id) AS gid, r.reviewer_id AS rid, r.score
+        rows = conn.execute(f"""SELECT COALESCE(c.canonical_id, g.bgg_id) AS gid, r.reviewer_id AS rid, r.score,
+                                       v.title
                                 FROM ratings r JOIN games g ON g.name = r.game
                                 LEFT JOIN bgg_canonical c ON c.id = g.bgg_id
-                                WHERE g.bgg_id IS NOT NULL AND {ACCEPTED_SQL}""").fetchall()
+                                JOIN reviewers w ON w.id = r.reviewer_id JOIN videos v ON v.id = r.video_id
+                                WHERE g.bgg_id IS NOT NULL AND {ACCEPTED_SQL}
+                                  AND w.name NOT LIKE 'unknown%' AND w.name != 'team'""").fetchall()
     finally:
         conn.close()
     out = {}
     for r in rows:
-        if r["gid"] not in info:
+        if r["gid"] not in info or kind_of(r["title"])[1] == 0:       # showcases and anticipation aren't verdicts
             continue
         e = out.setdefault(r["gid"], {**info[r["gid"]], "gid": r["gid"], "scores": [], "hosts": set()})
         e["scores"].append(r["score"])
@@ -376,6 +350,8 @@ def game(gid):
     rec = json.loads(g["record"] or "{}")
     for v in verdicts:
         v["host"] = nice_name(v["host"])
+        v["kind"], weight = kind_of(v["title"])
+        v["not_a_verdict"] = NOT_A_VERDICT.get(v["kind"]) if weight == 0 else None
     return {**{k: g[k] for k in g.keys() if k != "record"}, "verdicts": verdicts,
             "description": html.unescape(rec.get("description") or "").strip(), "designers": rec.get("designers") or [],
             "mechanics": rec.get("mechanics") or [], "categories": rec.get("categories") or [],
@@ -410,6 +386,9 @@ def host_verdicts(rid):
         who = conn.execute("SELECT id, channel, name FROM reviewers WHERE id = ?", (rid,)).fetchone()
     finally:
         conn.close()
+    for v in rows:
+        v["kind"], weight = kind_of(v["title"])
+        v["not_a_verdict"] = NOT_A_VERDICT.get(v["kind"]) if weight == 0 else None
     return {"verdicts": rows, "host": dict(who) if who else None}
 
 

@@ -70,16 +70,6 @@
 </section>
 {% endif %}
 
-{% if recs %}
-<section class="section">
-  {{ section_head("Games your matches love", R ~ "/games?sort=matches&show=unrated", sub="Games you haven't rated or owned that reviewers who match you score 4 or 5.") }}
-  <div class="tiles">
-    {% for e in recs %}{% set t = things.get(e.gid) or {} %}
-      {{ game_tile(e.gid, t.name or e.gid, (e.fans[:2] | map(attribute="0.name") | join(", ")) ~ ((" +" ~ (e.fans | length - 2)) if e.fans | length > 2 else ""), "%.1f" | format(e.score), "Wishlist" if e.gid in (p.wishlist or ()) else None) }}
-    {% endfor %}
-  </div>
-</section>
-{% endif %}
 
 <section class="section grid md-main gap-lg">
   {% set pr = prog.data %}

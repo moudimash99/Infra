@@ -6,10 +6,10 @@
 {% macro row(r, what) -%}
 <a class="item" href="{{ ('https://boardgamegeek.com/boardgame/' ~ r.gid) if OPEN else (R ~ '/games/' ~ r.gid) }}">{{ box(r.gid, "s", "thumb box") }}
   <span class="body"><span class="title">{{ r.name }}</span>
-    <span class="meta">{{ r.hosts }} reviewers · average {{ "%.1f" | format(r.mean) }}/5 · BGG {{ "%.1f" | format(r.bgg) }}{% if r.facts.year %} · {{ r.facts.year }}{% endif %}</span>
+    <span class="meta">{{ r.hosts }} reviewers · their average {{ "%.1f" | format(r.mean) }} · BGG {{ "%.1f" | format(r.bgg) }}{% if r.facts.year %} · {{ r.facts.year }}{% endif %}</span>
     {% if what == "divisive" %}<span class="tm-why">{{ icon("thumbs-up") }}<span><b>{{ r.high[0].name }}</b> {{ "%.0f" | format(r.high[1]) }}/5</span>{{ icon("thumbs-down") }}<span><b>{{ r.low[0].name }}</b> {{ "%.0f" | format(r.low[1]) }}/5</span></span>{% endif %}
   </span>
-  <span class="trail"><span class="tm-num{{ ' accent' if what == 'gems' }}">{% if what == "divisive" %}±{{ "%.1f" | format(r.spread) }}{% elif r.z > 0 %}+{{ "%.1f" | format(r.z) }}{% else %}−{{ "%.1f" | format(0 - r.z) }}{% endif %}</span></span>
+  <span class="trail"><span class="tm-num{{ ' accent' if what == 'gems' }}">{% if what == "divisive" %}±{{ "%.1f" | format(r.spread) }}{% elif r.above > 0 %}+{{ "%.1f" | format(r.above) }}{% else %}−{{ "%.1f" | format(0 - r.above) }}{% endif %}</span></span>
 </a>
 {%- endmacro %}
 {% block main %}
@@ -26,6 +26,6 @@
   </div>
   {% endfor %}
 </section>
-<p class="xs muted">Gems and hype: how far the reviewers go above (+) or below (−) BGG's average on the game, measured in each host's own usual spread and averaged over the hosts. Divisive: the spread of the reviewers' scores out of 5.</p>
+<p class="xs muted">All scores out of 5. Gems and hype: how many points the reviewers score the game above (+) or below (−) what they usually give a game with its BGG average, averaged over the reviewers (generous and harsh reviewers are each compared with their own usual). Divisive: the spread of the reviewers' scores. Only named hosts' own verdicts count, from games with 3 or more of them.</p>
 {% else %}<div class="card">{{ empty("Not ready", "The matching hasn't run yet.", "clock") }}</div>{% endif %}
 {% endblock %}

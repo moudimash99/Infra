@@ -100,7 +100,8 @@
 
 {% if common %}
 <section class="section" id="common">
-  {{ section_head("Every game you both rated", count=common | length) }}
+  {% set n_lent = common | selectattr("lent") | list | length %}
+  {{ section_head("Games you have in common", count=common | length, sub=(((common | length) - n_lent) ~ " rated by " ~ hname ~ (("; " ~ n_lent ~ " more where " ~ (r.channel_name or "the channel") ~ "'s team verdict stands for " ~ hname ~ ", counted at half weight") if n_lent else "") ~ ".")) }}
   <nav class="seg mb-3" aria-label="Sort">
     {% for k, label in sorts.items() %}<a href="?sort={{ k }}{{ ('&u=' ~ (visitor | urlencode)) if visitor }}#common" class="{{ 'on' if sort == k }}">{{ label }}</a>{% endfor %}
   </nav>
@@ -137,7 +138,7 @@
     <div class="item" style="align-items:flex-start">{% if gr.gid %}{{ box(gr.gid, "s", "thumb box") }}{% else %}<span class="thumb box ph">{{ icon("dices") }}</span>{% endif %}
       <span class="body"><span class="title">{% if gr.gid %}<a href="{{ ('https://boardgamegeek.com/boardgame/' ~ gr.gid) if OPEN else (R ~ '/games/' ~ gr.gid) }}">{{ gr.name }}</a>{% else %}{{ gr.name }}{% endif %}</span>
         {% if gr.quote %}<span class="meta wrap clamp-2">“{{ gr.quote }}”</span>{% endif %}
-        <span class="tm-vids">{% for v in gr["items"] %}<a href="{{ ('https://www.youtube.com/watch?v=' ~ v.video_id) if OPEN else (R ~ '/v/' ~ v.video_id) }}"><b>{{ "%.0f" | format(v.score) if v.score is not none else "?" }}</b> {{ v.title }}</a>{% endfor %}</span>
+        <span class="tm-vids">{% for v in gr["items"] %}<a href="{{ ('https://www.youtube.com/watch?v=' ~ v.video_id) if OPEN else (R ~ '/v/' ~ v.video_id) }}"><b>{{ "%.0f" | format(v.score) if v.score is not none else "?" }}</b> {{ v.title }}{% if v.not_a_verdict %} <i>({{ v.not_a_verdict }})</i>{% endif %}</a>{% endfor %}</span>
         {% if gr.changed %}<span class="badge outline mt-1">Changed their score between videos</span>{% endif %}</span>
       {{ score(gr.score) }}</div>
     {% endfor %}

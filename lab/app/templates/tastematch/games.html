@@ -18,17 +18,17 @@
     {% endfor %}
   </nav>
   <nav class="seg" aria-label="Order">
-    {% for key, label in [("reviewed", "Most reviewed"), ("matches", "For you"), ("score", "Top scored"), ("name", "A–Z")] %}
+    {% for key, label in [("reviewed", "Most reviewed"), ("score", "Top scored"), ("name", "A–Z")] %}
     <a href="{{ R }}/games?{{ qs }}&show={{ show }}&sort={{ key }}"{% if sort == key %} class="on"{% endif %}>{{ label }}</a>
     {% endfor %}
   </nav>
 </div>
-{% if sort == "matches" %}<p class="section-sub">Ordered by what hosts who match you score them, weighted by how closely they match.</p>{% endif %}
+<p class="small muted mb-3">Scores are the reviewers' average out of 5; paid showcases and "most anticipated" lists aren't counted. Looking for what to play next? <a href="{{ R }}/for-you">Games for you</a></p>
 
 {% if rows %}
 <div class="tiles">
   {% for e in rows %}
-  {% set badge = ("%.1f" | format(e.say)) if (sort == "matches" and e.say is not none) else ("%.1f" | format(e.avg)) %}
+  {% set badge = "%.1f" | format(e.avg) %}
   {{ game_tile(e.gid, e.name, (e.hosts | length) ~ " reviewer" ~ ("s" if e.hosts | length != 1 else "") ~ ((" · BGG " ~ ("%.1f" | format(e.average / 2))) if e.average else ""), badge, ("You " ~ ("%.1f" | format(e.rated / 2))) if e.rated is not none else None) }}
   {% endfor %}
 </div>
