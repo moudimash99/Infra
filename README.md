@@ -379,4 +379,6 @@ night to the Acer's `/var/backups/nightly/server/<day>`. SQLite is copied with i
 the copies hold email text (700/600, uid 1000; the driver logins and the k3s snapshot and token stay in the
 server-only `/srv/backups/server-only/<day>`, because any pod on the Acer can reach the NFS export). Restore: scale the app to 0, copy the file back, scale it
 up. Nothing leaves the house yet. Older one-off copies: `~/backups/pre-k3s-20261024-1641/`, the Acer's 2026-11-02 copy
-in `~/homelab-backup/2026-11-02/` on the PC, and `/srv/backups` on the server.
+in `~/homelab-backup/2026-11-02/` on the PC, and `/srv/backups/git-branches` on the server (bundles of the
+branches deleted on 2026-11-22; the user: keep about a month, delete after 2026-12-24). The other one-off copies in
+`/srv/backups` were deleted on 2026-11-24.
