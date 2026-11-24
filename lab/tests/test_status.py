@@ -142,20 +142,17 @@ def test_page_renders(monkeypatch):
     assert "The Acer is at 98 °C" in r.text
 
 
-def test_memory_tab_and_published_route(monkeypatch):
-    """lab.machaka.net/machines is the overview, /machines/memory the memory page; both need the login."""
+def test_old_memory_address_and_published_route(monkeypatch):
+    """lab.machaka.net/machines is the overview; the old memory page's address sends you to the machine's page;
+    every page needs the login."""
     from starlette.testclient import TestClient
     from app import main, site_status
-    from app.sources import prom
-    monkeypatch.setattr(memory, "now", Fixed(memory.build(raw_fixture())))
-    monkeypatch.setattr(memory, "low", Fixed(None))
-    monkeypatch.setattr(prom, "alerts", Fixed([]))
-    r = TestClient(site_status.app, root_path="/machines").get("/memory")
-    assert r.status_code == 200 and "Where the memory goes" in r.text and 'href="/machines/memory"' in r.text
-    assert "No alarm" in r.text and 'href="/machines/static/bell.css' in r.text
+    r = TestClient(site_status.app, root_path="/machines").get("/memory", follow_redirects=False)
+    assert r.status_code == 302 and r.headers["location"] == "/machines/server#memory"
     assert any(sub is site_status.app for _, _, _, sub, _ in main.PATH_SITES)
     gate = TestClient(main.app, base_url="https://lab.machaka.net")
-    assert gate.get("/machines/").status_code == 403 and gate.get("/machines/memory").status_code == 403
+    for path in ("/machines/", "/machines/memory", "/machines/server", "/machines/pc"):
+        assert gate.get(path, follow_redirects=False).status_code == 403, path
 
 
 def test_keep_fresh_fills_the_cache(monkeypatch):

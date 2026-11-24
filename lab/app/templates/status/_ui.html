@@ -1,0 +1,24 @@
+{#- Small pieces the homelab tool's pages share. -#}
+{%- macro dot(state) -%}<span class="sdot {{ state }}" aria-hidden="true"></span>{%- endmacro -%}
+{%- macro bad(state) -%}{{ 1 if state in ("bad", "warn") else 0 }}{%- endmacro -%}
+
+{#- A fact with its meter: {value, of, pct, state}. -#}
+{%- macro fact(f, label, why="") -%}
+<div class="f {{ f.state }}"><dt>{{ label }}</dt><dd><b>{{ f.value }}</b> <span class="muted">{{ f.of }}</span>
+  <span class="meter"><span style="width:{{ [f.pct or 0, 100] | min }}%"></span></span>{% if why %}<small>{{ why }}</small>{% endif %}</dd></div>
+{%- endmacro -%}
+
+{#- The range switch (24 h / 7 d) for the graphs on a page; it keeps the filters. -#}
+{%- macro range_switch(RANGES, range) -%}
+<div class="seg sm" role="group" aria-label="Graphs over">{% for key in RANGES %}<a href="?range={{ key }}" class="{{ 'on' if key == range }}" data-keep-filters>{{ "Last 24 hours" if key == "24h" else "Last 7 days" }}</a>{% endfor %}</div>
+{%- endmacro -%}
+
+{#- The machine switch on a machine's page: Server, Acer, PC. -#}
+{%- macro machine_switch(R, slug, range) -%}
+<div class="seg" role="group" aria-label="Machine">{% for s, label in [("server", "Server"), ("acer", "Acer"), ("pc", "PC")] %}<a href="{{ R }}/{{ s }}{% if range and s != 'pc' %}?range={{ range }}{% endif %}" class="{{ 'on' if s == slug }}"{% if s == slug %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}</div>
+{%- endmacro -%}
+
+{#- 7 day squares: [{state, tip}]. -#}
+{%- macro days(cells) -%}
+<span class="days" aria-label="last 7 days">{% for c in cells %}<span class="day {{ c.state or 'none' }}" data-tip="{{ c.tip }}" tabindex="0"></span>{% endfor %}</span>
+{%- endmacro -%}

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% from "_m.html" import unreadable %}
+{% from "status/_ui.html" import dot, bad, days, machine_switch %}
+{% block title %}PC · Homelab{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ R }}/static/status.css?v={{ STATIC_V }}"><link rel="stylesheet" href="{{ R }}/static/bell.css?v={{ STATIC_V }}">{% endblock %}
+{% block header_end %}{% include "status/_bell.html" %}{% endblock %}
+
+{% block main %}
+{{ unreadable(reading, "the PC's reports") }}
+{% if d %}{% set pc = d.pc %}
+<header class="page-head tight"><h1 class="page-title">PC</h1>
+  <p class="page-sub">The desktop. It reports its scheduled tasks to the lab every 10 minutes while it's on; its memory and CPU aren't measured.</p></header>
+<div class="filters" id="filters" role="search">
+  {{ machine_switch(R, "pc", none) }}
+  <label class="toggle"><input type="checkbox" data-f="only"><span>Problems only</span></label>
+</div>
+
+<div class="qgrid">
+  <section class="qcard wide" id="pc-now" data-card data-keep>
+    <div class="qhead"><h2>Is it on?</h2></div>
+    <ul class="items">
+      <li class="it" data-m="pc" data-p="*" data-bad="0">{{ dot("info" if pc.stale else "ok") }}
+        <div class="txt"><b>{{ "Off or asleep" if pc.stale else "On" }}</b><small>{% if pc.age is not none %}last report {{ dur(pc.age) }} ago{% else %}no report yet{% endif %}{% if pc.stale %}: its tasks run again when it wakes{% endif %}</small></div></li>
+    </ul>
+  </section>
+
+  <section class="qcard wide" id="pc-tasks" data-card data-keep>
+    <div class="qhead"><h2>Its scheduled tasks</h2><a class="head-link" href="{{ R }}/jobs">Every job {{ icon("chevron-right") }}</a></div>
+    <ul class="items jobrows">
+      {% for t in pc.tasks %}{% set cells = (w.pc_cells.get(t.name) if w else none) %}
+      <li class="it" data-m="pc" data-p="{{ t.p or '' }}" data-bad="{{ bad(t.state) }}">{{ dot(t.state) }}
+        <div class="txt"><b>{{ t.name }}</b><small>{{ t.note or t.status }}{% if t.last %} · last run {{ clock(t.last) }}{% endif %}{% if t.next %} · next {{ clock(t.next) }}{% endif %}</small></div>
+        {% if cells %}{{ days(cells) }}{% endif %}
+        <span class="tags">{% if t.p %}<span class="tag">{{ t.p }}</span>{% endif %}</span>
+      </li>
+      {% else %}<li class="it" data-m="pc" data-p="*" data-bad="0">{{ dot("info") }}<div class="txt"><b>No task reported</b></div></li>{% endfor %}
+    </ul>
+  </section>
+
+  {% for j in pc.jobs %}
+  <section class="qcard" data-card>
+    <div class="qhead"><h2>{{ j.title }}</h2>{% if j.ok is not none %}<span class="qchip {{ 'ok' if j.ok else 'bad' }}">{{ "Fine" if j.ok else "Failing" }}</span>{% endif %}</div>
+    <ul class="items">
+      {% for name, v in j["values"] %}<li class="it" data-m="pc" data-p="*" data-bad="{{ 0 if j.ok is not false else 1 }}"><div class="txt"><b>{{ name }}</b></div><span class="val">{{ "{:,.0f}".format(v) }}</span></li>
+      {% else %}<li class="it" data-m="pc" data-p="*" data-bad="{{ 0 if j.ok is not false else 1 }}"><div class="txt"><small>No numbers in its last report.</small></div></li>{% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="{{ R }}/static/status.js?v={{ STATIC_V }}" defer></script>{% endblock %}

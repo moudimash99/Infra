@@ -20,7 +20,7 @@
     <div class="items mtiles">
       {% for m in d.machines %}
       <article class="it mtile" data-m="{{ m.node }}" data-p="*" data-bad="{{ bad(m.state) }}">
-        <div class="mt-head">{{ dot(m.state) }}<b>{{ m.name }}</b><span class="muted xs">{{ W[m.state] }}</span></div>
+        <div class="mt-head">{{ dot(m.state) }}<b><a href="{{ R }}/{{ SLUG[m.node] }}">{{ m.name }}</a></b><span class="muted xs">{{ W[m.state] }}</span></div>
         <dl class="facts4">
           {% for key, label in [("mem", "Memory"), ("cpu", "CPU"), ("disk", "Disk"), ("temp", "Temperature")] %}{% set f = m.facts[key] %}
           <div class="f {{ f.state }}"><dt>{{ label }}</dt><dd><b>{{ f.value }}</b> <span class="muted">{{ f.of }}</span>
@@ -28,15 +28,15 @@
             {% if f.why %}<small>{{ f.why }}</small>{% endif %}</dd></div>
           {% endfor %}
         </dl>
-        <a class="more" href="{{ R }}/memory?m={{ m.node }}">Where the memory goes {{ icon("chevron-right") }}</a>
+        <a class="more" href="{{ R }}/{{ SLUG[m.node] }}">Everything about the {{ m.name }} {{ icon("chevron-right") }}</a>
       </article>
       {% endfor %}
       {% set pc = d.pc %}{% set pc_bad = pc.tasks | selectattr("state", "equalto", "bad") | list %}
       <article class="it mtile" data-m="pc" data-p="*" data-bad="{{ 1 if pc_bad else 0 }}">
-        <div class="mt-head">{{ dot("warn" if pc_bad else "info" if pc.stale else "ok") }}<b>PC</b><span class="muted xs">{{ "Off or asleep" if pc.stale else "On" }}</span></div>
+        <div class="mt-head">{{ dot("warn" if pc_bad else "info" if pc.stale else "ok") }}<b><a href="{{ R }}/pc">PC</a></b><span class="muted xs">{{ "Off or asleep" if pc.stale else "On" }}</span></div>
         <p class="small">{% if pc.age is not none %}Last report {{ dur(pc.age) }} ago{% else %}No report yet{% endif %}. {{ pc.tasks | length }} scheduled task{{ "s" if pc.tasks | length != 1 }}, {{ pc_bad | length }} failing.</p>
         <p class="xs muted">The PC reports its tasks every 10 minutes while it's on. Its memory and CPU aren't measured.</p>
-        <a class="more" href="{{ R }}/jobs?m=pc">Its tasks {{ icon("chevron-right") }}</a>
+        <a class="more" href="{{ R }}/pc">Its tasks {{ icon("chevron-right") }}</a>
       </article>
     </div>
   </section>
@@ -83,7 +83,7 @@
       {% endfor %}
     </ul>
     <p class="none" data-none>Nothing for this filter.</p>
-    <a class="all-link" href="{{ R }}/memory">All {{ d.n_users }}, with search {{ icon("chevron-right") }}</a>
+    <p class="all-links">All {{ d.n_users }}, with search: {% for m in d.machines %}<a href="{{ R }}/{{ SLUG[m.node] }}#using">{{ m.name }}</a>{{ ", " if not loop.last }}{% endfor %}</p>
   </section>
 
   {# ---- Who gets in? ---- #}

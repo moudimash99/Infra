@@ -1,13 +1,16 @@
-// Homelab overview: one set of filters (machine, project, problems only) for every card, a few lines per card with
-// "show more", and each card's count of things to look at. The filters live in the address (?m=&p=&only=1), so a
-// filtered view can be bookmarked; the Memory tab gets the same machine.
+// The homelab tool: one set of filters (machine, project, a search, problems only) for every card on a page, the
+// first lines of a long list with "show more", and tabs. The filters live in the address (?m=&p=&q=&only=1), so a
+// filtered view can be bookmarked, and links marked data-keep-filters carry them to the next page. A page without
+// one of the controls (a machine's own page has no machine buttons) just leaves that filter off.
 (function () {
   const bar = document.getElementById("filters");
   if (!bar) return;
-  const state = { m: "", p: "", only: false };
+  const ctl = (f) => bar.querySelector(`[data-f="${f}"]`);
+  const state = { m: "", p: "", q: "", only: false };
   const q = new URLSearchParams(location.search);
-  state.m = q.get("m") || "";
-  state.p = q.get("p") || "";
+  state.m = ctl("m") ? q.get("m") || "" : "";
+  state.p = ctl("p") ? q.get("p") || "" : "";
+  state.q = ctl("q") ? q.get("q") || "" : "";
   state.only = q.get("only") === "1";
   const open = new Set();                        // lists the reader expanded
 
@@ -16,6 +19,10 @@
     if (state.m && m !== "*" && m !== state.m) return false;
     if (state.p && p !== "*" && p !== state.p) return false;
     if (state.only && it.dataset.bad !== "1") return false;
+    if (state.q) {
+      const name = (it.dataset.name || it.textContent).toLowerCase();
+      if (!state.q.toLowerCase().split(/\s+/).filter(Boolean).every((w) => name.includes(w))) return false;
+    }
     return true;
   }
 
@@ -84,27 +91,30 @@
       v.className = "ov-verdict " + (total ? "bad" : "ok");
     }
     bar.querySelectorAll('[data-f="m"] button').forEach((b) => b.classList.toggle("on", b.dataset.v === state.m));
-    bar.querySelector('[data-f="p"]').value = state.p;
-    bar.querySelector('[data-f="only"]').checked = state.only;
+    if (ctl("p")) ctl("p").value = state.p;
+    if (ctl("q") && ctl("q").value !== state.q) ctl("q").value = state.q;
+    if (ctl("only")) ctl("only").checked = state.only;
     const p = new URLSearchParams(location.search);
-    ["m", "p", "only"].forEach((k) => p.delete(k));
+    ["m", "p", "q", "only"].forEach((k) => p.delete(k));
     if (state.m) p.set("m", state.m);
     if (state.p) p.set("p", state.p);
+    if (state.q) p.set("q", state.q);
     if (state.only) p.set("only", "1");
     history.replaceState(null, "", location.pathname + (p.toString() ? "?" + p : "") + location.hash);
     document.querySelectorAll("a[data-keep-filters]").forEach((a) => {     // the range links keep the filters
       const u = new URL(a.getAttribute("href"), location.href);
-      ["m", "p", "only"].forEach((k) => (p.get(k) ? u.searchParams.set(k, p.get(k)) : u.searchParams.delete(k)));
-      a.setAttribute("href", u.search);
+      ["m", "p", "q", "only"].forEach((k) => (p.get(k) ? u.searchParams.set(k, p.get(k)) : u.searchParams.delete(k)));
+      a.setAttribute("href", u.pathname === location.pathname ? u.search + u.hash : u.pathname + u.search + u.hash);
     });
   }
 
-  bar.querySelector('[data-f="m"]').addEventListener("click", (e) => {
+  if (ctl("m")) ctl("m").addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (b) { state.m = b.dataset.v; apply(); }
   });
-  bar.querySelector('[data-f="p"]').addEventListener("change", (e) => { state.p = e.target.value; apply(); });
-  bar.querySelector('[data-f="only"]').addEventListener("change", (e) => { state.only = e.target.checked; apply(); });
+  if (ctl("p")) ctl("p").addEventListener("change", (e) => { state.p = e.target.value; apply(); });
+  if (ctl("q")) ctl("q").addEventListener("input", (e) => { state.q = e.target.value.trim(); apply(); });
+  if (ctl("only")) ctl("only").addEventListener("change", (e) => { state.only = e.target.checked; apply(); });
   document.querySelectorAll("[data-tabs]").forEach((tabs) => tabs.addEventListener("click", (e) => {
     const b = e.target.closest("button[data-tab]");
     if (!b) return;

@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% from "_m.html" import unreadable %}
+{% from "status/_ui.html" import dot, bad, fact, range_switch, machine_switch %}
+{% block title %}{{ d.name if d else "Machine" }} · Homelab{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ R }}/static/status.css?v={{ STATIC_V }}"><link rel="stylesheet" href="{{ R }}/static/bell.css?v={{ STATIC_V }}">{% endblock %}
+{% block header_end %}{% include "status/_bell.html" %}{% endblock %}
+
+{% block main %}
+{{ unreadable(reading, "this machine's numbers") }}
+{% if d %}{% set m = d.machine %}
+<header class="page-head tight"><h1 class="page-title">{{ d.name }}</h1>
+  <p class="page-sub">{{ d.node }}{% if d.uptime %} · up {{ dur(d.uptime) }}{% endif %}{% if d.cores %} · {{ "%.0f" | format(d.cores) }} CPU threads{% endif %}{% if m %} · {{ size(m.total) }} of memory{% endif %} · read {{ clock(d.at) }}</p></header>
+
+<div class="filters" id="filters" role="search">
+  {{ machine_switch(R, d.slug, range) }}
+  <label class="sel"><span class="sr">Project</span>
+    <select data-f="p" aria-label="Project"><option value="">All projects</option>{% for g in d.groups %}<option value="{{ g }}">{{ g }}</option>{% endfor %}</select></label>
+  <label class="search"><span class="sr">Find</span><input type="search" data-f="q" placeholder="Find an app" autocomplete="off"></label>
+  <label class="toggle"><input type="checkbox" data-f="only"><span>Problems only</span></label>
+  <span class="grow"></span>
+  {{ range_switch(RANGES, range) }}
+</div>
+{% if d.up == 0 %}<p class="banner bad">{{ dot("bad") }} {{ d.name }} isn't answering: its numbers below are the last ones Prometheus got.</p>{% endif %}
+
+<div class="qgrid">
+
+  {# ---- Right now ---- #}
+  <section class="qcard wide" id="now" data-card data-keep>
+    <div class="qhead"><h2>Right now</h2></div>
+    <dl class="facts6">
+      {{ fact(d.facts.mem, "Memory", "lowest today " ~ size(low[0]) ~ " at " ~ clock(low[1]) if low else "") }}
+      {{ fact(d.facts.cpu, "CPU", "waiting for the disk: " ~ ("%.0f" | format(d.struggling.iowait or 0)) ~ "%") }}
+      {{ fact(d.facts.load, "Load", "the last 5 minutes; past the thread count, programs queue for the CPU") }}
+      {{ fact(d.facts.disk, "Fullest disk", ("fills up in about " ~ dur(fullest_days * 86400) ~ " at this rate") if fullest_days else "") }}
+      {{ fact(d.facts.temp, "Hottest sensor", "peak today " ~ ("%.0f" | format(hot_peak)) ~ " °C; alarm above 90 °C" if hot_peak else "") }}
+      {% if d.battery %}{% set b = d.battery %}
+      <div class="f {{ b.state }}"><dt>Battery</dt><dd><b>{{ "%.0f" | format(b.pct) }}%</b> <span class="muted">{{ "plugged in" if b.plugged else "on battery" if b.plugged is false else "" }}</span>
+        <span class="meter"><span style="width:{{ b.pct }}%"></span></span><small>{{ "a power cut would run it on battery" if b.plugged else "the power is off: it runs on its battery" }}</small></dd></div>
+      {% endif %}
+    </dl>
+  </section>
+
+  {# ---- Where the memory goes ---- #}
+  {% if m %}
+  <section class="qcard wide" id="memory" data-card data-keep>
+    <div class="qhead"><h2>Where the memory goes</h2><span class="qchip {{ 'ok' if mstate == 'ok' else 'bad' }}">{{ {"ok": "Fine", "warn": "Getting low", "bad": "Low"}[mstate] }}</span></div>
+    <p class="lead"><b>{{ size(m.available) }}</b> available of {{ size(m.total) }}. {{ msentence }}</p>
+    <div class="mbar" role="img" aria-label="{% for key, label, _, _ in PARTS %}{{ label }} {{ size(m.parts[key]) }}{{ ', ' if not loop.last }}{% endfor %}">
+      {% for key, label, slot, what in PARTS %}{% set v = m.parts[key] %}{% if v > 0 %}<span class="seg-{{ slot }}" style="width:{{ '%.2f' | format(100 * v / m.total) }}%" data-tip="{{ label }}: {{ size(v) }} ({{ '%.0f' | format(100 * v / m.total) }}%)"></span>{% endif %}{% endfor %}
+    </div>
+    <div class="g2">
+      <ul class="mparts">
+        {% for key, label, slot, what in PARTS %}{% set v = m.parts[key] %}{% if v > 0 or key in ("pods", "free") %}
+        <li><span class="key seg-{{ slot }}"></span><span class="what"><b>{{ label }}</b><small>{{ what }}</small></span><span class="v">{{ size(v) }}<small>{{ '%.0f' | format(100 * v / m.total) }}%</small></span></li>
+        {% endif %}{% endfor %}
+      </ul>
+      <dl class="mfacts">
+        {% if low %}<div><dt>Lowest in the last 24 hours</dt><dd><b>{{ size(low[0]) }}</b> available at {{ clock(low[1]) }}{% if low[2] %}; the biggest users then: {% for name, v in low[2] %}{{ name }} {{ size(v) }}{{ ", " if not loop.last }}{% endfor %}{% endif %}</dd></div>{% endif %}
+        <div><dt>Booked by pods</dt><dd>{{ size(m.booked) }} of {{ size(m.allocatable) }} ({{ '%.0f' | format(100 * m.booked / m.allocatable if m.allocatable else 0) }}%). A pod starts only when its booking fits{% if d.node == "acer-laptop" %}; a higher-ranked pod pushes a lower one out{% endif %}.
+          <span class="meter{{ ' hot' if m.booked > 0.92 * m.allocatable }}"><span style="width:{{ [100 * m.booked / m.allocatable if m.allocatable else 0, 100] | min }}%"></span></span></dd></div>
+        <div><dt>Free or available?</dt><dd>{{ size(m.free) }} completely free, {{ size(m.available) }} available once the cache is handed back. <b>Available</b> is the one that matters.{% if m.swap > 0.05 * G %} {{ size(m.swap) }} moved out to swap.{% endif %}</dd></div>
+      </dl>
+    </div>
+    <div class="g2 graphs">
+      <div><h3>Available memory</h3>{{ charts.lines(d.graphs.available, height=190, title="Available memory, GB", x_labels=x_labels, unit=" GB") }}</div>
+      <div><h3>The biggest users</h3>{{ charts.lines(d.graphs.apps_mem, height=190, title="Memory of the biggest users, GB", x_labels=x_labels, unit=" GB") }}</div>
+    </div>
+  </section>
+  {% endif %}
+
+  {# ---- What's using it ---- #}
+  <section class="qcard wide" id="using" data-card>
+    <div class="qhead"><h2>What's using it</h2>
+      <div class="seg sm" data-tabs role="tablist"><button type="button" class="on" data-tab="mem">Memory</button><button type="button" data-tab="cpu">CPU</button></div></div>
+    <ul class="items users" data-limit="20" data-pane="mem">
+      {% for u in d.users %}{# memory.py sorts them: running first, biggest first #}
+      <li class="it" data-m="{{ d.node }}" data-p="{{ u.p or '' }}" data-bad="{{ bad(u.state) }}" data-name="{{ u.name | lower }} {{ u.ns }} {{ u.kind }}">
+        {{ dot(u.state) }}
+        <div class="txt"><b>{{ u.name }}</b><small>{{ KINDS[u.kind] }}{% if u.ns %} in {{ u.ns }}{% endif %}{% if u.p %} · {{ u.p }}{% endif %}{% if u.booked %} · books {{ size(u.booked) }}{% endif %}{% if u.limit %} · limit {{ size(u.limit) }}{% endif %} · peak today {{ size(u.peak) }}</small></div>
+        <span class="spk">{{ spark(u.trend) }}</span>
+        <span class="val">{{ size(u.now) if u.running else "stopped" }}<small>{% if u.mem_share %}{{ '%.0f' | format(100 * u.mem_share) if u.mem_share >= 0.01 else "<1" }}% of the machine{% else %}ran earlier today{% endif %}</small></span>
+      </li>
+      {% endfor %}
+    </ul>
+    <ul class="items users" data-limit="20" data-pane="cpu" hidden>
+      {% for u in d.users | selectattr("cores") | sort(attribute="cores", reverse=true) %}
+      <li class="it" data-m="{{ d.node }}" data-p="{{ u.p or '' }}" data-bad="0" data-name="{{ u.name | lower }} {{ u.ns }} {{ u.kind }}">
+        {{ dot("ok") }}
+        <div class="txt"><b>{{ u.name }}</b><small>{{ KINDS[u.kind] }}{% if u.ns %} in {{ u.ns }}{% endif %}{% if u.p %} · {{ u.p }}{% endif %}{% if u.cpu_req %} · asked for {{ "%.2g" | format(u.cpu_req) }} cores{% endif %}{% if u.cpu_peak %} · peak today {{ "%.1f" | format(u.cpu_peak) }} cores{% endif %}</small></div>
+        <span class="val">{{ "%.2f" | format(u.cores) if u.cores < 1 else "%.1f" | format(u.cores) }} cores<small>{{ '%.0f' | format(100 * u.cpu_share) if u.cpu_share >= 0.01 else "<1" }}% of the machine</small></span>
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="none" data-none>Nothing for this filter.</p>
+    <p class="xs muted">Memory: working set for apps, k3s and Docker; resident memory for programs outside containers (it overlaps, so the bar above leaves them out). The small line is the last 24 hours.</p>
+  </section>
+
+  {# ---- CPU ---- #}
+  <section class="qcard" id="cpu" data-card data-keep>
+    <div class="qhead"><h2>CPU</h2><span class="muted xs">% of all {{ "%.0f" | format(d.cores or 0) }} threads</span></div>
+    {{ charts.lines(d.graphs.cpu, height=190, title="CPU busy, %", x_labels=x_labels, unit="%", y_max=100) }}
+    <h3>The biggest users</h3>
+    {{ charts.lines(d.graphs.apps_cpu, height=190, title="CPU of the biggest users, cores", x_labels=x_labels, unit=" cores") }}
+  </section>
+
+  {# ---- Is it struggling? ---- #}
+  {% set s = d.struggling %}
+  <section class="qcard" id="struggling" data-card data-keep>
+    <div class="qhead"><h2>Is it struggling?</h2><span class="qchip {{ 'ok' if s.state == 'ok' else 'bad' }}">{{ "No" if s.state == "ok" else "Yes" if s.state == "bad" else "A little" }}</span></div>
+    <ul class="items">
+      {% for key, label, what in [("mem", "Waiting for memory", "programs stalled while the kernel freed memory for them"), ("cpu", "Waiting for the CPU", "programs ready to run, queued behind others"), ("io", "Waiting for the disk", "programs stalled on reads and writes")] %}{% set v = s[key] or 0 %}
+      <li class="it" data-m="{{ d.node }}" data-p="*" data-bad="{{ 1 if v > 10 else 0 }}">{{ dot("bad" if v > 20 else "warn" if v > 10 else "ok") }}
+        <div class="txt"><b>{{ label }}</b><small>{{ what }}</small></div><span class="val">{{ "%.0f" | format(v) if v >= 1 else "<1" }}%<small>of the time, now</small></span></li>
+      {% endfor %}
+    </ul>
+    {{ charts.lines(d.graphs.psi, height=170, title="Share of time something waited, %", x_labels=x_labels, unit="%") }}
+    <p class="xs muted">From the kernel's pressure counters: the share of time at least one program had to wait. A few % is normal; lasting above 10% means the machine is short of it.</p>
+  </section>
+
+  {# ---- Temperatures ---- #}
+  <section class="qcard" id="temps" data-card data-keep>
+    <div class="qhead"><h2>Temperatures</h2><span class="muted xs">alarm above 90 °C, critical above 97 °C</span></div>
+    {{ charts.lines(d.graphs.temps, height=190, title="Hottest sensor of each part, °C", x_labels=x_labels, unit=" °C") }}
+    <ul class="items" data-limit="8">
+      {% for t in d.sensors %}
+      <li class="it" data-m="{{ d.node }}" data-p="*" data-bad="{{ bad(t.state) }}">{{ dot(t.state) }}
+        <div class="txt"><b>{{ t.name }}</b><small>peak today {{ "%.0f" | format(t.peak) }} °C{% if t.crit %} · the part's own limit {{ "%.0f" | format(t.crit) }} °C{% endif %}</small></div>
+        <span class="val">{{ "%.0f" | format(t.now) }} °C</span></li>
+      {% endfor %}
+      {% if d.fans %}<li class="it" data-m="{{ d.node }}" data-p="*" data-bad="0">{{ dot("ok") }}<div class="txt"><b>Fan</b><small>how fast the fan spins</small></div><span class="val">{% for f in d.fans %}{{ "%.0f" | format(f) }} rpm{{ ", " if not loop.last }}{% endfor %}</span></li>{% endif %}
+    </ul>
+  </section>
+
+  {# ---- Disks ---- #}
+  <section class="qcard" id="disks" data-card data-keep>
+    <div class="qhead"><h2>Disks</h2></div>
+    <ul class="items">
+      {% for x in d.disks %}
+      <li class="it" data-m="{{ d.node }}" data-p="*" data-bad="{{ bad(x.state) }}">{{ dot(x.state) }}
+        <div class="txt"><b>{{ x.mount }}</b><small>{{ size(x.free) }} left of {{ size(x.size) }}{% if x.days %} · full in about {{ dur(x.days * 86400) }} at the last day's rate{% endif %}{% if x.ro %} · read-only!{% endif %}</small>
+          <span class="meter"><span style="width:{{ x.pct }}%"></span></span></div>
+        <span class="val">{{ "%.0f" | format(x.pct) }}%<small>full</small></span></li>
+      {% endfor %}
+      {% for x in d.devices %}
+      <li class="it" data-m="{{ d.node }}" data-p="*" data-bad="{{ bad(x.state) }}">{{ dot(x.state) }}
+        <div class="txt"><b>Disk {{ x.device }}</b><small>reads {{ rate(x.read) }}, writes {{ rate(x.write) }} now{% if x.write_24h is not none %} · today {{ size(x.read_24h) }} read, {{ size(x.write_24h) }} written{% endif %}</small></div>
+        <span class="val">{{ "%.0f" | format(x.busy) }}%<small>busy</small></span></li>
+      {% endfor %}
+    </ul>
+    <h3>Reads and writes</h3>
+    {{ charts.lines(d.graphs.disk, height=170, title="Disk reads and writes, MB/s", x_labels=x_labels, unit=" MB/s") }}
+  </section>
+
+  {# ---- Network ---- #}
+  <section class="qcard" id="network" data-card data-keep>
+    <div class="qhead"><h2>Network</h2></div>
+    <ul class="items">
+      {% for x in d.nets %}
+      <li class="it" data-m="{{ d.node }}" data-p="*" data-bad="{{ bad(x.state) }}">{{ dot(x.state) }}
+        <div class="txt"><b>{{ x.kind }} ({{ x.device }})</b><small>today {{ size(x.rx_24h) }} in, {{ size(x.tx_24h) }} out{% if x.errors %} · {{ "%.0f" | format(x.errors) }} errors{% endif %}{% if x.drops > 100 %} · {{ "%.0f" | format(x.drops) }} dropped{% endif %}</small></div>
+        <span class="val">{{ rate(x.rx) }}<small>in, {{ rate(x.tx) }} out</small></span></li>
+      {% endfor %}
+    </ul>
+    {{ charts.lines(d.graphs.net, height=170, title="Network traffic, MB/s", x_labels=x_labels, unit=" MB/s") }}
+  </section>
+
+  {# ---- The GPU ---- #}
+  {% if d.gpu %}{% set g = d.gpu %}
+  <section class="qcard wide" id="gpu" data-card data-keep>
+    <div class="qhead"><h2>The GPU</h2><span class="muted xs">{{ g.name }}</span></div>
+    <dl class="facts6">
+      <div class="f ok"><dt>Busy</dt><dd><b>{{ "%.0f" | format(g.util) }}%</b> <span class="muted">now</span><span class="meter"><span style="width:{{ [g.util, 100] | min }}%"></span></span><small>{{ "%.0f" | format(g.util_24h or 0) }}% on average today</small></dd></div>
+      <div class="f ok"><dt>Memory</dt><dd><b>{{ size(g.mem) }}</b> <span class="muted">of {{ size(g.mem_total) }}</span><span class="meter"><span style="width:{{ 100 * g.mem / g.mem_total if g.mem_total else 0 }}%"></span></span></dd></div>
+      <div class="f {{ g.state }}"><dt>Temperature</dt><dd><b>{{ "%.0f" | format(g.temp or 0) }} °C</b> <span class="muted">peak today {{ "%.0f" | format(g.temp_peak or 0) }} °C</span><span class="meter"><span style="width:{{ [g.temp or 0, 100] | min }}%"></span></span><small>alarm above 85 °C</small></dd></div>
+      {% if g.power %}<div class="f ok"><dt>Power</dt><dd><b>{{ "%.0f" | format(g.power) }} W</b></dd></div>{% endif %}
+    </dl>
+    <ul class="items">
+      {% for u in g.users %}<li class="it" data-m="{{ d.node }}" data-p="*" data-bad="0">{{ dot("running") }}<div class="txt"><b>{{ u.name }}</b><small>on the GPU now{% if u.mem %} · {{ size(u.mem) }} of its memory{% endif %}</small></div><span class="val">{{ "%.0f" | format(u.pct) }}%</span></li>
+      {% else %}<li class="it" data-m="{{ d.node }}" data-p="*" data-bad="0">{{ dot("ok") }}<div class="txt"><b>Nobody is on it</b><small>the GPU jobs run in the night and when bg-taste-match has captions to make</small></div></li>{% endfor %}
+    </ul>
+    <div class="g2 graphs">
+      <div><h3>Busy</h3>{{ charts.lines(d.graphs.gpu, height=170, title="GPU busy, %", x_labels=x_labels, unit="%", y_max=100) }}</div>
+      <div><h3>Who used it</h3>{{ charts.lines(d.graphs.gpu_pods, height=170, title="GPU use by app, %", x_labels=x_labels, unit="%") }}</div>
+    </div>
+  </section>
+  {% endif %}
+
+  {# ---- Docker ---- #}
+  {% if d.docker is not none %}
+  <section class="qcard wide" id="docker" data-card>
+    <div class="qhead"><h2>Docker</h2><span class="muted xs">containers started outside Kubernetes</span></div>
+    <ul class="items" data-limit="20">
+      {% for c in d.docker | sort(attribute="now", reverse=true) %}
+      <li class="it" data-m="{{ d.node }}" data-p="{{ c.p or '' }}" data-bad="0" data-name="{{ c.name | lower }} {{ c.image | lower }}">{{ dot("ok") }}
+        <div class="txt"><b>{{ c.name }}</b><small>{{ c.image }}{% if c.started %} · started {{ clock(c.started) }}{% endif %} · peak today {{ size(c.peak) }}</small></div>
+        <span class="val">{{ size(c.now) }}<small>{% if c.cores is not none %}{{ "%.1f" | format(c.cores) }} cores{% endif %}</small></span></li>
+      {% else %}<li class="it" data-m="*" data-p="*" data-bad="0">{{ dot("ok") }}<div class="txt"><b>No container running</b></div></li>{% endfor %}
+    </ul>
+    <p class="none" data-none>Nothing for this filter.</p>
+  </section>
+  {% endif %}
+
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="{{ R }}/static/status.js?v={{ STATIC_V }}" defer></script>{% endblock %}

@@ -75,6 +75,9 @@ Q = {
     "pc_age": "time() - pc_report_timestamp_seconds",
     "pc_task_ok": "pc_task_ok",
     "pc_task_last": "pc_task_last_run_timestamp_seconds",
+    "pc_task_next": "pc_task_next_run_timestamp_seconds",
+    "pc_job_ok": "pc_job_ok",
+    "pc_job_value": "pc_job_value",
 }
 NAMESPACE_GROUP = {"monitoring": "Monitoring", "kube-system": "Platform", "flux-system": "Platform"}
 SITE_SERVICE = {"machaka.net": "website", "Cat weight": "cat-weight", "Unmatched": "unmatched",
@@ -329,6 +332,7 @@ def build(raw, catalog=None, now=None):
     # -- the PC
     pc_age = next((v for _, v in raw.get("pc_age", [])), None)
     pc_last = {m.get("task"): v for m, v in raw.get("pc_task_last", [])}
+    pc_next = {m.get("task"): v for m, v in raw.get("pc_task_next", [])}
     pc_tasks = []
     for m, v in raw.get("pc_task_ok", []):
         task = m.get("task", "?")
@@ -336,12 +340,22 @@ def build(raw, catalog=None, now=None):
         ok = v >= 1
         pc_tasks.append({"name": name, "state": "ok" if ok else "bad", "status": m.get("status", ""),
                          "note": m.get("note", ""), "last": pc_last.get(task), "m": "pc",
+                         "next": pc_next.get(task) or pc_next.get(task.lstrip("\\")),
                          "p": P.group("pc", task) or P.group("pc", "\\" + name)})
         if not ok:
             problem("warn", f"PC task {name} failed", m.get("note") or m.get("status", ""), m="pc",
                     p=pc_tasks[-1]["p"], href="#pc")
     pc_tasks.sort(key=lambda t: (t["state"] == "ok", t["name"].lower()))
-    pc = {"age": pc_age, "stale": pc_age is None or pc_age > PC_STALE, "tasks": pc_tasks}
+    pc_jobs = {}
+    for m, v in raw.get("pc_job_ok", []):
+        pc_jobs[m.get("pc_job", "?")] = {"key": m.get("pc_job", "?"), "title": m.get("title") or m.get("pc_job", "?"),
+                                         "ok": v >= 1, "values": []}
+    for m, v in raw.get("pc_job_value", []):
+        job = pc_jobs.setdefault(m.get("pc_job", "?"), {"key": m.get("pc_job", "?"), "ok": None, "values": [],
+                                                         "title": m.get("title") or m.get("pc_job", "?")})
+        job["values"].append((m.get("name", "?"), v))
+    pc = {"age": pc_age, "stale": pc_age is None or pc_age > PC_STALE, "tasks": pc_tasks,
+          "jobs": sorted(pc_jobs.values(), key=lambda j: (j["ok"] is not False, j["title"]))}
 
     # -- jobs
     owner = {m.get("job_name"): m.get("owner_name") for m, _ in raw.get("job_owner", [])}
