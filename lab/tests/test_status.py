@@ -136,7 +136,7 @@ def test_page_renders(monkeypatch):
     from app.sources import prom
     monkeypatch.setattr(overview, "now", Fixed(overview.build(raw(), CATALOG, now=NOW)))
     monkeypatch.setattr(prom, "alerts", Fixed(ALERTS))
-    r = TestClient(site_status.app, root_path="/machines").get("/")
+    r = TestClient(site_status.app, root_path="/machines").get("/summary")     # the earlier first page
     assert r.status_code == 200 and "Traceback" not in r.text
     for words in ("Machines", "Did the jobs run?", "What's using them?", "Room, GPU and sites", "machaka.net is down",
                   "The other 0 sites are up", "The GPU is 95% busy", "fm-webllm is waiting for room"):

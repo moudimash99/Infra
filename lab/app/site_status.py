@@ -1,6 +1,8 @@
 """The homelab tool at lab.machaka.net/machines: Grafana's dashboards, regrouped by question.
 
-  /         Now: what is happening (machines, jobs, who waits for room, GPU, sites, the PC)
+  /         Now: the questions asked while the Grafana dashboards were built, answered on one page (why memory is
+            high and who uses it, what was killed or pushed out and why, did each job run, who gets in or waits,
+            ranks against bookings and real use, heat and the GPU), with interactive graphs (static/tchart.js)
   /jobs     every scheduled job and PC task: its state, its last 7 days, how long runs take, memory against the limit
   /server   one machine (also /acer): right now, where its memory goes, what uses it, CPU, pressure, temperatures,
             disks, network, the GPU (Acer), Docker (server), with graphs over 24 h or 7 d
@@ -25,7 +27,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import site_machines
-from .sources import alarms as alarm_rules, appdetail, apps, hosts, jobruns, memory, net, overview, prom
+from .sources import alarms as alarm_rules, answers, appdetail, apps, hosts, jobruns, memory, net, overview, prom
 from .config import TZ
 from .web import SITES, STATIC, day_labels, page
 
@@ -82,9 +84,23 @@ def common(request):
 
 
 @app.get("/", response_class=HTMLResponse)
-def home(request: Request):
+def home(request: Request, range: str = "24h"):
+    range = range if range in answers.RANGES else "24h"
+    r, ov, w = answers.read.get(range), overview.now.get(), jobruns.week.get()
+    listing, mem = apps.read.get("24h"), memory.now.get()
+    rows = apps.build(listing.data, mem.data, overview.load_catalog())["rows"] if listing.data else []
+    root = request.scope.get("root_path", "").rstrip("/")
+    a = answers.build(r.data, w.data, rows, root) if r.data else None
+    rows = sorted(rows, key=lambda x: (-x["rank_value"], -(x["mem"] or 0)))
+    return page(request, "status/answers.html", reading=r, a=a, d=ov.data, w=w.data, rows=rows, range=range,
+                RANGES=answers.RANGES, spark=site_machines.spark, **common(request))
+
+
+@app.get("/summary", response_class=HTMLResponse)
+def summary(request: Request):
+    """The earlier first page (machines, jobs, what uses them, room, GPU, sites), kept at its own address."""
     r = overview.now.get()
-    return page(request, "status/overview.html", reading=r, d=r.data, **common(request))
+    return page(request, "status/overview.html", active="/", reading=r, d=r.data, **common(request))
 
 
 @app.get("/jobs", response_class=HTMLResponse)

@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% from "_m.html" import unreadable %}
+{% from "status/_ui.html" import dot, bad, days, range_switch %}
+{% block title %}Now · Homelab{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ R }}/static/status.css?v={{ STATIC_V }}"><link rel="stylesheet" href="{{ R }}/static/bell.css?v={{ STATIC_V }}">{% endblock %}
+{% block header_end %}{% include "status/_bell.html" %}{% endblock %}
+
+{#- The questions asked while the Grafana dashboards were built, answered on one page. Each answer: a sentence,
+    then the graph or the list behind it, then a link deeper. -#}
+{%- macro chart(id, cfg, h=260) -%}
+<div class="tchart" data-src="{{ id }}" data-h="{{ h }}"></div><script type="application/json" id="{{ id }}">{{ cfg | tojson }}</script>
+{%- endmacro -%}
+{%- macro gb(v) -%}{{ "%.1f" | format(v) }} GB{%- endmacro -%}
+
+{% block main %}
+{{ unreadable(reading, "the answers") }}
+<div class="ans-bar">
+  <div class="downline">
+    {% if d %}{% set down = d.machines | selectattr("state", "equalto", "bad") | list %}
+    {% set sites_down = d.sites | rejectattr("state", "in", ["ok", "unknown"]) | list %}
+    <span class="pill {{ 'bad' if alarms.list else 'ok' }}">{{ dot("bad" if alarms.list else "ok") }}<a href="{{ R }}/alarms">{{ alarms.list | length }} alarm{{ "s" if alarms.list | length != 1 }} firing</a></span>
+    {% for m in d.machines %}<span class="pill {{ m.state }}">{{ dot(m.state) }}<a href="{{ R }}/{{ SLUG[m.node] }}">{{ m.name }} {{ "up" if m.state != "bad" else "needs a look" }}</a></span>{% endfor %}
+    <span class="pill {{ 'bad' if sites_down else 'ok' }}">{{ dot("bad" if sites_down else "ok") }}<a href="{{ R }}/network">{% if sites_down %}{{ sites_down | map(attribute="name") | join(", ") }} down{% else %}all {{ d.sites | selectattr("state", "equalto", "ok") | list | length }} sites up{% endif %}</a></span>
+    <span class="pill {{ 'paused' if d.pc.stale else 'ok' }}">{{ dot("paused" if d.pc.stale else "ok") }}<a href="{{ R }}/pc">PC {{ "off or asleep" if d.pc.stale else "on" }}</a></span>
+    {% endif %}
+  </div>
+  <div class="ans-range"><button type="button" class="zoom-reset" data-zoom-reset hidden>Reset zoom</button>{{ range_switch(RANGES, range) }}</div>
+</div>
+
+{% if a %}
+{# ---- 1. Memory ---- #}
+<section class="ans" id="memory">
+  <h2 class="q">Why is memory high, and who is using it?</h2>
+  <div class="g2 wide">
+    {% for node, m in a.mem.items() %}{% set x = m.answer %}
+    <div class="qcard ans-card">
+      <div class="qhead"><h3><a href="{{ R }}/{{ SLUG[node] }}#memory">{{ m.name }}</a></h3>
+        {% if x %}<span class="qchip {{ 'ok' if x.free / x.total >= 0.25 else 'bad' }}">{{ gb(x.free) }} free of {{ gb(x.total) }}</span>{% endif %}</div>
+      {% if x %}
+      <p class="answer">Using {{ gb(x.used) }} now, most of it {% for v, n in x.top %}<b>{{ n }}</b> {{ gb(v) }}{{ ", " if not loop.last }}{% endfor %}.
+        {% if x.outside > 0.3 %}{{ gb(x.outside) }} is outside the apps (the system, programs, the kernel).{% endif %}</p>
+      <p class="answer sub">Lowest: <b>{{ gb(x.low) }} free at {{ clock(x.low_at) }}</b>{% if x.grew %}, when {% for g in x.grew %}<b>{{ g[1] }}</b> used {{ gb(g[2]) }} (usually {{ gb(g[3]) }}){{ ", " if not loop.last }}{% endfor %}{% else %}; nothing had grown much{% endif %}.</p>
+      {% endif %}
+      {{ chart("mem-" ~ node, m.chart, 300) }}
+    </div>
+    {% endfor %}
+  </div>
+  <p class="hint">Each band is one app's real memory, biggest at the bottom; the top of the pile is what the machine really uses. Red dashes: all its memory. Grey dashes: the room pods may book. Click a name to see it alone, drag across a graph to zoom in (every graph follows).</p>
+</section>
+
+{# ---- 2. Killed / pushed out, and the jobs ---- #}
+<div class="g2 wide">
+  <section class="ans" id="killed">
+    <h2 class="q">Was anything killed or pushed out? By whom, and why?</h2>
+    <div class="qcard">
+      <ul class="items" data-limit="12">
+        {% for k in a.kills %}
+        <li class="it">{{ dot("bad" if k.kind == "machine" else "warn") }}
+          <div class="txt"><b>{% if k.kind == "machine" %}{{ k.name }} {{ k.what }}{% else %}<a href="{{ R }}/apps/apps/{{ k.name }}">{{ k.name }}</a> {{ k.what }}{% endif %}</b>
+            <small>{{ clock(k.at) }}{% if k.after %}, {{ dur(k.after) }} into its run{% endif %} · {{ k.why }}</small></div></li>
+        {% else %}
+        <li class="it">{{ dot("ok") }}<div class="txt"><b>Nothing</b><small>no kill and no push-out in this period</small></div></li>
+        {% endfor %}
+      </ul>
+      <p class="hint">Over its own limit: the app asked for more than it is allowed. Machine ran out: every app together used it all and the kernel picked one. Pushed out: a higher rank needed the room (the ranks are below).</p>
+    </div>
+  </section>
+
+  <section class="ans" id="jobs">
+    <h2 class="q">Did each job run? Is that normal for it?</h2>
+    <div class="qcard">
+      <ul class="items jobrows compact">
+        {% for j in (d.jobs if d else []) %}{% set f = (w.fails.get(j.name) if w and w.fails else none) %}
+        <li class="it" data-bad="{{ 1 if j.state in ('bad', 'warn') or (f and f.unusual) else 0 }}">{{ dot(j.state) }}
+          <div class="txt"><b><a href="{{ R }}/jobs#job-{{ j.name }}">{{ j.name }}</a></b><small>{{ j.text }}{% if f and f.rate %} · <span class="{{ 'warn-text' if f.unusual else '' }}">{{ f.text }}</span>{% endif %}</small></div>
+          {% if w and w.cells.get(j.name) %}{{ days(w.cells.get(j.name)) }}{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
+</div>
+
+{# ---- 3. Who gets in ---- #}
+<section class="ans" id="gets-in">
+  <h2 class="q">Does every app get in, or wait for room? For how long?</h2>
+  <div class="qcard">
+    <p class="legend-states"><i class="st running"></i>running <i class="st waiting"></i>waiting for room <i class="st failed"></i>failed <i class="mk"></i>pushed out or killed for memory · on the left, its rank</p>
+    {% for node, tl in a.timelines.items() if tl.rows or tl.steady %}
+    <h3 class="tl-head">{{ "Waiting for a machine (not placed yet)" if not node else mname(node) }}</h3>
+    {% if tl.rows %}{{ chart("tl-" ~ (node or "none"), tl, 200) }}{% endif %}
+    {% if tl.steady %}<p class="steady">{{ dot("ok") }} <b>{{ tl.steady | length }} ran the whole time without a break:</b> {{ tl.steady | join(", ") }}</p>{% endif %}
+    {% endfor %}
+  </div>
+</section>
+
+{# ---- 4. Ranks, bookings, real use ---- #}
+<section class="ans" id="ranks">
+  <h2 class="q">What rank does each app have, what does it book, and what does it really use?</h2>
+  <div class="g2 wide">
+    {% for node, name in MACHINES[:2] %}
+    <div class="qcard">
+      <div class="qhead"><h3>{{ name }}</h3><a class="head-link" href="{{ R }}/apps?m={{ node }}">All its apps {{ icon("chevron-right") }}</a></div>
+      <table class="rtable">
+        <thead><tr><th>App</th><th>Rank</th><th class="r">Books</th><th class="r">Uses now</th><th class="r">Peak today</th><th>Last 24 h</th></tr></thead>
+        <tbody>
+        {% for r in (rows or []) if r.node == node and r.live %}
+        <tr title="{{ r.what }}"><td><a href="{{ R }}/apps/{{ r.ns }}/{{ r.name }}">{{ r.name }}</a><small>{{ r.what }}</small></td>
+          <td><span class="rank {{ 'push' if r.pushes else '' }}">{{ r.rank }}</span></td>
+          <td class="r">{{ size(r.booked) if r.booked else "–" }}</td>
+          <td class="r {{ 'over' if r.booked and r.mem and r.mem > r.booked }}">{{ size(r.mem) if r.mem is not none else "–" }}</td>
+          <td class="r">{{ size(r.peak) if r.peak else "–" }}</td>
+          <td>{{ spark(r.trend) }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="hint">Highest rank first. A rank in blue may push lower ranks out to start; the others wait for room. Uses now in amber: more than it booked. <a href="{{ R }}/apps#ranks">What each rank is for</a>.</p>
+</section>
+
+{# ---- 5. Heat and the GPU ---- #}
+<section class="ans" id="heat">
+  <h2 class="q">Is anything too hot? Who is on the GPU?</h2>
+  <div class="g2 wide">
+    <div class="qcard"><div class="qhead"><h3>Hottest sensor</h3><a class="head-link" href="{{ R }}/acer#temps">Every sensor {{ icon("chevron-right") }}</a></div>{{ chart("heat", a.heat, 230) }}</div>
+    <div class="qcard"><div class="qhead"><h3>The GPU, by app</h3><a class="head-link" href="{{ R }}/acer#gpu">The GPU {{ icon("chevron-right") }}</a></div>
+      {% if a.gpu.series %}{{ chart("gpu", a.gpu, 230) }}{% else %}<p class="none">Nobody used the GPU in this period.</p>{% endif %}</div>
+  </div>
+</section>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="{{ R }}/static/tchart.js?v={{ STATIC_V }}" defer></script><script src="{{ R }}/static/status.js?v={{ STATIC_V }}" defer></script>{% endblock %}
