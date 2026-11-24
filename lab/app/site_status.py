@@ -9,6 +9,7 @@
             its last 24 hours; who waits for room; the ranks
   /network  every address Traefik serves (up, requests, failures, speed), traffic in and out of each machine, the
             apps that moved the most
+  /apps/<namespace>/<app>   one app: right now, memory against booking and limit, CPU, network, restarts, its log
   /alarms   every alert rule: firing, about to fire or quiet, what it watches, its last 7 days; what is muted
             (opened from the bell, not the tabs)
   /memory   (old address) sends you to the machine's page
@@ -24,7 +25,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import site_machines
-from .sources import alarms as alarm_rules, apps, hosts, jobruns, memory, net, overview, prom
+from .sources import alarms as alarm_rules, appdetail, apps, hosts, jobruns, memory, net, overview, prom
 from .config import TZ
 from .web import SITES, STATIC, day_labels, page
 
@@ -158,6 +159,22 @@ def apps_page(request: Request, range: str = "24h"):
     return page(request, "status/apps.html", reading=r, a=a, d=ov.data, range=range, RANGES=apps.RANGES,
                 groups=a["groups"] if a else [], with_search=True, x_labels=axis(apps.RANGES[range][0]),
                 **{**common(request), "MACHINES": MACHINES[:2]})
+
+
+@app.get("/apps/{ns}/{name}", response_class=HTMLResponse)
+def app_page(request: Request, ns: str, name: str, range: str = "24h"):
+    range = range if range in appdetail.RANGES else "24h"
+    listing, mem = apps.read.get("24h"), memory.now.get()
+    catalog = overview.load_catalog()
+    a = apps.build(listing.data, mem.data, catalog) if listing.data else None
+    rows = [r for r in (a["rows"] if a else []) if r["ns"] == ns and r["name"] == name]
+    rank = next((k for k in catalog.get("ranks", []) if rows and k["name"] == rows[0]["rank"]), None)
+    r = appdetail.read.get(ns, name, range)
+    live = sorted({p for x in rows for p in x["live"]})
+    return page(request, "status/app.html", active="/apps", reading=r, ns=ns, app_name=name, rows=rows,
+                r=rows[0] if rows else None, rank=rank, g=appdetail.graphs(r.data or {}, name),
+                log=appdetail.log_of(ns, live), range=range, RANGES=appdetail.RANGES,
+                x_labels=axis(appdetail.RANGES[range][0]), **common(request))
 
 
 @app.get("/network", response_class=HTMLResponse)

@@ -47,7 +47,7 @@
       <li class="it" data-m="{{ r.node or '*' }}" data-p="{{ r.p or '' }}" data-bad="{{ bad(r.state) }}" data-name="{{ r.name | lower }} {{ r.ns }} {{ r.rank }} {{ r.what | lower }}"
           data-k-mem="{{ r.mem or r.peak or 0 }}" data-k-name="{{ r.name | lower }}">
         {{ dot(r.state) }}
-        <div class="txt"><b>{{ r.name }}</b>{% if r.what %}<span class="what">{{ r.what }}</span>{% endif %}
+        <div class="txt"><b><a href="{{ R }}/apps/{{ r.ns }}/{{ r.name }}">{{ r.name }}</a></b>{% if r.what %}<span class="what">{{ r.what }}</span>{% endif %}
           <small>{{ r.text }} · rank {{ r.rank }}{% if r.booked %} · books {{ size(r.booked) }}{% endif %}{% if r.limit %} · limit {{ size(r.limit) }}{% endif %}{% if r.peak %} · peak today {{ size(r.peak) }}{% endif %}{% if r.cpu and r.cpu >= 0.05 %} · {{ "%.1f" | format(r.cpu) }} cores{% endif %}{% if r.restarts_24h and not (r.stop and r.stop.reason in ("Unknown", "ContainerStatusUnknown")) %} · restarted {{ r.restarts_24h }}× today{% if r.stop_words %} ({{ r.stop_words }}){% endif %}{% endif %}</small></div>
         {{ hours(r.cells) }}
         <span class="val">{% if r.mem is not none %}{{ size(r.mem) }}<small>used now</small>{% else %}<small>{{ "not running" if not r.is_job else "between runs" }}</small>{% endif %}</span>

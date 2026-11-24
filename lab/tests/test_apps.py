@@ -126,3 +126,31 @@ def test_apps_page(monkeypatch):
         assert words in text, words
     assert text.count('class="h ') >= 24 * 5 and 'data-sort-for="app-list"' in text
     assert '<button type="button" data-v="pc">' not in text                    # the PC runs no apps
+
+
+def test_app_page(monkeypatch):
+    """One app: its row, its graphs (pods of other apps sharing the prefix left out), its log."""
+    from starlette.testclient import TestClient
+    from app import site_status
+    from app.sources import appdetail, k8s, prom
+    pts = lambda *v: [(NOW - (len(v) - i) * 300, x) for i, x in enumerate(v)]
+    detail = {"mem": [({"pod": "frigate-64b885b9c7-rf2bv"}, pts(1.2 * G, 1.3 * G)),
+                      ({"pod": "frigate-helper-5d9f7c6b8d-zzzzz"}, pts(5 * G, 5 * G))],      # another app
+              "booked": [({"pod": "frigate-64b885b9c7-rf2bv"}, pts(1.5 * G, 1.5 * G))],
+              "cpu": [({"pod": "frigate-64b885b9c7-rf2bv"}, pts(0.2, 0.3))], "at": NOW}
+    g = appdetail.graphs(detail, "frigate")
+    assert [s["name"] for s in g["mem"]] == ["Really used", "Booked"] and g["mem"][0]["points"][-1][1] == 1.3
+    monkeypatch.setattr(apps, "read", Fixed(apps_raw()))
+    monkeypatch.setattr(appdetail, "read", Fixed(detail))
+    monkeypatch.setattr(k8s, "log_tail", Fixed("ready: recording camera living_room"))
+    monkeypatch.setattr(memory, "now", Fixed(memory.build(raw_fixture())))
+    monkeypatch.setattr(overview, "load_catalog", lambda: CAT)
+    monkeypatch.setattr(prom, "alerts", Fixed([]))
+    client = TestClient(site_status.app, root_path="/machines")
+    text = client.get("/apps/apps/frigate").text
+    for words in ("Cat camera recorder", "Right now", "Memory", "CPU", "Restarts", "recording camera living_room",
+                  "may push lower ranks out"):
+        assert words in text, words
+    other = client.get("/apps/monitoring/node-exporter?range=7d")
+    assert other.status_code == 200 and "may read logs only in apps" in other.text
+    assert 'href="/machines/apps/apps/frigate"' in client.get("/apps").text

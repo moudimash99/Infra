@@ -192,3 +192,10 @@
 @media (max-width: 639px) { .applist .it { flex-wrap: wrap; } .applist .it .txt { flex-basis: calc(100% - 20px); }
   .applist .hours { margin-left: 19px; } .roomfacts { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 639px) { .qhead { flex-wrap: wrap; } }
+
+/* one app's page */
+.crumb { margin: 0 0 2px; font-size: var(--fs-sm); } .crumb a { display: inline-flex; align-items: center; gap: 2px; font-weight: 600; }
+.crumb svg { width: 15px; height: 15px; }
+.log { margin: 0; padding: 12px; max-height: 420px; overflow: auto; background: var(--bg-2); border-radius: var(--r);
+       font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+.applist .txt b a, .users .txt b a { color: inherit; }

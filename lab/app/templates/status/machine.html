@@ -76,7 +76,7 @@
       {% for u in d.users %}{# memory.py sorts them: running first, biggest first #}
       <li class="it" data-m="{{ d.node }}" data-p="{{ u.p or '' }}" data-bad="{{ bad(u.state) }}" data-name="{{ u.name | lower }} {{ u.ns }} {{ u.kind }}">
         {{ dot(u.state) }}
-        <div class="txt"><b>{{ u.name }}</b><small>{{ KINDS[u.kind] }}{% if u.ns %} in {{ u.ns }}{% endif %}{% if u.p %} · {{ u.p }}{% endif %}{% if u.booked %} · books {{ size(u.booked) }}{% endif %}{% if u.limit %} · limit {{ size(u.limit) }}{% endif %} · peak today {{ size(u.peak) }}</small></div>
+        <div class="txt"><b>{% if u.kind == "pod" %}<a href="{{ R }}/apps/{{ u.ns }}/{{ u.name }}">{{ u.name }}</a>{% else %}{{ u.name }}{% endif %}</b><small>{{ KINDS[u.kind] }}{% if u.ns %} in {{ u.ns }}{% endif %}{% if u.p %} · {{ u.p }}{% endif %}{% if u.booked %} · books {{ size(u.booked) }}{% endif %}{% if u.limit %} · limit {{ size(u.limit) }}{% endif %} · peak today {{ size(u.peak) }}</small></div>
         <span class="spk">{{ spark(u.trend) }}</span>
         <span class="val">{{ size(u.now) if u.running else "stopped" }}<small>{% if u.mem_share %}{{ '%.0f' | format(100 * u.mem_share) if u.mem_share >= 0.01 else "<1" }}% of the machine{% else %}ran earlier today{% endif %}</small></span>
       </li>

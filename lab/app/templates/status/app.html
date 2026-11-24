@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% from "_m.html" import unreadable %}
+{% from "status/_ui.html" import dot, range_switch %}
+{% block title %}{{ app_name }} · Homelab{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ R }}/static/status.css?v={{ STATIC_V }}"><link rel="stylesheet" href="{{ R }}/static/bell.css?v={{ STATIC_V }}">{% endblock %}
+{% block header_end %}{% include "status/_bell.html" %}{% endblock %}
+
+{% block main %}
+{{ unreadable(reading, "this app's numbers") }}
+<header class="page-head tight"><p class="crumb"><a href="{{ R }}/apps">{{ icon("chevron-left") }}Apps</a></p>
+  <h1 class="page-title">{{ app_name }}</h1>
+  <p class="page-sub">{% if r and r.what %}{{ r.what }} · {% endif %}{{ ns }}{% if r %} · {{ r.kind_words }}{% if r.p %} · {{ r.p }}{% endif %}{% endif %}</p></header>
+<div class="filters" id="filters"><span class="grow"></span>{{ range_switch(RANGES, range) }}</div>
+
+<div class="qgrid">
+  {% if rows %}
+  <section class="qcard wide" id="now" data-card data-keep>
+    <div class="qhead"><h2>Right now</h2></div>
+    <ul class="items">
+      {% for x in rows %}
+      <li class="it" data-m="*" data-p="*" data-bad="0">{{ dot(x.state) }}
+        <div class="txt"><b>{{ x.text | capitalize }}{% if x.node %} on the {{ x.machine_name }}{% endif %}</b>
+          <small>rank {{ x.rank }}{% if rank %} ({{ "may push lower ranks out to start" if rank.pushes else "waits for room" }}){% endif %}{% if x.qos %} · {{ x.qos }}{% endif %}{% if x.live %} · pod {{ x.live | join(", ") }}{% endif %}{% if x.restarts %} · {{ "%.0f" | format(x.restarts) }} restarts in all{% endif %}{% if x.stop %} · last stop: {{ x.stop_words }}{% if x.stop.at %} at {{ clock(x.stop.at) }}{% endif %}{% endif %}</small></div>
+        <span class="val">{% if x.mem is not none %}{{ size(x.mem) }}<small>{% if x.booked %}booked {{ size(x.booked) }}{% endif %}{% if x.limit %}, limit {{ size(x.limit) }}{% endif %}</small>{% endif %}</span></li>
+      {% endfor %}
+    </ul>
+    {% if rows[0].is_job %}<p class="xs muted">A job: each run is a new pod. <a href="{{ R }}/jobs">Every job's runs over the last 7 days</a>.</p>{% endif %}
+  </section>
+  {% else %}
+  <section class="qcard wide"><p class="none">Kubernetes doesn't know {{ app_name }} in {{ ns }} now; the graphs show what Prometheus kept.</p></section>
+  {% endif %}
+
+  <section class="qcard" data-card data-keep><div class="qhead"><h2>Memory</h2><span class="muted xs">GB · past the limit it is killed</span></div>
+    {{ charts.lines(g.mem, height=200, title="Memory: used, booked and limit, GB", x_labels=x_labels, unit=" GB") }}</section>
+  <section class="qcard" data-card data-keep><div class="qhead"><h2>CPU</h2><span class="muted xs">cores</span></div>
+    {{ charts.lines(g.cpu, height=200, title="CPU: used and asked for, cores", x_labels=x_labels, unit=" cores") }}</section>
+  <section class="qcard" data-card data-keep><div class="qhead"><h2>Network</h2><span class="muted xs">MB/s</span></div>
+    {% if g.net %}{{ charts.lines(g.net, height=180, title="Network, MB/s", x_labels=x_labels, unit=" MB/s") }}
+    {% else %}<p class="none">No traffic of its own measured (an app on the machine's own network sees the whole machine's).</p>{% endif %}</section>
+  <section class="qcard" data-card data-keep><div class="qhead"><h2>Restarts</h2></div>
+    {% if g.restarts %}{{ charts.lines(g.restarts, height=180, title="Restarts", x_labels=x_labels) }}
+    {% else %}<p class="none">No restart in this period.</p>{% endif %}</section>
+
+  <section class="qcard wide" id="log" data-card data-keep>
+    <div class="qhead"><h2>Its log</h2><span class="muted xs">the last 80 lines</span></div>
+    {% if log is none %}<p class="none">{% if ns in ("apps",) %}No log to show (no pod is running).{% else %}The lab may read logs only in apps. Here: <code>kubectl -n {{ ns }} logs {{ rows[0].live[-1] if rows and rows[0].live else "POD" }}</code>{% endif %}</p>
+    {% elif log %}<pre class="log">{{ log }}</pre>{% else %}<p class="none">The log is empty.</p>{% endif %}
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ R }}/static/status.js?v={{ STATIC_V }}" defer></script>{% endblock %}
