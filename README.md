@@ -63,8 +63,10 @@ k3s agent. It runs on Wi-Fi (`wlp2s0`, MAC `3c:95:09:a0:1e:b5`); Ethernet (`enp3
 - **k3s-killall.sh misses containers here:** after it ran, the pods that had been running stayed up as orphans and
   held their host ports. node-exporter then crash-looped with ":9110 address already in use". After a killall, check
   `ps -eo pid,lstart,args | grep containerd-shim` and stop shims older than the agent's start.
-- **k3s:** `/etc/rancher/k3s/config.yaml` sets the data folder, the label `role=worker` and the taint
-  `dedicated=worker:NoSchedule`. Only pods with that toleration run there, plus DaemonSets that
+- **k3s:** `/etc/rancher/k3s/config.yaml` sets the data folder, the label `role=worker`, the taint
+  `dedicated=worker:NoSchedule`, the reserved memory (768Mi system, 256Mi k3s) and, since 2026-11-24, the memory
+  eviction thresholds (see "Memory on the Acer"). A change there needs `sudo systemctl restart k3s-agent`; pods keep
+  running through it. Only pods with that toleration run there, plus DaemonSets that
   tolerate everything. The join address and token are in `/etc/systemd/system/k3s-agent.service.env`.
 - **Firewall (ufw):** SSH from anywhere; from 192.168.1.0/24: 10250/tcp (kubelet), 8472/udp (flannel),
   9110/tcp (node-exporter), 45876/tcp (Beszel), 5000/tcp, 8554/tcp and 8555 tcp+udp (Frigate); everything
@@ -177,7 +179,8 @@ of the code and data stopped updating that day.
 | bg-taste-match-fetch / -gpu / -llm | every 2 h / hourly, **paused on purpose** (GPU heat) / hourly 20:45-08:45 | Acer | `/srv/apps/bg-taste-match` (code + data), audio in `/var/lib/bg-taste-match/audio` (1 TB disk) |
 | email-remove (the Gmail archiver) | every 3 min (moved from the PC on 2026-11-20) | Acer | `/srv/apps/email-remove` (code + private data, mode 700); Secret `email-remove` |
 
-**Memory on the Acer** (6.6 GiB for pods): two separate questions.
+**Memory on the Acer** (6.3 GiB of bookings for pods since 2026-11-24, was 6.6: the hard eviction threshold comes
+out of it): two separate questions.
 - *Placing pods* uses bookings (memory requests), not real use; the bookings were full long before the memory. Ranks
   (`k8s/cluster/priority.yaml`) decide who gives way: cat-flash and BoardGameFinder (`batch-make-room`) may stop lower
   pods to start, in practice the mail classifier (`steps-aside`) and the bg-taste-match shell; they come back by
@@ -185,10 +188,21 @@ of the code and data stopped updating that day.
   (`batch-high`); Frigate, the sites and monitoring (homelab ranks) rank above everything.
 - *Running* uses real memory, which only the limits cap per pod. With Free Motion idle, the busiest normal hour used
   ~4.7 GB; with Free Motion applying (2026-11-12/13) the pods reached ~6.0 GiB, and at full speed with its website
-  writer in use they reach the 6.6 GiB cap. There is no kubelet memory eviction on this k3s and the ranks play no
-  part here: past the cap the kernel kills whole containers (`memory.oom.group=1`) by size plus a small booking
-  (`oom_score_adj` = 1000 - 1000 x request / 7809 Mi): the classifier or a running job first, then the small-booked
-  always-on pods, Free Motion's browsers and Frigate last.
+  writer in use they reach the 6.6 GiB cap.
+- **Memory-pressure eviction, since 2026-11-24** (`kubelet-arg` in the Acer's `/etc/rancher/k3s/config.yaml`; backup
+  of the old file next to it): when less than 700 MiB is really free for 30 s, or less than 300 MiB at once, the
+  kubelet pushes pods out before the kernel has to kill anything. Order: pods using more than they book first, among
+  them the lowest rank first, then whoever is furthest over its booking. In practice the bg-taste-match downloads and
+  shell, then Whisper, then the classifier, then cat-flash; Free Motion's pods late; Frigate, the sites and monitoring
+  book what they use and stay. Pushed-out pods come back by themselves (services restart, jobs run at their next slot).
+  It reacts in ~10 s and only watches the whole Acer: a very fast spike, or a pod past its own limit, still meets the
+  kernel's OOM kill (whole containers, `memory.oom.group=1`, by size plus a small booking: `oom_score_adj` = 1000 -
+  1000 x request / 7809 Mi). In the 7 days before, free memory never went below 1,648 MiB.
+- **Bookings follow that** (2026-11-24, from 7 days of Prometheus): pods that must stay book their normal use (lab
+  384Mi, Frigate 1.5Gi, the browsers 1152Mi, fm-webllm 512Mi); low-rank jobs book below their use on purpose, so they
+  fit when the Acer is nearly full and give way first (Whisper 64Mi, downloads 128Mi, the classifier 400Mi). Before,
+  the Acer was ~100% booked and the archiver, fm-webllm and Whisper often waited 15-30 min for room. To check a
+  pod: `quantile_over_time(0.9, ...container_memory_working_set_bytes...[7d:5m])` against its request.
 - Since 2026-11-21 two things soften that: **swap** (see "Laptop settings": a pod past its own limit or a full Acer
   compresses its cold pages, ~2.5:1, instead of being killed; each Burstable container may swap request/7809 Mi of
   the 6 GB, e.g. 805 MiB per Free Motion browser, ~100 MiB for a 128 Mi pod; a container gets it when it is created),

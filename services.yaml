@@ -334,6 +334,7 @@
     - "Rank steps-aside (22000, 2026-11-20): cat flash (00:20, 19:20, ~4 min) and BoardGameFinder (05:00, ~1 h) may stop it to get its memory; its Deployment brings it back when they end. The archiver keeps the emails it could not classify in state.json model_waits and asks again once it answers (user: off at night is fine \"as long as by time i wake up it ran\")."
     - "Asleep at night when idle since 2026-11-21 (user: off at night is fine as long as it ran by the morning): mail-classifier-waker stops it after 30 min without a call between 23:00 and 07:00 and starts it at 07:00; in the day it never stops it. A call wakes it in about 80 s: the archiver gets 503 (ASK_WAIT_S 2, under its 3 s), the email waits in model_waits and is asked next run. The lab's mail page and remote_check.py call /health and wake it too. Tested 2026-11-21 02:31: stopped by hand, back in 77 s. Manifest backup: mail-classifier.yaml.before-waker-2026-11-21."
     - "After a restart the first answers can take over 3 s (model warm-up): the archiver then marks it down for that run and asks again next run."
+    - "Books 400Mi since 2026-11-24 (was 700Mi; uses ~1.24 GiB plus swap): below its use on purpose, so it fits back in sooner. Over its booking and ranked steps-aside, it is among the first pushed out when the Acer's memory runs low (memory eviction, Infra README 'Memory on the Acer')."
   menu:
     title: Mail classifier
     icon: mdi-email-search
@@ -1097,6 +1098,7 @@
   notes:
     - "2026-11-22: main took in acer-jobs-and-alerts (fast-forward); the PC, GitHub and the server's ~/Infra are on main. The old branches (acer-jobs-and-alerts, homepage-alerts, k8s-homelab, move-to-wifi-ip) are fully merged and can be deleted. The server's ~/Infra keeps two stashes: that day's leftovers (superseded by main) and an older WIP on 9b5e1ae."
     - "Planned: Flux applies the cluster from main (moudimash99/Infra#7); its prerequisites are this file's 'manifest says X, live says Y' drift lines."
+    - "Memory eviction on the Acer since 2026-11-24: kubelet-arg in its /etc/rancher/k3s/config.yaml (not in git; backup config.yaml.bak-2026-11-24), eviction-hard memory.available<300Mi (disk 5% kept), eviction-soft <700Mi for 30 s, max pod grace 60 s; allocatable 6,785 -> 6,485 MiB. The server has none yet (planned at 500/200; its k3s restart takes the control plane down ~1 min). Infra README 'Memory on the Acer'."
   menu:
     title: k3s cluster
     icon: mdi-kubernetes
