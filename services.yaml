@@ -487,7 +487,7 @@
   runs: "k8s apps/CronJob boardgamefinder (nightly pipeline) and apps/CronJob boardgamefinder-fetch (Okkazeo pages, all day) on acer-laptop"
   manifest: Infra/k8s/apps/boardgamefinder/boardgamefinder.yaml
   image: "boardgamefinder:2026-11-22c, built on the server in ~/build/boardgamefinder-20261122c from a git archive of master f43875d (pull Never)"
-  schedule: "boardgamefinder-fetch 0 10 * * * Europe/Paris, stops itself at 04:00 (startingDeadlineSeconds 6 h, activeDeadlineSeconds 18.5 h, batch-high, 384Mi). boardgamefinder 30 4 * * * Europe/Paris (startingDeadlineSeconds 1 h, activeDeadlineSeconds 5 h, batch-make-room, 512Mi). Before 2026-11-22: one job at 05:00 (07:00 until 11-20)."
+  schedule: "boardgamefinder-fetch 0 10 * * * Europe/Paris, stops itself at 04:00 (startingDeadlineSeconds 6 h, activeDeadlineSeconds 18.5 h, batch-high, 128Mi since 2026-11-24 (was 384Mi; uses ~310 MB), a push-out restarts it rather than failing the day). boardgamefinder 30 4 * * * Europe/Paris (startingDeadlineSeconds 1 h, activeDeadlineSeconds 5 h, batch-make-room, 512Mi). Before 2026-11-22: one job at 05:00 (07:00 until 11-20)."
   url: "none (results on https://deals.machaka.net through the lab)"
   data:
     - "hostPath /srv/apps/boardgamefinder/data and /srv/apps/boardgamefinder/Log on the Acer"

@@ -7,7 +7,7 @@
 # Two CronJobs since 2026-11-22 (the user's design). Okkazeo has served the Acer a bare page since 2026-11-21, after
 # about 1,100 page loads in 40 minutes, so Okkazeo is no longer read in one burst:
 #   boardgamefinder-fetch  10:00-04:00  one page load at a time, spread over the window (one every ~35 s), saved under
-#                                       data/fetch; never writes Games.db. 384 MiB booked.
+#                                       data/fetch; never writes Games.db. 128 MiB booked (since 2026-11-24).
 #   boardgamefinder        04:30        the nightly pipeline: reads the saved pages into Games.db (parse_pages), BGG,
 #                                       deals, the deal email around 05:30. Loads no Okkazeo page (BGF_NO_OKKAZEO=1).
 apiVersion: batch/v1
@@ -82,6 +82,12 @@ spec:
     spec:
       backoffLimit: 0
       activeDeadlineSeconds: 66600   # 18.5 h; it stops itself at 04:00
+      # A push-out (memory eviction on the Acer, DisruptionTarget) is not a failure since 2026-11-24: the pod is made
+      # again and, started late, spreads what is left of the day over the time left (after 16:00 it skips the day).
+      podFailurePolicy:
+        rules:
+          - action: Ignore
+            onPodConditions: [{ type: DisruptionTarget }]
       template:
         metadata:
           labels: { app: boardgamefinder-fetch }
@@ -91,8 +97,9 @@ spec:
           tolerations:
             - { key: dedicated, value: worker, effect: NoSchedule }
           # batch-high, not batch-mid: cat flash (batch-make-room, 1 GiB at 19:20 and 00:20) stops the lowest pods
-          # first, and a fetcher stopped mid-day loses the rest of its day. batch-high is never stopped and never
-          # stops anyone; it waits for room.
+          # first, and a fetcher stopped mid-day loses the rest of its day. batch-high is never stopped by a job and
+          # never stops anyone. Since 2026-11-24 it books low (below), so it fits next to the small jobs instead of
+          # waiting for room; when the Acer's real memory runs low it is pushed out after the lower ranks.
           priorityClassName: batch-high
           containers:
             - name: fetch
@@ -102,9 +109,10 @@ spec:
               volumeMounts:
                 - { name: data, mountPath: /app/data }
               resources:
-                # One Chromium without images, restarted every 50 loads: ~310 MB fresh. It reads the database
-                # read-only, once, at the start.
-                requests: { cpu: 100m, memory: 384Mi }
+                # One Chromium without images, restarted every 50 loads: ~310 MB fresh (test runs peaked at 482 and
+                # 637 MiB). It reads the database read-only, once, at the start. Booked 128Mi, below its use on
+                # purpose (user, 2026-11-24; was 384Mi): the Acer is ~97% booked and it runs 18 h a day.
+                requests: { cpu: 100m, memory: 128Mi }
                 limits: { memory: 1Gi }
           volumes:
             - name: data
