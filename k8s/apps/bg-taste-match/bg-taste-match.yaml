@@ -202,14 +202,15 @@ spec:
                   value: "hc oscs rahdo bgco gbg tbm bgb dtg bower ttgg mvm tantrum amass 3mbg cotb nerdvana lobg slicker purge mu tdg liege dt"
                 - { name: RATE_UNTIL, value: "0900" }
                 - { name: TZ, value: Europe/Paris }
-                # The Gemini website through Free Motion's fm-webllm (k8s/apps/fm-webllm): gemini.py runs fm-llm's
-                # web-llm.py (the server's checkout, read over NFS), which sends each ask there. gemini.py asks with
-                # WEB_LLM_PRIORITY=low (at most 30 of the hour's 45 calls) and waits out a paced or capped turn.
-                - { name: GEMINI_BACKEND, value: web }
-                - { name: WEB_LLM_URL, value: "http://fm-webllm:8933" }
-                - { name: CAREER_OPS_DIR, value: /fm/ws/fm-llm }
-                # Long multi-game videos took up to 12 min on 2026-11-11; fm-webllm stops a call at 290 s otherwise.
-                - { name: WEB_LLM_SERVE_TIMEOUT, value: "900" }
+                # The LLM through fm-llm's gateway on the server (llm-gateway), where the model problem is handled in
+                # one place (owner, 2026-11-24). Claude Haiku on the Max plan for now: the Gemini website (fm-webllm)
+                # timed out on every video from 2026-11-12 and the Gemini API key was over its quota. Once the gateway
+                # runs fm-llm 41e6fea (several models in order), FM_LLM_MODEL "gemini-pro|claude-haiku" asks Gemini
+                # first and Haiku when Gemini can't answer. Nights only (schedule above): the plan is shared with Free
+                # Motion and the owner by day.
+                - { name: GEMINI_BACKEND, value: fm }
+                - { name: FM_LLM_URL, value: "http://192.168.1.116:8792" }
+                - { name: FM_LLM_MODEL, value: claude-haiku }
                 - { name: FM_LLM_PROJECT, value: bg-taste-match }
                 - { name: FM_LLM_SPOOL, value: /work/fm-llm-spool }
               volumeMounts:
