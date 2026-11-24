@@ -8,10 +8,10 @@
 <meta name="theme-color" content="#0b0b0f" media="(prefers-color-scheme: dark)">
 <meta name="robots" content="noindex">
 <title>{% block title %}{{ site.name }}{% endblock %}</title>
-<link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="/static/lab.css?v={{ STATIC_V }}">
-<link rel="icon" href="/static/favicon-{{ site.key }}.svg?v={{ STATIC_V }}" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/static/touch-{{ site.key }}.png">
+<link rel="preload" href="{{ R }}/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="{{ R }}/static/lab.css?v={{ STATIC_V }}">
+<link rel="icon" href="{{ R }}/static/favicon-{{ site.key }}.svg?v={{ STATIC_V }}" type="image/svg+xml">
+<link rel="apple-touch-icon" href="{{ R }}/static/touch-{{ site.key }}.png">
 {% block head %}{% endblock %}
 </head>
 <body data-site="{{ site.key }}">
@@ -43,7 +43,7 @@
 <nav class="tabbar" aria-label="{{ site.name }}">
   {% for href, label, ic in site.nav %}<a href="{{ R }}{{ href }}"{% if href == active %} class="on" aria-current="page"{% endif %}>{{ icon(ic) }}<span>{{ label }}</span></a>{% endfor %}
 </nav>
-<script src="/static/lab.js?v={{ STATIC_V }}" defer></script>
+<script src="{{ R }}/static/lab.js?v={{ STATIC_V }}" defer></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% from "_m.html" import page_head, section_head, alert, unreadable, empty %}
+{% block title %}Memory · Machines{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ R }}/static/machines.css?v={{ STATIC_V }}">{% endblock %}
+{% block main %}
+{% call page_head("Where the memory goes", "Each machine's memory, split into who is using it, and every app, container and program in one table.") %}{% endcall %}
+{{ unreadable(reading, "Prometheus") }}
+
+{% set problems = machines | rejectattr("state", "equalto", "ok") | list %}
+{% if problems or stuck %}<div class="stack">{% for m in problems %}{{ alert(m.sentence, m.state, m.name) }}{% endfor %}
+  {% if stuck %}{{ alert(stuck | join(", ") ~ (" is" if stuck | length == 1 else " are") ~ " waiting for room: no machine has enough unbooked memory.", "warn", "Waiting to start") }}{% endif %}</div>{% endif %}
+
+<section class="section">
+  <div class="machines">
+  {% for m in machines %}
+    <article class="card machine {{ m.state }}">
+      <div class="card-head"><h3>{{ icon("cpu") }}{{ m.name }} <span class="muted xs">{{ m.node }}</span></h3>
+        <span class="chip {{ 'ok' if m.state == 'ok' else 'warning' if m.state == 'warn' else 'critical' }}">{{ {"ok": "Fine", "warn": "Watch", "bad": "Low"}[m.state] }}</span></div>
+      <div class="headline"><b>{{ gb(m.available) }}</b> available <span class="muted">of {{ gb(m.total) }}</span>
+        <span class="pct muted">({{ pct(m.total - m.available, m.total) }}% in use)</span></div>
+      <p class="sentence">{{ m.sentence }}</p>
+
+      <div class="bar" role="img" aria-label="{% for key, label, _, _ in PARTS %}{{ label }} {{ gb(m.parts[key]) }}{{ ', ' if not loop.last }}{% endfor %}">
+        {% for key, label, slot, what in PARTS %}{% set v = m.parts[key] %}{% if v > 0 %}
+        <span class="seg-{{ slot }}" style="width:{{ '%.2f' | format(100 * v / m.total) }}%" data-tip="{{ label }}: {{ gb(v) }} ({{ pct(v, m.total) }}%)"></span>
+        {% endif %}{% endfor %}
+      </div>
+      <ul class="parts">
+        {% for key, label, slot, what in PARTS %}{% set v = m.parts[key] %}{% if v > 0 or key in ("pods", "free") %}
+        <li><span class="key seg-{{ slot }}"></span><span class="what"><b>{{ label }}</b><small>{{ what }}</small></span><span class="v">{{ gb(v) }}</span></li>
+        {% endif %}{% endfor %}
+      </ul>
+      {% if m.overlap > 0.5 * G %}<p class="xs muted">The parts are measured a little differently; they overlap by {{ gb(m.overlap) }}, so "Other programs" shows 0.</p>{% endif %}
+
+      <dl class="facts">
+        {% if m.low and m.low.data %}{% set avail, when, users = m.low.data %}
+        <div><dt>Lowest in 24 h</dt><dd><b>{{ gb(avail) }}</b> available at {{ when | clock }}{% if users %}: {% for name, v in users %}{{ name }} {{ gb(v) }}{{ ", " if not loop.last }}{% endfor %}{% endif %}</dd></div>
+        {% endif %}
+        <div><dt>Booked</dt><dd>{{ gb(m.booked) }} of {{ gb(m.allocatable) }} reserved by pods ({{ pct(m.booked, m.allocatable) }}%)
+          <div class="meter sm{{ ' hot' if m.booked > 0.92 * m.allocatable }}"><span style="width:{{ pct(m.booked, m.allocatable) }}%"></span></div>
+          <small class="muted">Kubernetes starts a pod only when its booking fits, whatever is actually free; on the Acer a higher-ranked pod pushes a lower one out.</small></dd></div>
+        <div><dt>Free vs available</dt><dd>{{ gb(m.free) }} completely free; {{ gb(m.available) }} available once the cache is handed back. <b>Available</b> is the one that matters.</dd></div>
+        {% if m.swap > 0.05 * G %}<div><dt>Swap</dt><dd>{{ gb(m.swap) }} moved out to disk</dd></div>{% endif %}
+      </dl>
+    </article>
+  {% else %}
+    {{ empty("No machine numbers", "Prometheus didn't answer.", "cpu") }}
+  {% endfor %}
+  </div>
+</section>
+
+<section class="section">
+  {% call section_head("Everything using memory", count=rows | selectattr("running") | list | length) %}{% endcall %}
+  <p class="section-sub">Sorted by memory now. Search, filter, or click a column to sort. "Booked" is what a pod reserved; "Peak" is its highest point in the last 24 hours.</p>
+  <div class="toolbar" id="mem-tools">
+    <input class="input" type="search" id="mem-q" placeholder="Search a name, e.g. fm-controller" autocomplete="off">
+    <div class="seg" id="mem-machine" role="group" aria-label="Machine">
+      <button type="button" data-v="" class="on">All</button>
+      {% for m in machines %}<button type="button" data-v="{{ m.node }}">{{ m.name }}</button>{% endfor %}
+    </div>
+    <div class="seg" id="mem-kind" role="group" aria-label="Type">
+      <button type="button" data-v="" class="on">All types</button>
+      {% for k, label in KINDS.items() %}<button type="button" data-v="{{ k }}">{{ label }}</button>{% endfor %}
+    </div>
+    <label class="check"><input type="checkbox" id="mem-finished"> Include what ran today but stopped</label>
+  </div>
+  <div class="card flush">
+    <div class="table-wrap"><table class="table mem" id="mem-table">
+      <thead><tr>
+        <th><button type="button" data-sort="name">Name</button></th>
+        <th class="hide-sm"><button type="button" data-sort="machine">Machine</button></th>
+        <th class="hide-md"><button type="button" data-sort="kind">Type</button></th>
+        <th class="r"><button type="button" data-sort="now" class="on desc">Now</button></th>
+        <th class="r hide-sm"><button type="button" data-sort="share">Share</button></th>
+        <th class="r hide-sm"><button type="button" data-sort="booked">Booked</button></th>
+        <th class="r"><button type="button" data-sort="peak">Peak</button></th>
+        <th class="hide-md">Last 24 h</th>
+      </tr></thead>
+      <tbody>
+      {% for r in rows %}
+      <tr data-name="{{ r.name | lower }} {{ (r.detail.split('/')[0] if r.kind == 'pod' else r.detail) | lower }}" data-machine="{{ r.machine }}" data-kind="{{ r.kind }}"
+          data-running="{{ 1 if r.running else 0 }}" data-now="{{ r.now or 0 }}" data-share="{{ r.share or 0 }}"
+          data-booked="{{ r.booked or 0 }}" data-peak="{{ r.peak or 0 }}"{% if not r.running %} hidden{% endif %}>
+        <td><b>{{ r.name }}</b><small class="detail">{{ r.detail }}<span class="only-sm"> · {{ r.machine_name }}</span></small></td>
+        <td class="hide-sm nowrap">{{ r.machine_name }}</td>
+        <td class="hide-md nowrap"><span class="kind k-{{ r.kind }}">{{ KINDS[r.kind] }}</span></td>
+        <td class="r nowrap"><b>{{ gb(r.now) if r.running else "stopped" }}</b></td>
+        <td class="r nowrap hide-sm">{% if r.share %}{{ '%.0f' | format(100 * r.share) if r.share >= 0.01 else "<1" }}%{% else %}–{% endif %}</td>
+        <td class="r nowrap hide-sm">{% if r.booked %}{{ gb(r.booked) }}{% if r.now and r.now > r.booked %} <span class="over" title="Using more than it booked">▲</span>{% endif %}{% else %}<span class="muted">–</span>{% endif %}</td>
+        <td class="r nowrap">{{ gb(r.peak) }}</td>
+        <td class="hide-md">{{ spark(r.trend) }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    <p class="none muted small" id="mem-none" hidden>Nothing matches.</p>
+  </div>
+  <p class="xs muted mt-2">Kubernetes apps, k3s and Docker: working set (what the kernel won't take back without asking). Programs: resident memory, which partly overlaps, so they aren't added to the bars. 1 GB = 1024³ bytes, like <code>free -h</code>. Longer history: <a href="https://grafana.machaka.net/d/ranks">Grafana</a>.</p>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ R }}/static/machines.js?v={{ STATIC_V }}" defer></script>{% endblock %}

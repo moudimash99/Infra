@@ -7,6 +7,7 @@ they sit under /tastematch, /deals and /catcam of one address. Links in template
 A site is made with site(key, nav): nav is its sections, [(path, label, icon)], shown as tabs at the bottom of a
 phone and in the header from 900 px. page() renders a template with the site, the active section and R.
 """
+import contextvars
 import datetime as dt
 import hashlib
 import os
@@ -17,7 +18,7 @@ from fastapi.templating import Jinja2Templates
 from markupsafe import Markup, escape
 
 from . import charts, fmt
-from .access import OPEN_HOSTS
+from .access import DEV, OPEN_HOSTS
 from .config import TZ
 
 OPEN_NAV = [("/find", "Find yours", "search"), ("/discover", "Discover", "trending-up"), ("/about", "How it works", "info")]
@@ -36,13 +37,21 @@ SITES = {
               "tagline": "Board game bargains on Okkazeo"},
     "catcam": {"key": "catcam", "name": "Cat cam", "url": "https://catcam.machaka.net",
                "tagline": "Simba and Nala, day by day"},
+    "machines": {"key": "machines", "name": "Machines", "url": "https://lab.machaka.net/machines",
+                 "tagline": "Where each machine's memory goes"},
 }
+
+
+# The site's root while a page renders ("" at its own address, "/machines" under lab.machaka.net, "/deals" on a
+# development machine): static files are fetched under it, since /static on lab.machaka.net is Homepage's.
+_root = contextvars.ContextVar("lab_root", default="")
 
 
 def icon(name, cls=""):
     """An icon from static/icons.svg, in the text's colour."""
     extra = f" {escape(cls)}" if cls else ""
-    return Markup(f'<svg class="i{extra}" aria-hidden="true"><use href="/static/icons.svg?v={STATIC_V}#{escape(name)}"/></svg>')
+    return Markup(f'<svg class="i{extra}" aria-hidden="true"><use href="{_root.get()}/static/icons.svg?v={STATIC_V}'
+                  f'#{escape(name)}"/></svg>')
 
 
 templates = Jinja2Templates(directory=os.path.join(HERE, "templates"))
@@ -72,7 +81,8 @@ def page(request, name, active=None, **ctx):
     if active is None:
         active = next((h for h, _, _ in sorted(site_["nav"], key=lambda n: -len(n[0]))
                        if rel == h or (h != "/" and rel.startswith(h.rstrip("/") + "/"))), None)
-    sites = [{**s, "url": f"/{s['key']}/" if root else s["url"]} for s in SITES.values()]
+    sites = [{**s, "url": f"/{s['key']}/" if DEV else s["url"]} for s in SITES.values()]
+    _root.set(root)
     return templates.TemplateResponse(request, name, {"R": root, "site": site_, "me": site_["key"], "active": active,
                                                       "SITES": [] if is_open else sites, "path": path,
                                                       "OPEN": is_open, **ctx})

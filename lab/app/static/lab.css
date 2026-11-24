@@ -142,7 +142,7 @@ svg.i { width: 1.15em; height: 1.15em; flex: none; vertical-align: -.2em; }
 .mark svg { width: 19px; height: 19px; }
 .mark.sm { width: 26px; height: 26px; border-radius: 8px; } .mark.sm svg { width: 15px; height: 15px; }
 .mark.tastematch { --accent: #6344f5; --accent-2: #a14cf0; } .mark.deals { --accent: #0d8a59; --accent-2: #12a38a; }
-.mark.catcam { --accent: #e2651a; --accent-2: #f0a020; } .mark.lab { --accent: #3d4a5c; --accent-2: #6b7a90; }
+.mark.catcam { --accent: #e2651a; --accent-2: #f0a020; } .mark.machines { --accent: #3d5a80; --accent-2: #5c7fa8; } .mark.lab { --accent: #3d4a5c; --accent-2: #6b7a90; }
 .topnav { display: none; }
 @media (min-width: 900px) {
   .topnav { display: flex; gap: 2px; margin-left: 20px; }

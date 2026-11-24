@@ -3,6 +3,7 @@
   tastematch.machaka.net  the review pipeline (site_bgt)
   deals.machaka.net       BoardGameFinder's deals (site_deals)
   catcam.machaka.net      the cats: flash of the day, camera, weights (site_cats)
+  lab.machaka.net/machines  where each machine's memory goes (site_machines; the rest of lab.machaka.net is Homepage)
 
 Each checks the Cloudflare Access login itself (access.py); a name not yet in the Access application signs in
 through lab.machaka.net's login (the bridge, lab.machaka.net/lab-sso). lab.machaka.net is Homepage; its tiles read
@@ -42,6 +43,11 @@ SITES = [(key, os.environ.get(env, host), importlib.import_module(f".{module}", 
              ("deals", "HOST_DEALS", "deals.machaka.net", "site_deals", "Deals"),
              ("catcam", "HOST_CATCAM", "catcam.machaka.net", "site_cats", "Cat cam")]
          if not _ONLY or key in _ONLY]
+# Sites under a path of another name: lab.machaka.net is Homepage's, Traefik sends only /machines here.
+PATH_SITES = [(key, os.environ.get(env, host), path, importlib.import_module(f".{module}", __package__).app, title)
+              for key, env, host, path, module, title in [
+                  ("machines", "HOST_MACHINES", "lab.machaka.net", "/machines", "site_machines", "Machines")]
+              if not _ONLY or key in _ONLY]
 
 # ---- in-cluster API for Homepage -------------------------------------------------------------------------------
 
@@ -62,6 +68,7 @@ async def healthz(request):
 
 async def dev_index(request):
     links = "".join(f'<li><a href="/{key}/">{title}</a> (at {host})</li>' for key, host, _, title in SITES)
+    links += "".join(f'<li><a href="/{key}/">{title}</a> (at {host}{path})</li>' for key, host, path, _, title in PATH_SITES)
     return HTMLResponse(f"<!DOCTYPE html><title>Lab (development)</title><ul>{links}<li><a href='/_kit'>Design kit</a>"
                         f"</li></ul>")
 
@@ -80,11 +87,13 @@ async def dev_kit(request):
 DEV = os.environ.get("LAB_DEV") == "1"     # development machine: the sites also under /tastematch, /deals, /catcam
 app = AccessGate(Starlette(routes=[
     *[Host(host, app=sub) for _, host, sub, _ in SITES],
+    *[Host(host, app=Starlette(routes=[Mount(path, app=sub)])) for _, host, path, sub, _ in PATH_SITES],
     # Taste Match without a login: the gate lets only the visitor pages through on these names (access.open_path).
     *[Host(host, app=sub) for host in sorted(OPEN_HOSTS) for key, _, sub, _ in SITES if key == "tastematch"],
     Route("/healthz", healthz),
     Mount("/api", app=api),
     *([Mount(f"/{key}", app=sub) for key, _, sub, _ in SITES]
+      + [Mount(f"/{key}", app=sub) for key, _, _, sub, _ in PATH_SITES]
       + [Mount("/static", app=StaticFiles(directory=web.STATIC)), Route("/_kit", dev_kit), Route("/", dev_index)]
       if DEV else []),
 ]))

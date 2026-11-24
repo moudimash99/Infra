@@ -1,0 +1,50 @@
+/* Machines (lab.machaka.net/machines): machine cards with a split bar, and the memory table. */
+.stack { display: grid; gap: 8px; margin-bottom: 8px; }
+.machines { display: grid; gap: 16px; }
+@media (min-width: 900px) { .machines { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.machine .headline { font-size: 1.05rem; }
+.machine .headline b { font-size: 1.9rem; font-weight: 750; letter-spacing: -.02em; margin-right: 2px; }
+.machine .sentence { color: var(--text-2); font-size: var(--fs-sm); margin: 4px 0 14px; }
+.machine.warn .sentence { color: var(--warn); } .machine.bad .sentence { color: var(--bad); font-weight: 600; }
+
+.bar { display: flex; height: 22px; border-radius: 7px; overflow: hidden; background: var(--track); gap: 2px; }
+.bar > span { display: block; height: 100%; min-width: 3px; }
+.seg-s1 { background: var(--s1); } .seg-s2 { background: var(--s2); } .seg-s4 { background: var(--s4); }
+.seg-s5 { background: var(--s5); } .seg-s7 { background: var(--s7); }
+.seg-cache { background: repeating-linear-gradient(135deg, var(--line-2) 0 4px, var(--bg-2) 4px 8px); }
+.seg-free { background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line-2); }
+
+.parts { list-style: none; margin: 12px 0 6px; padding: 0; display: grid; gap: 7px; }
+.parts li { display: grid; grid-template-columns: 12px 1fr auto; gap: 10px; align-items: start; font-size: var(--fs-sm); }
+.parts .key { width: 12px; height: 12px; border-radius: 3px; margin-top: 3px; }
+.parts .what b { font-weight: 600; } .parts .what small { display: block; color: var(--text-3); font-size: var(--fs-xs); }
+.parts .v { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+.facts { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line); display: grid; gap: 10px; font-size: var(--fs-sm); }
+.facts dt { font-size: var(--fs-xs); font-weight: 650; text-transform: uppercase; letter-spacing: .05em; color: var(--text-3); }
+.facts dd { margin: 2px 0 0; } .facts small { display: block; margin-top: 3px; }
+.meter.sm { height: 6px; margin-top: 6px; } .meter.hot > span { background: var(--warn); }
+
+.toolbar { display: grid; gap: 10px; margin-bottom: 12px; }
+@media (min-width: 900px) { .toolbar { grid-template-columns: minmax(220px, 1fr) auto auto; align-items: center; } .toolbar .check { grid-column: 1 / -1; } }
+.check { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--text-2); cursor: pointer; }
+.check input { width: 16px; height: 16px; accent-color: var(--accent); }
+
+.table.mem th button { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+.table.mem th button:focus-visible { outline: 2px solid var(--accent); border-radius: 4px; }
+.table.mem th button.on { color: var(--text); }
+.table.mem th button.desc::after { content: "↓"; } .table.mem th button.asc::after { content: "↑"; }
+.table.mem td .detail { display: block; color: var(--text-3); font-size: var(--fs-xs); max-width: 34ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.table.mem tr[hidden] { display: none; }
+@media (max-width: 639px) { .table.mem td .detail { max-width: 24ch; } .table.mem th, .table.mem td { padding-left: 8px; padding-right: 8px; } }
+.kind { font-size: var(--fs-xs); font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--bg-2); color: var(--text-2); }
+.kind.k-pod { color: var(--s1); } .kind.k-docker { color: var(--s2); } .kind.k-k3s { color: var(--s7); }
+.over { color: var(--warn); font-size: 10px; }
+.spark { display: block; overflow: visible; }
+.spark path { fill: none; stroke: var(--s1); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.none { padding: 16px; margin: 0; }
+[data-site="machines"] { --accent: #3d5a80; --accent-2: #5c7fa8; --accent-ink: #2f4a6d; --accent-soft: #e6edf5; }
+@media (prefers-color-scheme: dark) {
+  [data-site="machines"] { --accent: #7fa3cf; --accent-2: #9db8da; --accent-ink: #a9c3e3; --accent-soft: rgba(127, 163, 207, .14); }
+}
