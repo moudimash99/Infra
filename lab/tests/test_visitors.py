@@ -162,3 +162,73 @@ def test_open_name_serves_only_the_visitor_pages(lab, monkeypatch):
         assert r.status_code == 303 and r.headers["location"] == "/u/nobody99"     # never the owner's match instead
     finally:
         access.OPEN_HOSTS.discard("open.test")
+
+
+def fake_facts():
+    return {1: {"name": "Brass", "year": 2018, "average": 8.0, "weight": 3.9, "min_p": 2, "max_p": 4, "time": 120,
+                "links": {("category", "Economic"), ("designer", "Martin Wallace")}},
+            2: {"name": "Ark", "year": 2019, "average": 8.1, "weight": 3.7, "min_p": 1, "max_p": 4, "time": 150,
+                "links": {("category", "Animals"), ("category", "Party Game")}},
+            7: {"name": "Concordia", "year": 2013, "average": 7.9, "weight": 3.0, "min_p": 2, "max_p": 5, "time": 100,
+                "links": {("category", "Economic")}},
+            8: {"name": "Dixit", "year": 2008, "average": 7.2, "weight": 1.2, "min_p": 3, "max_p": 6, "time": 30,
+                "links": {("category", "Party Game")}},
+            **{g: {"name": f"G{g}", "year": 2000, "average": 7, "weight": 2, "min_p": 2, "max_p": 4, "time": 60,
+                   "links": {("category", "Economic")} if g % 2 else {("category", "Party Game")}} for g in (3, 4, 5, 6)}}
+
+
+def test_insights_profile_picks_discover(lab, monkeypatch):
+    from app.sources import insights
+    monkeypatch.setattr(insights, "facts", Fixed(fake_facts()))
+    s = taste.build(raw_result(), "x")
+    prof = insights.taste_profile(s)
+    assert [i["name"] for i in prof["category"]["up"]] == ["Economic"] and prof["category"]["up"][0]["n"] == 3
+    assert [i["name"] for i in prof["category"]["down"]] == ["Party Game"]
+    picks = insights.for_you(s)
+    assert [e["gid"] for e in picks] == [7, 8] and picks[0]["why"][0]["name"] == "Economic"
+    assert picks[0]["expected"] > picks[1]["expected"]
+    assert [e["gid"] for e in insights.for_you(s, players=6)] == [8]
+    assert [e["gid"] for e in insights.for_you(s, weight="light")] == [8]
+    assert insights.for_you(s, max_time=60)[0]["gid"] == 8
+    d = insights.discover(s, min_hosts=1)
+    assert d["games"] == 8 and d["gems"] and d["gems"][0]["z"] > 0 and d["overrated"][0]["z"] < 0
+
+
+def test_new_pages_owner_and_visitor_and_open(lab, monkeypatch):
+    from starlette.applications import Starlette
+    from starlette.routing import Host
+    from starlette.testclient import TestClient
+    from app import access, site_bgt
+    from app.sources import insights
+    monkeypatch.setattr(insights, "facts", Fixed(fake_facts()))
+    monkeypatch.setattr(taste, "stats", Fixed({"verdicts": 9000, "videos": 1200, "week": 5, "channels": 25}))
+    monkeypatch.setattr(taste, "things", Fixed({1: {"name": "Brass", "average": 8, "year": 2018}}))
+    monkeypatch.setattr(visitors, "fetch_ratings", lambda name: {13: 6.5})
+    monkeypatch.setattr(taste, "run_score", lambda ratings=None, timeout=0, **k: raw_result())
+    owner = taste.build(raw_result(), taste.USER)
+    owner["at"] = time.time()
+    monkeypatch.setattr(taste, "scores", Fixed(owner))
+    visitors.ask("Some Body")
+    visitors.run(visitors._q.get())
+    c = TestClient(site_bgt.app)
+    for path in ["/for-you", "/for-you?players=6", "/for-you?weight=light&time=60", "/for-you?weight=bogus&players=99",
+                 "/discover", "/for-you?u=Some%20Body", "/discover?u=Some%20Body"]:
+        r = c.get(path)
+        assert r.status_code == 200 and "Traceback" not in r.text, path
+    assert "Concordia" in c.get("/for-you").text and "Dixit" in c.get("/for-you?players=6").text
+    assert "Concordia" not in c.get("/for-you?players=6").text and "u=Some%20Body" in c.get("/for-you?u=Some%20Body").text
+    assert "Hidden gems" in c.get("/discover").text
+    t = c.get("/u/Some Body").text
+    assert "Picked for you" in t and "Your taste profile" in t and "Economic" in t
+    assert c.get("/for-you?u=nobody99", follow_redirects=False).headers["location"] == "/u/nobody99"
+    access.OPEN_HOSTS.add("open.test")
+    try:
+        o = TestClient(access.AccessGate(Starlette(routes=[Host("open.test", app=site_bgt.app)])), base_url="https://open.test")
+        assert o.get("/for-you", follow_redirects=False).status_code == 404      # the owner's picks: never public
+        assert o.get("/discover", follow_redirects=False).status_code == 404
+        for path in ["/for-you?u=Some%20Body", "/discover?u=Some%20Body"]:
+            t = o.get(path).text
+            assert taste.USER not in t and 'href="/games/' not in t, path
+            assert "boardgamegeek.com/boardgame/" in t or "discover" in path, path   # one host here: no Discover rows
+    finally:
+        access.OPEN_HOSTS.discard("open.test")

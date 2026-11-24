@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% from "_m.html" import page_head, section_head, empty %}
+{% from "tastematch/_tm.html" import box with context %}
+{% block title %}Discover · Taste Match{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/tastematch.css?v={{ STATIC_V }}">{% endblock %}
+{% macro row(r, what) -%}
+<a class="item" href="{{ ('https://boardgamegeek.com/boardgame/' ~ r.gid) if OPEN else (R ~ '/games/' ~ r.gid) }}">{{ box(r.gid, "s", "thumb box") }}
+  <span class="body"><span class="title">{{ r.name }}</span>
+    <span class="meta">{{ r.hosts }} reviewers · average {{ "%.1f" | format(r.mean) }}/5 · BGG {{ "%.1f" | format(r.bgg) }}{% if r.facts.year %} · {{ r.facts.year }}{% endif %}</span>
+    {% if what == "divisive" %}<span class="tm-why">{{ icon("thumbs-up") }}<span><b>{{ r.high[0].name }}</b> {{ "%.0f" | format(r.high[1]) }}/5</span>{{ icon("thumbs-down") }}<span><b>{{ r.low[0].name }}</b> {{ "%.0f" | format(r.low[1]) }}/5</span></span>{% endif %}
+  </span>
+  <span class="trail"><span class="tm-num{{ ' accent' if what == 'gems' }}">{% if what == "divisive" %}±{{ "%.1f" | format(r.spread) }}{% elif r.z > 0 %}+{{ "%.1f" | format(r.z) }}{% else %}−{{ "%.1f" | format(0 - r.z) }}{% endif %}</span></span>
+</a>
+{%- endmacro %}
+{% block main %}
+{{ page_head("Discover", "What the reviewers think that BGG's crowd doesn't, across every host and every rated review" ~ (" (" ~ (d.games | comma) ~ " games with 3 or more reviewers)" if d else "") ~ ".", "Taste Match") }}
+{% if d %}
+<section class="section grid md-3 gap-lg">
+  {% for key, title, sub in [("gems", "Hidden gems", "Reviewers like these more than BGG's average says they would."),
+                             ("overrated", "Less than the hype", "Reviewers like these less than BGG's average says."),
+                             ("divisive", "Divisive", "Where the reviewers split the most.")] %}
+  <div>
+    {{ section_head(title, sub=sub) }}
+    {% if d[key] %}<div class="card flush"><div class="list">{% for r in d[key] %}{{ row(r, key) }}{% endfor %}</div></div>
+    {% else %}<div class="card">{{ empty("None yet", "Not enough reviewers per game yet.", "info") }}</div>{% endif %}
+  </div>
+  {% endfor %}
+</section>
+<p class="xs muted">Gems and hype: how far the reviewers go above (+) or below (−) BGG's average on the game, measured in each host's own usual spread and averaged over the hosts. Divisive: the spread of the reviewers' scores out of 5.</p>
+{% else %}<div class="card">{{ empty("Not ready", "The matching hasn't run yet.", "clock") }}</div>{% endif %}
+{% endblock %}

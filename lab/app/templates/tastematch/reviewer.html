@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% from "_m.html" import section_head, kpi, empty, alert, avatar, score, unreadable %}
 {% from "tastematch/_tm.html" import who, signed, meter, scale, game_tile, box with context %}
+{% from "tastematch/_insights.html" import taste_card, pick_card with context %}
 {% block title %}{{ hname }} · Taste Match{% endblock %}
 {% block head %}<link rel="stylesheet" href="/static/tastematch.css?v={{ STATIC_V }}">{% endblock %}
 {% macro vs_row(g) -%}
@@ -66,6 +67,13 @@
     {% if disagree %}<div class="card flush"><div class="list">{% for g in disagree %}{{ vs_row(g) }}{% endfor %}</div></div>
     {% else %}<div class="card">{{ empty("No real disagreement", "On every shared game you lean the same way.", "check-circle") }}</div>{% endif %}
   </div>
+</section>
+{% endif %}
+
+{% if host_prof %}
+<section class="section">
+  {{ section_head(hname ~ "'s taste", sub="Where " ~ hname ~ " goes above or below what BGG's average predicts, from their verdicts.") }}
+  <div class="card">{{ taste_card(host_prof, hname, "Too few verdicts to see a pattern yet.") }}</div>
 </section>
 {% endif %}
 

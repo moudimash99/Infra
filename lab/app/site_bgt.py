@@ -21,15 +21,16 @@ from fastapi import HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 from . import charts, images, store
-from .sources import Reading, bgt, taste, visitors
+from .sources import Reading, bgt, insights, taste, visitors
 from .web import day_labels, page, site, templates
 
 templates.env.globals.update(STAGES=bgt.STAGES)
 # A host's avatar colour from their id (a better spread than the shared name sum): av-1 .. av-8.
 templates.env.filters["tm_av"] = lambda key: f"av-{zlib.crc32(str(key).encode()) % 8 + 1}"
 FAIL_LINE = re.compile(r"\[\d+/\d+\]\s+FAIL\s+([\w-]{6,20})\s+(.*?)\s+\((.*)\)\s*$")
-app = site("tastematch", [("/", "Home", "home"), ("/find", "Find yours", "search"), ("/reviewers", "Reviewers", "users"),
-                          ("/games", "Games", "dices"), ("/videos", "Videos", "video"), ("/pipeline", "Pipeline", "activity")])
+app = site("tastematch", [("/", "Home", "home"), ("/for-you", "For you", "sparkle"), ("/discover", "Discover", "trending-up"),
+                          ("/reviewers", "Reviewers", "users"), ("/games", "Games", "dices"), ("/find", "Find yours", "search"),
+                          ("/pipeline", "Pipeline", "activity")])
 GAME_PAGE = 24
 
 
@@ -51,6 +52,7 @@ def home(request: Request):
     s = sc.data
     recs = taste.recommendations(s, skip=(prof.data or {}).get("owned", ()), limit=8) if s else []
     return page(request, "tastematch/home.html", sc=sc, s=s, prof=prof, recs=recs, stats=taste.stats.get(),
+                taste_prof=insights.taste_profile(s) if s else None, picks=insights.for_you(s, limit=4) if s else [],
                 things=taste.things.get().data or {}, recent=taste.recent.get(), prog=bgt.progress.get(),
                 pipe=bgt.now.get())
 
@@ -116,7 +118,8 @@ def reviewer(request: Request, rid: str):
                 dist_them=taste.distribution(scores),
                 dist_you=taste.distribution([v[0] / 2 for v in s["user"].values()]) if s else [],
                 you_mean=(sum(v[0] for v in s["user"].values()) / 2 / len(s["user"])) if s and s["user"] else None,
-                visitor=vname, UQ=("?u=" + quote(vname)) if vname else "", groups=taste.by_game(verdicts))
+                visitor=vname, UQ=("?u=" + quote(vname)) if vname else "", groups=taste.by_game(verdicts),
+                host_prof=insights.host_profile(r) if r else None)
 
 
 # ---- anyone's matches -----------------------------------------------------------------------------------------------
@@ -152,7 +155,51 @@ def visitor(request: Request, name: str):
     things = taste.things.get().data or {}
     return page(request, "tastematch/visitor.html", active="/find", uname=s["username"], s=s, st=st, things=things,
                 recs=taste.recommendations(s, limit=12), UQ="?u=" + quote(s["username"]),
+                taste_prof=insights.taste_profile(s), picks=insights.for_you(s, limit=8),
                 thin=[r for r in s["reviewers"] if 0 < r["n"] and not r["ranked"]])
+
+
+def _whose(request):
+    """The match result a page is about: a visitor's (?u=, ready) or the owner's. -> (s, visitor name or None)."""
+    vname, vres = _visitor(request)
+    if vres:
+        return vres, vname
+    return taste.scores.get().data, None
+
+
+def _wait_for(request):
+    """A redirect to the visitor's wait page when ?u= names someone whose result isn't ready, else None."""
+    asked = " ".join(request.query_params.get("u", "").split())
+    if not asked or _visitor(request)[1]:
+        return None
+    if not visitors.valid(asked):
+        raise HTTPException(404)
+    return RedirectResponse(f"{request.scope.get('root_path', '').rstrip('/')}/u/{quote(asked)}", status_code=303)
+
+
+@app.get("/for-you", response_class=HTMLResponse)
+def for_you(request: Request, players: int = 0, weight: str = "", time: int = 0):
+    wait = _wait_for(request)
+    if wait:
+        return wait
+    s, vname = _whose(request)
+    players = players if 1 <= players <= 12 else 0
+    weight = weight if weight in insights.WEIGHT_BANDS else ""
+    time = time if time in (30, 60, 90, 120, 180) else 0
+    picks = insights.for_you(s, players or None, weight, time or None, limit=36) if s else []
+    return page(request, "tastematch/for_you.html", active="/for-you", s=s, picks=picks, players=players,
+                weight=weight, time=time, visitor=vname, UQ=("?u=" + quote(vname)) if vname else "",
+                taste_prof=insights.taste_profile(s) if s else None)
+
+
+@app.get("/discover", response_class=HTMLResponse)
+def discover(request: Request):
+    wait = _wait_for(request)
+    if wait:
+        return wait
+    s, vname = _whose(request)
+    return page(request, "tastematch/discover.html", active="/discover", s=s, d=insights.discover(s) if s else None,
+                visitor=vname, UQ=("?u=" + quote(vname)) if vname else "")
 
 
 @app.get("/about", response_class=HTMLResponse)

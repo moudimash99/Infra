@@ -1,0 +1,37 @@
+{#- Taste Match's deeper pieces. They use R and OPEN, so import them with context:
+      {% from "tastematch/_insights.html" import taste_card, pick_card with context %} -#}
+{% from "tastematch/_tm.html" import box with context %}
+
+{#- A taste profile (insights.taste_profile / host_profile): what someone rates above or below BGG's average -#}
+{% macro taste_card(prof, who_="You", empty_text="Not enough rated games yet to see a pattern.") -%}
+{%- set any_ = namespace(v=False) -%}
+{%- for kind in ("category", "designer", "mechanic") %}{% if prof[kind].up or prof[kind].down %}{% set any_.v = True %}{% endif %}{% endfor -%}
+{% if any_.v %}
+<div class="tm-taste">
+  {% for kind, label in [("category", "Kinds of game"), ("designer", "Designers"), ("mechanic", "Mechanics")] %}{% set p = prof[kind] %}
+  {% if p.up or p.down %}
+  <div class="tm-taste-col">
+    <h4>{{ label }}</h4>
+    {% for i in p.up %}<div class="tm-lean up"><span class="nm">{{ i.name }}</span><span class="bar"><span style="width:{{ [i.lean / 2 * 100, 100] | min | round | int }}%"></span></span><span class="v">+{{ "%.1f" | format(i.lean) }}</span><span class="n">{{ i.n }}</span></div>{% endfor %}
+    {% for i in p.down %}<div class="tm-lean down"><span class="nm">{{ i.name }}</span><span class="bar"><span style="width:{{ [(0 - i.lean) / 2 * 100, 100] | min | round | int }}%"></span></span><span class="v">−{{ "%.1f" | format(0 - i.lean) }}</span><span class="n">{{ i.n }}</span></div>{% endfor %}
+  </div>
+  {% endif %}{% endfor %}
+</div>
+<p class="xs muted mt-3">Points out of 10 above (+) or below (−) what BGG's average predicts for {{ "you" if who_ == "You" else who_ }}, on games with that trait. The small number is how many rated games it rests on; few games pull the number toward 0.</p>
+{% else %}<p class="small soft">{{ empty_text }}</p>{% endif %}
+{%- endmacro %}
+
+{#- One game picked for someone (insights.for_you) -#}
+{% macro pick_card(e) -%}
+<a class="tm-pick" href="{{ ('https://boardgamegeek.com/boardgame/' ~ e.gid) if OPEN else (R ~ '/games/' ~ e.gid) }}">
+  <span class="media">{{ box(e.gid, "m") }}</span>
+  <span class="body">
+    <span class="title">{{ e.name }}</span>
+    <span class="meta">{{ e.facts.year or "" }}{% if e.facts.min_p %} · {{ e.facts.min_p }}{% if e.facts.max_p and e.facts.max_p != e.facts.min_p %}-{{ e.facts.max_p }}{% endif %} players{% endif %}{% if e.facts.time %} · {{ e.facts.time }} min{% endif %}{% if e.facts.weight %} · weight {{ "%.1f" | format(e.facts.weight) }}{% endif %}</span>
+    {% if e.why %}<span class="tm-why">{{ icon("sparkle") }}<span>You rate {% for w in e.why %}<b>{{ w.name }}</b>{{ ", " if not loop.last }}{% endfor %} above BGG</span></span>{% endif %}
+    {% if e.fans %}<span class="tm-why">{{ icon("thumbs-up") }}<span>{% for r, sc in e.fans[:3] %}<b>{{ r.name }}</b> {{ "%.0f" | format(sc) }}/5{{ ", " if not loop.last }}{% endfor %}{% if e.fans | length > 3 %} +{{ e.fans | length - 3 }}{% endif %}</span></span>
+    {% elif e.loved %}<span class="tm-why">{{ icon("thumbs-up") }}<span>{{ e.loved }} of {{ e.hosts }} reviewers loved it</span></span>{% endif %}
+  </span>
+  <span class="tm-exp"><small>likely for you</small><b>{{ "%.1f" | format(e.expected) }}</b><small>BGG {{ "%.1f" | format(e.bgg) }}</small></span>
+</a>
+{%- endmacro %}

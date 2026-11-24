@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "_m.html" import page_head, empty %}
+{% from "tastematch/_insights.html" import pick_card, taste_card with context %}
+{% block title %}For you · Taste Match{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/tastematch.css?v={{ STATIC_V }}">{% endblock %}
+{%- macro q(players_=None, weight_=None, time_=None) -%}
+{%- set parts = [] -%}
+{%- set p = players if players_ is none else players_ -%}{%- set w = weight if weight_ is none else weight_ -%}{%- set t = time if time_ is none else time_ -%}
+{%- if p %}{% set _ = parts.append("players=" ~ p) %}{% endif -%}
+{%- if w %}{% set _ = parts.append("weight=" ~ w) %}{% endif -%}
+{%- if t %}{% set _ = parts.append("time=" ~ t) %}{% endif -%}
+{%- if visitor %}{% set _ = parts.append("u=" ~ (visitor | urlencode)) %}{% endif -%}
+{{ R }}/for-you{{ ("?" ~ parts | join("&")) if parts }}
+{%- endmacro %}
+{% block main %}
+{{ page_head("Games for " ~ (visitor if visitor else "you"), "Reviewed games " ~ ("they haven't" if visitor else "you haven't") ~ " rated, ranked by what BGG's average and " ~ ("their" if visitor else "your") ~ " taste profile suggest. Each one says why.", "Taste Match") }}
+<div class="tm-filters">
+  <nav class="seg" aria-label="Players">
+    {% for p, label in [(0, "Any players"), (1, "Solo"), (2, "2"), (3, "3"), (4, "4"), (5, "5"), (6, "6+")] %}<a href="{{ q(players_=p) }}" class="{{ 'on' if players == p }}">{{ label }}</a>{% endfor %}
+  </nav>
+  <nav class="seg" aria-label="Weight">
+    {% for w, label in [("", "Any weight"), ("light", "Light"), ("medium", "Medium"), ("heavy", "Heavy")] %}<a href="{{ q(weight_=w) }}" class="{{ 'on' if weight == w }}">{{ label }}</a>{% endfor %}
+  </nav>
+  <nav class="seg" aria-label="Play time">
+    {% for t, label in [(0, "Any length"), (30, "Up to 30 min"), (60, "Up to 1 h"), (120, "Up to 2 h")] %}<a href="{{ q(time_=t) }}" class="{{ 'on' if time == t }}">{{ label }}</a>{% endfor %}
+  </nav>
+</div>
+{% if picks %}
+<div class="tm-picks">{% for e in picks %}{{ pick_card(e) }}{% endfor %}</div>
+{% else %}<div class="card">{{ empty("Nothing fits", "No reviewed game matches these filters yet.", "filter") }}</div>{% endif %}
+<details class="more mt-4"><summary>How "likely for you" is worked out</summary>
+  <p class="small soft mt-2">It starts from BGG's average on {{ "their" if visitor else "your" }} own scale (some people score everything higher or lower than BGG), then moves it by {{ "their" if visitor else "your" }} taste profile: the kinds of game, designers and mechanics {{ "they rate" if visitor else "you rate" }} above or below that. Tested on the owner's 143 ratings by hiding one game at a time, it is off by about 1.2 points out of 10 on average, a little better than BGG's average alone. The reviewers' scores did not make it more accurate, so they are shown as reasons, not mixed into the number.</p>
+</details>
+{% if taste_prof %}<section class="section"><div class="card"><h3 class="mb-3">{{ (visitor ~ "'s") if visitor else "Your" }} taste profile</h3>{{ taste_card(taste_prof) }}</div></section>{% endif %}
+{% endblock %}

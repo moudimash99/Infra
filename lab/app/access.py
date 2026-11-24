@@ -212,14 +212,14 @@ INTERNAL_HOSTS = {"lab.tools.svc", "lab.tools.svc.cluster.local"}   # Homepage's
 # Taste Match without a login (TM_OPEN_HOSTS, empty = none): only the visitor pages, never the owner's. Every other
 # path on these names is 404, whatever the app would answer, so a new page stays private until it is listed here.
 OPEN_HOSTS = {h.strip().lower() for h in os.environ.get("TM_OPEN_HOSTS", "").split(",") if h.strip()}
-OPEN_PATHS = re.compile(r"/(find|about|healthz|u/[^/]+|img/\d+-[sml]\.jpg|static/[\w./-]+|reviewers/[\w-]{1,20}:[\w.-]{1,60})")
+OPEN_PATHS = re.compile(r"/(find|about|discover|for-you|healthz|u/[^/]+|img/\d+-[sml]\.jpg|static/[\w./-]+|reviewers/[\w-]{1,20}:[\w.-]{1,60})")
 
 
 def open_path(path, query=""):
     """May this path be served on an open name? Reviewer pages only for a visitor (?u=), never the owner's match."""
     if not OPEN_PATHS.fullmatch(path) or "/.." in path:
         return False
-    return not path.startswith("/reviewers/") or "u=" in query
+    return not path.startswith(("/reviewers/", "/discover", "/for-you")) or "u=" in query
 DEV = os.environ.get("LAB_DEV") == "1"                               # a development machine: no login anywhere
 
 

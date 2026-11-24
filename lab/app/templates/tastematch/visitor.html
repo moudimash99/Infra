@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% from "_m.html" import section_head, empty, kpi %}
 {% from "tastematch/_tm.html" import who, signed, meter, scale, host_row, game_tile with context %}
+{% from "tastematch/_insights.html" import taste_card, pick_card with context %}
 {% block title %}{{ uname }}'s reviewers · Taste Match{% endblock %}
 {% block head %}<link rel="stylesheet" href="/static/tastematch.css?v={{ STATIC_V }}">{% endblock %}
 {% block main %}
@@ -37,6 +38,20 @@
   </details>
   {% endif %}
 </section>
+
+{% if picks %}
+<section class="section">
+  {{ section_head("Picked for you", R ~ "/for-you" ~ UQ, "More, with filters", sub="Reviewed games you haven't rated that fit your taste profile, with the reasons.") }}
+  <div class="tm-picks">{% for e in picks %}{{ pick_card(e) }}{% endfor %}</div>
+</section>
+{% endif %}
+
+{% if taste_prof %}
+<section class="section">
+  {{ section_head("Your taste profile", sub="Where you go above or below what BGG's average predicts.") }}
+  <div class="card">{{ taste_card(taste_prof) }}</div>
+</section>
+{% endif %}
 
 {% if recs %}
 <section class="section">
