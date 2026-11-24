@@ -18,6 +18,7 @@ from .bgt import db
 KINDS = {"boardgamecategory": "category", "boardgamedesigner": "designer", "boardgamemechanic": "mechanic"}
 LEAN_K = 3           # a feature's lean = sum of residuals / (games + LEAN_K): few games pull it toward 0
 MIN_GAMES = 3        # a feature is shown from this many rated games with it
+NOT_A_TRAIT = {"Expansion for Base-game", "(Uncredited)"}     # BGG links that say nothing about taste
 WEIGHT_BANDS = {"light": (0, 2.2), "medium": (2.2, 3.3), "heavy": (3.3, 6)}
 
 
@@ -28,13 +29,14 @@ def facts():
     conn = db()
     try:
         out = {r["id"]: {"name": r["name"], "year": r["year"], "average": r["average"], "weight": r["average_weight"],
-                         "min_p": r["min_players"], "max_p": r["max_players"], "time": r["playing_time"], "links": set()}
-               for r in conn.execute("""SELECT id, name, year, average, average_weight, min_players, max_players,
+                         "min_p": r["min_players"], "max_p": r["max_players"], "time": r["playing_time"], "links": set(),
+                         "expansion": r["type"] == "boardgameexpansion"}
+               for r in conn.execute("""SELECT id, type, name, year, average, average_weight, min_players, max_players,
                                         playing_time FROM bgg_things WHERE average > 0""")}
         marks = ",".join("?" * len(KINDS))
         for r in conn.execute(f"SELECT id, link_type, target_name FROM bgg_links WHERE link_type IN ({marks})",
                               list(KINDS)):
-            if r["id"] in out:
+            if r["id"] in out and r["target_name"] not in NOT_A_TRAIT:
                 out[r["id"]]["links"].add((KINDS[r["link_type"]], r["target_name"]))
     finally:
         conn.close()
@@ -94,14 +96,24 @@ def host_profile(r):
     return out
 
 
+def _own(r, g):
+    """Is host r's score on game g their own verdict (not only the channel's team verdict lent to them)?"""
+    srcs = (r.get("sources") or {}).get(g)
+    return not srcs or any(x.get("from") != "team" for x in srcs)
+
+
 def _reviewed(s):
-    """Games any host scored: {gid: [(host, score, residual z)]}."""
+    """Games named hosts scored with their own verdicts: {gid: [(host, score, residual z)]}. A team verdict lent to
+    each regular host counts once in the match, but here it would be one opinion repeated, so it is left out."""
     out = {}
     for r in s["reviewers"]:
+        if (r.get("name") or "").lower().startswith(("unknown", "team")):
+            continue
         res = r["rres"]
         sd = statistics.pstdev(res.values()) if len(res) > 2 else 0
         for g, (score, _avg, _w) in r["points"].items():
-            out.setdefault(g, []).append((r, score, (res[g] / sd) if sd else 0.0))
+            if _own(r, g):
+                out.setdefault(g, []).append((r, score, (res[g] / sd) if sd else 0.0))
     return out
 
 
@@ -116,7 +128,7 @@ def for_you(s, players=None, weight="", max_time=None, limit=24):
     out = []
     for g, said in _reviewed(s).items():
         x = f.get(g)
-        if not x or g in s["user"]:
+        if not x or g in s["user"] or x["expansion"]:      # expansions: only worth it with the base game
             continue
         if players and not ((x["min_p"] or 0) <= players <= (x["max_p"] or 99)):
             continue
@@ -143,7 +155,7 @@ def discover(s, min_hosts=3, limit=12):
     f = facts.get().data or {}
     rows = []
     for g, said in _reviewed(s).items():
-        if len(said) < min_hosts or g not in f:
+        if len(said) < min_hosts or g not in f or f[g]["expansion"]:
             continue
         zs = [z for _, _, z in said]
         scores = [sc for _, sc, _ in said]

@@ -11,7 +11,8 @@
                   "Board game reviewers whose scores follow yours, found in " ~ (st.verdicts | comma if st else "their") ~ " verdicts from " ~ (st.videos | comma if st else "many") ~ " YouTube reviews.",
                   eyebrow=(s.username if s else "Your BGG profile") ~ " · " ~ (p.rated or 0) ~ " games rated") %}
   <a class="btn primary" href="{{ R }}/reviewers">{{ icon("users") }}All reviewers</a>
-  <a class="btn" href="{{ R }}/games?sort=matches&show=unrated">{{ icon("dices") }}Games to try</a>
+  <a class="btn" href="{{ R }}/for-you">{{ icon("sparkle") }}Games for you</a>
+  <a class="btn" href="{{ R }}/find">{{ icon("search") }}Match a friend</a>
 {% endcall %}
 
 {% if not sc.ok %}{{ alert("The last matching run failed (" ~ sc.error ~ ")." ~ ((" Showing the result from " ~ (s.at | ago) ~ ".") if s else ""), "warn") }}{% endif %}

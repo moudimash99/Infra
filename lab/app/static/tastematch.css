@@ -155,3 +155,6 @@ a.hero:hover { text-decoration: none; box-shadow: var(--sh-2); }
 .tm-exp { display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
 .tm-exp b { font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em; color: var(--accent-ink); font-variant-numeric: tabular-nums; line-height: 1.1; }
 .tm-exp small { font-size: 10.5px; color: var(--text-3); white-space: nowrap; }
+
+/* phone tab bar: the five main sections; the pipeline and Find yours are linked from Home */
+@media (max-width: 899px) { body[data-site="tastematch"] .tabbar a:nth-child(n+6) { display: none; } }

@@ -23,9 +23,9 @@ class Fixed:
 
 
 def raw_result():
-    pts = {str(g): [5 if g % 2 else 2, 3.5, 1.0] for g in range(1, 9)}
+    pts = {str(g): [5 if g % 2 else 2, 3.5, 1.0] for g in range(1, 10)}
     host = {"id": "susd:paul", "name": "paul", "n": 6, "rated": 8, "corr": 0.8, "match": 0.3, "low": 0.2, "high": 0.4,
-            "evidence": 6.0, "counts": 0.375, "rres": {str(g): (0.6 if g % 2 else -0.4) for g in range(1, 9)}, "points": pts}
+            "evidence": 6.0, "counts": 0.375, "rres": {str(g): (0.6 if g % 2 else -0.4) for g in range(1, 10)}, "points": pts}
     return {"user": {str(g): [8 if g % 2 else 4, 7, 1] for g in range(1, 7)},
             "ures": {str(g): (1.0 if g % 2 else -1.0) for g in range(1, 7)}, "reviewers": [host]}
 
@@ -166,15 +166,17 @@ def test_open_name_serves_only_the_visitor_pages(lab, monkeypatch):
 
 def fake_facts():
     return {1: {"name": "Brass", "year": 2018, "average": 8.0, "weight": 3.9, "min_p": 2, "max_p": 4, "time": 120,
-                "links": {("category", "Economic"), ("designer", "Martin Wallace")}},
+                "links": {("category", "Economic"), ("designer", "Martin Wallace")}, "expansion": False},
             2: {"name": "Ark", "year": 2019, "average": 8.1, "weight": 3.7, "min_p": 1, "max_p": 4, "time": 150,
-                "links": {("category", "Animals"), ("category", "Party Game")}},
+                "links": {("category", "Animals"), ("category", "Party Game")}, "expansion": False},
             7: {"name": "Concordia", "year": 2013, "average": 7.9, "weight": 3.0, "min_p": 2, "max_p": 5, "time": 100,
-                "links": {("category", "Economic")}},
+                "links": {("category", "Economic")}, "expansion": False},
             8: {"name": "Dixit", "year": 2008, "average": 7.2, "weight": 1.2, "min_p": 3, "max_p": 6, "time": 30,
-                "links": {("category", "Party Game")}},
+                "links": {("category", "Party Game")}, "expansion": False},
+            9: {"name": "Brass: Extra", "year": 2020, "average": 9.5, "weight": 3, "min_p": 2, "max_p": 4, "time": 60,
+                "links": {("category", "Economic")}, "expansion": True},
             **{g: {"name": f"G{g}", "year": 2000, "average": 7, "weight": 2, "min_p": 2, "max_p": 4, "time": 60,
-                   "links": {("category", "Economic")} if g % 2 else {("category", "Party Game")}} for g in (3, 4, 5, 6)}}
+                   "links": {("category", "Economic")} if g % 2 else {("category", "Party Game")}, "expansion": False} for g in (3, 4, 5, 6)}}
 
 
 def test_insights_profile_picks_discover(lab, monkeypatch):
@@ -185,7 +187,7 @@ def test_insights_profile_picks_discover(lab, monkeypatch):
     assert [i["name"] for i in prof["category"]["up"]] == ["Economic"] and prof["category"]["up"][0]["n"] == 3
     assert [i["name"] for i in prof["category"]["down"]] == ["Party Game"]
     picks = insights.for_you(s)
-    assert [e["gid"] for e in picks] == [7, 8] and picks[0]["why"][0]["name"] == "Economic"
+    assert [e["gid"] for e in picks] == [7, 8] and picks[0]["why"][0]["name"] == "Economic"   # 9, an expansion: never
     assert picks[0]["expected"] > picks[1]["expected"]
     assert [e["gid"] for e in insights.for_you(s, players=6)] == [8]
     assert [e["gid"] for e in insights.for_you(s, weight="light")] == [8]
@@ -232,3 +234,12 @@ def test_new_pages_owner_and_visitor_and_open(lab, monkeypatch):
             assert "boardgamegeek.com/boardgame/" in t or "discover" in path, path   # one host here: no Discover rows
     finally:
         access.OPEN_HOSTS.discard("open.test")
+
+
+def test_team_verdicts_and_unnamed_are_not_extra_opinions():
+    from app.sources import insights
+    paul = {"name": "Paul", "rres": {1: 1.0, 2: -1.0, 3: 0.5}, "points": {1: (5, 7, 1), 2: (2, 7, 1), 3: (4, 7, 0.4)},
+            "sources": {3: [{"from": "team"}], 1: [{"from": "own"}, {"from": "team"}]}}
+    unknown = {"name": "unknown 3", "rres": {1: 1.0, 2: 0.0, 3: 0.2}, "points": {1: (5, 7, 1), 2: (3, 7, 1), 3: (4, 7, 1)}}
+    said = insights._reviewed({"reviewers": [paul, unknown]})
+    assert set(said) == {1, 2} and len(said[1]) == 1          # game 3 was only the team's word; 'unknown' is nobody

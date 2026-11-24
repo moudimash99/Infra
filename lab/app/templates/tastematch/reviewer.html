@@ -8,7 +8,9 @@
 {%- set t = things.get(g) or {} -%}
 <a class="item" href="{{ ('https://boardgamegeek.com/boardgame/' ~ g) if OPEN else (R ~ '/games/' ~ g) }}">{{ box(g, "s", "thumb box") }}
   <span class="body"><span class="title">{{ t.name or g }}</span>
-    <span class="tm-vs"><span>You <b>{{ "%.1f" | format(s.user[g][0] / 2) }}</b></span><span class="them">{{ hname }} <b>{{ "%.1f" | format(r.points[g][0]) }}</b></span><span>BGG <b>{{ "%.1f" | format(s.user[g][1] / 2) }}</b></span></span></span>
+    <span class="tm-vs"><span>You <b>{{ "%.1f" | format(s.user[g][0] / 2) }}</b></span><span class="them">{{ hname }} <b>{{ "%.1f" | format(r.points[g][0]) }}</b></span><span>BGG <b>{{ "%.1f" | format(s.user[g][1] / 2) }}</b></span></span>
+    {%- set yu, th = s.ures[g], r.rres[g] %}
+    <span class="tm-src">{{ icon("info") }}{% if yu > 0 and th > 0 %}You both liked it more than BGG predicts for you{% elif yu < 0 and th < 0 %}You both liked it less than BGG predicts for you{% elif yu > 0 %}You liked it more than expected, {{ hname }} less{% else %}You liked it less than expected, {{ hname }} more{% endif %}</span></span>
   {{ icon("chevron-right", "chev") }}</a>
 {%- endmacro %}
 {% block main %}
