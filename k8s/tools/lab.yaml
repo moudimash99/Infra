@@ -89,7 +89,7 @@ spec:
       priorityClassName: homelab-critical
       containers:
         - name: lab
-          image: docker.io/library/lab:2026-11-24-jobs2
+          image: docker.io/library/lab:2026-11-24-ux1
           imagePullPolicy: Never
           ports:
             - { name: http, containerPort: 8080 }
