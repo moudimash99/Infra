@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% from "_m.html" import unreadable %}
+{% from "status/_ui.html" import dot, bad, days %}
+{% block title %}Alarms · Homelab{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ R }}/static/status.css?v={{ STATIC_V }}"><link rel="stylesheet" href="{{ R }}/static/bell.css?v={{ STATIC_V }}">{% endblock %}
+{% block header_end %}{% include "status/_bell.html" %}{% endblock %}
+
+{% block main %}
+{{ unreadable(reading, "the alarm rules") }}
+{% if x %}
+<header class="page-head tight"><h1 class="page-title">Alarms</h1>
+  <p class="page-sub">Every alarm rule: what it watches, whether it's firing, and when it fired this week. These are the alarms that email you; the bell shows the ones firing now.</p></header>
+<div class="filters" id="filters" role="search">
+  <label class="search"><span class="sr">Find</span><input type="search" data-f="q" placeholder="Find an alarm" autocomplete="off"></label>
+  <label class="toggle"><input type="checkbox" data-f="only"><span>Firing only</span></label>
+</div>
+
+<div class="qgrid">
+  <section class="qcard wide" id="firing" data-card data-keep>
+    <div class="qhead"><h2>Firing now</h2></div>
+    <ul class="items">
+      {% for a in alarms.list %}
+      <li class="it" data-m="*" data-p="*" data-bad="1" data-name="{{ a.name | lower }} {{ a.summary | lower }}"><span class="adot {{ a.state }}" aria-hidden="true"></span>
+        <div class="txt"><b><a href="{{ a.href }}">{{ a.summary }}</a></b><small>{{ a.name }}{% if a.since %} · since {{ clock(a.since) }}{% endif %}</small></div></li>
+      {% else %}
+      <li class="it" data-m="*" data-p="*" data-bad="0">{{ dot("ok") }}<div class="txt"><b>{{ "Nothing is firing" if alarms.ok else "Couldn't read the alarms right now" }}</b><small>{% if alarms.ok %}no email is going out{% endif %}</small></div></li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="qcard wide" id="rules" data-card data-keep>
+    <div class="qhead"><h2>Every alarm</h2>
+      <span class="legend-days"><span class="day failed"></span>fired (critical)<span class="day some"></span>fired (warning)<span class="day none"></span>quiet</span></div>
+    {% if day_names %}<div class="days-head" aria-hidden="true"><span class="days">{% for name in day_names %}<span class="dname">{{ name }}</span>{% endfor %}</span></div>{% endif %}
+    <ul class="items jobrows">
+      {% for r in x.rules %}
+      <li class="it" data-m="*" data-p="*" data-bad="{{ 1 if r.firing or r.pending else 0 }}" data-name="{{ r.name | lower }} {{ r.title | lower }} {{ r.area | lower }}">
+        {{ dot(r.state) }}
+        <div class="txt"><b>{{ r.title }}</b><small>{{ r.text }}{% if r.what %} · {{ r.what }}{% endif %}</small></div>
+        {{ days(r.cells) }}
+        <span class="tags"><span class="tag">{{ r.area }}</span><span class="tag">{{ "critical" if r.severity == "critical" else "warning" }}</span>{% if r.wait %}<span class="tag">after {{ dur(r.wait) }}</span>{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="none" data-none>No alarm for this search.</p>
+    {% if not x.history_ok %}<p class="xs muted">The week's history couldn't be read just now.</p>{% endif %}
+    <p class="xs muted">"after 5 min": the condition must last that long before the alarm fires, so a short blip doesn't email you. Rules are in Infra's k8s/monitoring/alert-rules.yml.</p>
+  </section>
+
+  <section class="qcard wide" id="muted" data-card data-keep>
+    <div class="qhead"><h2>Muted</h2></div>
+    <ul class="items">
+      {% for s in x.silences %}
+      <li class="it" data-m="*" data-p="*" data-bad="0">{{ dot("paused") }}<div class="txt"><b>{{ s.what }}</b><small>{{ s.comment or "no reason given" }}{% if s.by %} · by {{ s.by }}{% endif %}{% if s.ends %} · until {{ clock(s.ends) }}{% endif %}</small></div></li>
+      {% else %}
+      <li class="it" data-m="*" data-p="*" data-bad="0">{{ dot("ok") }}<div class="txt"><b>Nothing is muted</b><small>{{ "every alarm can email you" if x.silences_ok else "couldn't read Alertmanager's silences" }}</small></div></li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="{{ R }}/static/status.js?v={{ STATIC_V }}" defer></script>{% endblock %}

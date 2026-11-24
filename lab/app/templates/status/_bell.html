@@ -9,5 +9,6 @@
     {% else %}
     <p class="none">{% if alarms.ok %}Nothing is firing.{% else %}Couldn't read the alerts right now.{% endif %} These are the alerts that email you.</p>
     {% endfor %}
+    <a class="all" href="{{ R }}/alarms"><span><b>Every alarm</b><small>what each one watches, and when it fired this week</small></span></a>
   </div>
 </details>

@@ -10,3 +10,4 @@
 .alarm .alarm-menu .none { padding: 6px 10px 10px; color: var(--text-2); font-size: var(--fs-sm); margin: 0; }
 .adot { width: 9px; height: 9px; border-radius: 50%; flex: none; margin-top: 6px; background: var(--warn); }
 .adot.bad { background: var(--bad); }
+.alarm .alarm-menu a.all { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 10px; }

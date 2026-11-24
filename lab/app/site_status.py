@@ -9,6 +9,8 @@
             its last 24 hours; who waits for room; the ranks
   /network  every address Traefik serves (up, requests, failures, speed), traffic in and out of each machine, the
             apps that moved the most
+  /alarms   every alert rule: firing, about to fire or quiet, what it watches, its last 7 days; what is muted
+            (opened from the bell, not the tabs)
   /memory   (old address) sends you to the machine's page
 
 The bell in the header lists the alerts firing now: the Prometheus alert rules (k8s/monitoring/alert-rules.yml),
@@ -22,7 +24,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import site_machines
-from .sources import apps, hosts, jobruns, memory, net, overview, prom
+from .sources import alarms as alarm_rules, apps, hosts, jobruns, memory, net, overview, prom
 from .config import TZ
 from .web import SITES, STATIC, day_labels, page
 
@@ -165,6 +167,14 @@ def network_page(request: Request, range: str = "24h"):
     n = net.build(r.data, overview.load_catalog(), range) if r.data else None
     return page(request, "status/network.html", reading=r, n=n, d=None, range=range, RANGES=net.RANGES,
                 groups=n["groups"] if n else [], x_labels=axis(net.RANGES[range][0]), **common(request))
+
+
+@app.get("/alarms", response_class=HTMLResponse)
+def alarms_page(request: Request):
+    r = alarm_rules.read.get()
+    x = alarm_rules.build(r.data) if r.data else None
+    names = [f"{dt.datetime.fromtimestamp(s, TZ):%a}"[:2] for s in x["starts"]] if x else []
+    return page(request, "status/alarms.html", active=None, reading=r, x=x, day_names=names, **common(request))
 
 
 @app.get("/memory")
