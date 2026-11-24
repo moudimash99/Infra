@@ -427,12 +427,6 @@ data:
        "what": "Frigate NVR for the living-room camera (recordings, detection on the Intel GPU)",
        "url": null
       },
-      "frigate-test": {
-       "group": "Cats",
-       "title": "frigate-test",
-       "what": "A second Frigate for trying the Simba/Nala cat model before the live Frigate changes (Cat-Camera#10)",
-       "url": null
-      },
       "freemotion-hub": {
        "group": "Job search",
        "title": "Free Motion",
@@ -633,9 +627,6 @@ data:
       },
       "apps/Deployment/frigate": {
        "service": "frigate"
-      },
-      "docker:frigate-test": {
-       "service": "frigate-test"
       },
       "apps/Deployment/freemotion-hub": {
        "service": "freemotion-hub"
