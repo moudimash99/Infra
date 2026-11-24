@@ -1099,7 +1099,7 @@
   notes:
     - "2026-11-22: main took in acer-jobs-and-alerts (fast-forward); the PC, GitHub and the server's ~/Infra are on main. The old branches (acer-jobs-and-alerts, homepage-alerts, k8s-homelab, move-to-wifi-ip) are fully merged and can be deleted. The server's ~/Infra keeps two stashes: that day's leftovers (superseded by main) and an older WIP on 9b5e1ae."
     - "Planned: Flux applies the cluster from main (moudimash99/Infra#7); its prerequisites are this file's 'manifest says X, live says Y' drift lines."
-    - "Memory eviction on the Acer since 2026-11-24: kubelet-arg in its /etc/rancher/k3s/config.yaml (not in git; backup config.yaml.bak-2026-11-24), eviction-hard memory.available<300Mi (disk 5% kept), eviction-soft <700Mi for 30 s, max pod grace 60 s; allocatable 6,785 -> 6,485 MiB. The server has none yet (planned at 500/200; its k3s restart takes the control plane down ~1 min). Infra README 'Memory on the Acer'."
+    - "Memory eviction on the Acer since 2026-11-24: kubelet-arg in its /etc/rancher/k3s/config.yaml (not in git; backup config.yaml.bak-2026-11-24), eviction-hard memory.available<300Mi (disk 5% kept), eviction-soft <700Mi for 30 s, max pod grace 60 s; allocatable 6,785 -> 6,485 MiB. The server has it too since 2026-11-24 03:11 UTC: /etc/rancher/k3s/config.yaml (new file; the other flags stay in k3s.service), soft <500Mi for 30 s, hard <200Mi; allocatable 7,754 -> 7,554 MiB. Its restart kept the pods and took the API away ~20 s. Infra README 'Memory on the Acer'."
   menu:
     title: k3s cluster
     icon: mdi-kubernetes

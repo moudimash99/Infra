@@ -36,6 +36,11 @@ The server runs on Wi-Fi (`wlo1`, 192.168.1.116, fixed on the router). The Ether
 192.168.1.135) is bad since 2026-10-27 and waits to be replaced. k3s has `--node-ip 192.168.1.116`, so
 its database, its API and Traefik's outside address all follow that address. To change it: stop k3s,
 change the flag in `k3s.service`, run `k3s server --cluster-reset` with the same flags, start k3s.
+Since 2026-11-24 `/etc/rancher/k3s/config.yaml` on the server adds only memory-pressure eviction (`kubelet-arg`:
+soft below 500 MiB free for 30 s, hard below 200 MiB; lower than the Acer's, see "Memory on the Acer": its 7-day low
+was 724 MiB free). Restarting k3s there keeps the pods running but takes the API and Flux away for ~20 s. No memory is
+reserved for the system on the server, and pods book ~60% of it, so its bookings were left as they were. With
+eviction on, the first to go there are homelab-normal pods over their booking (llm-gateway, uptime-kuma).
 
 Uptime Kuma, Beszel and Portainer still hold `.135` in their own databases. `k8s/cluster/old-address.yaml`
 forwards those ports to `.116`, so they keep working without that address on the server.
