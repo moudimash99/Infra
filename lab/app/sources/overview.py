@@ -207,13 +207,16 @@ def fetch():
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
         futures = {key: pool.submit(prom.query, expr) for key, expr in Q.items()}
         pushed = pool.submit(_pushed_out)
-        raw = {}
+        raw, errors = {}, []
         for key, fut in futures.items():
             try:
                 raw[key] = fut.result()
-            except Exception:               # noqa: BLE001 - one missing exporter leaves one gap, not a broken page
+            except Exception as e:          # noqa: BLE001 - one missing exporter leaves one gap, not a broken page
                 raw[key] = []
+                errors.append(e)
         raw["pushed"] = pushed.result()
+    if len(errors) > len(Q) // 2:           # Prometheus itself didn't answer: say so (the page keeps the last good
+        raise errors[0]                     # numbers) instead of showing empty lists as if nothing ran
     alerts, sites = prom.alerts.get(), misc.sites.get()
     raw["alerts"] = alerts.data if alerts.ok else None
     raw["sites"] = sites.data if sites.ok else None

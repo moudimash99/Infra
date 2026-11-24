@@ -1,0 +1,13 @@
+{#- The alarm bell: the alerts firing now (Alertmanager), the same ones that email the owner. Needs `alarms`. -#}
+{% set al = alarms.list %}
+<details class="switch alarm">
+  <summary class="icon-btn{{ ' quiet' if not al }}" aria-label="Alarms: {{ al | length }} firing" title="{{ al | length }} alarm{{ 's' if al | length != 1 }} firing">{{ icon("alert") }}{% if al %}<span class="badge-n">{{ al | length }}</span>{% endif %}</summary>
+  <div class="switch-menu alarm-menu">
+    <div class="label">{% if al %}{{ al | length }} alarm{{ "s" if al | length > 1 }} firing{% else %}No alarm{% endif %}</div>
+    {% for a in al %}
+    <a href="{{ a.href }}"><span class="adot {{ a.state }}" aria-hidden="true"></span><span><b>{{ a.summary }}</b><small>{{ a.name }}{% if a.since %} · since {{ clock(a.since) }}{% endif %}</small></span></a>
+    {% else %}
+    <p class="none">{% if alarms.ok %}Nothing is firing.{% else %}Couldn't read the alerts right now.{% endif %} These are the alerts that email you.</p>
+    {% endfor %}
+  </div>
+</details>

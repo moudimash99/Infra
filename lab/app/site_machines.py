@@ -51,6 +51,11 @@ def spark(values, width=96, height=24):
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
+    return render(request)
+
+
+def render(request, **extra):
+    """The memory page; `extra` adds to the template (the homelab tool passes its bell and helpers)."""
     now = memory.now.get()
     data = now.data or {"machines": [], "rows": []}
     machines = []
@@ -59,4 +64,4 @@ def home(request: Request):
         machines.append({**m, "state": state, "sentence": sentence, "low": memory.low.get(m["node"])})
     return page(request, "machines/memory.html", reading=now, machines=machines, rows=data["rows"],
                 stuck=data.get("stuck", []), PARTS=PARTS,
-                KINDS=KINDS, gb=gb, spark=spark, G=memory.G)
+                KINDS=KINDS, gb=gb, spark=spark, G=memory.G, **extra)

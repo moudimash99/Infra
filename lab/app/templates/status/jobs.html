@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% from "_m.html" import unreadable %}
+{% block title %}Jobs · Homelab{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ R }}/static/status.css?v={{ STATIC_V }}"><link rel="stylesheet" href="{{ R }}/static/bell.css?v={{ STATIC_V }}">{% endblock %}
+{% block header_end %}{% include "status/_bell.html" %}{% endblock %}
+
+{%- macro dot(state) -%}<span class="sdot {{ state }}" aria-hidden="true"></span>{%- endmacro -%}
+{%- macro bad(state) -%}{{ 1 if state in ("bad", "warn") else 0 }}{%- endmacro -%}
+{%- macro days(cells) -%}
+<span class="days" aria-label="last 7 days">{% for c in cells %}<span class="day {{ c.state or 'none' }}" data-tip="{{ c.tip }}" tabindex="0"></span>{% endfor %}</span>
+{%- endmacro -%}
+
+{% block main %}
+{% set blank = [] %}{% for s in (w.starts if w else []) %}{% set _ = blank.append({"state": none, "tip": "no run"}) %}{% endfor %}
+{{ unreadable(reading, "the jobs") }}{{ unreadable(week, "the jobs' last 7 days") }}
+{% if d %}
+<header class="page-head tight"><h1 class="page-title">Jobs</h1>
+  <p class="page-sub">Every scheduled job on the Acer and the server, and the PC's tasks. The squares are the last 7 days, today on the right.</p></header>
+{% include "status/_filters.html" %}
+
+<section class="qcard wide" id="all-jobs" data-card data-keep>
+  <div class="qhead"><h2>Every job</h2>
+    <span class="legend-days"><span class="day ok"></span>fine<span class="day some"></span>a few failed<span class="day failed"></span>failed<span class="day oom"></span>out of memory<span class="day none"></span>no run</span></div>
+  {% if day_names %}<div class="days-head" aria-hidden="true"><span class="days">{% for name in day_names %}<span class="dname">{{ name }}</span>{% endfor %}</span></div>{% endif %}
+  <ul class="items jobrows">
+    {% for j in d.jobs %}{% set cells = (w.cells.get(j.name) if w else none) %}{% set runs = (w.runs.get(j.name) if w else none) or [] %}{% set last = runs[-1] if runs else none %}
+    <li class="it" data-m="{{ j.m or '' }}" data-p="{{ j.p or '' }}" data-bad="{{ bad(j.state) }}">
+      {{ dot(j.state) }}
+      <div class="txt"><b>{{ j.name }}</b><small>{{ j.text }}{% if j.why %} · {{ j.why }}{% endif %}{% if last and last.took and last.result != "running" %} · last run took {{ dur(last.took) }}{% endif %}</small></div>
+      {{ days(cells or blank) }}
+      <span class="tags">{% if j.m %}<span class="tag">{{ mname(j.m) }}</span>{% endif %}{% if j.p %}<span class="tag">{{ j.p }}</span>{% endif %}</span>
+    </li>
+    {% endfor %}
+    {% for t in d.pc.tasks %}{% set cells = (w.pc_cells.get(t.name) if w else none) %}
+    <li class="it" data-m="pc" data-p="{{ t.p or '' }}" data-bad="{{ bad(t.state) }}">
+      {{ dot(t.state) }}
+      <div class="txt"><b>{{ t.name }}</b><small>{{ t.note or t.status }}{% if t.last %} · last run {{ clock(t.last) }}{% endif %}</small></div>
+      {{ days(cells or blank) }}
+      <span class="tags"><span class="tag">PC</span>{% if t.p %}<span class="tag">{{ t.p }}</span>{% endif %}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  <p class="none" data-none>No job for this filter.</p>
+</section>
+
+<div class="range-bar">
+  <h2>Runs over time</h2>
+  <div class="seg sm">{% for key in RANGES %}<a href="?range={{ key }}" class="{{ 'on' if key == range }}" data-keep-filters>{{ "Last 24 hours" if key == "24h" else "Last 7 days" }}</a>{% endfor %}</div>
+</div>
+<div class="qgrid">
+  <section class="qcard">
+    <div class="qhead"><h2>How long each run took</h2><span class="muted xs">minutes, the 5 longest jobs</span></div>
+    {{ charts.lines(graphs.took, height=210, title="How long each run took, in minutes", x_labels=x_labels, unit=" min") }}
+  </section>
+  <section class="qcard">
+    <div class="qhead"><h2>Memory against its limit</h2><span class="muted xs">each run's peak, % of its limit</span></div>
+    {{ charts.lines(graphs.mem, height=210, title="Each run's peak memory as a share of its limit", x_labels=x_labels, unit="%", y_max=100) }}
+    <p class="xs muted">Past 100% the kernel kills the run (out of memory).</p>
+  </section>
+  <section class="qcard wide">
+    <div class="qhead"><h2>Killed for using too much memory</h2><span class="muted xs">last 7 days</span></div>
+    <ul class="items">
+      {% for o in (w.ooms if w else []) %}
+      <li class="it" data-m="*" data-p="*" data-bad="0">{{ dot("warn") }}<div class="txt"><b>{{ o.name }}</b><small>{{ "a job run" if o.kind == "job" else "an app; it restarted" }}{% if o.limit %} · its limit: {{ size(o.limit) }}{% endif %}</small></div></li>
+      {% else %}
+      <li class="it" data-m="*" data-p="*" data-bad="0">{{ dot("ok") }}<div class="txt"><b>Nothing</b><small>no job or app ran out of memory this week</small></div></li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="{{ R }}/static/status.js?v={{ STATIC_V }}" defer></script>{% endblock %}

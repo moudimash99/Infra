@@ -59,9 +59,23 @@
         chip.textContent = bad ? `${bad} to look at` : "All fine";
         chip.className = "qchip " + (bad ? "bad" : "ok");
       }
-      card.hidden = state.only && bad === 0 && card.id !== "wrong";
+      card.hidden = state.only && bad === 0 && !card.hasAttribute("data-keep");
       if (card.id === "wrong") total = bad;
     });
+    const cards = [...document.querySelectorAll("[data-card]")];
+    let calm = document.getElementById("all-calm");
+    if (state.only && cards.length && cards.every((c) => c.hidden)) {
+      if (!calm) {
+        calm = document.createElement("p");
+        calm.id = "all-calm";
+        calm.className = "calm";
+        calm.textContent = "Nothing needs a look here.";
+        cards[0].parentElement.before(calm);
+      }
+      calm.hidden = false;
+    } else if (calm) {
+      calm.hidden = true;
+    }
     const v = document.getElementById("ov-verdict");
     if (v) {
       const scope = [state.m && bar.querySelector(`[data-f="m"] [data-v="${state.m}"]`)?.textContent,
@@ -72,11 +86,17 @@
     bar.querySelectorAll('[data-f="m"] button').forEach((b) => b.classList.toggle("on", b.dataset.v === state.m));
     bar.querySelector('[data-f="p"]').value = state.p;
     bar.querySelector('[data-f="only"]').checked = state.only;
-    const p = new URLSearchParams();
+    const p = new URLSearchParams(location.search);
+    ["m", "p", "only"].forEach((k) => p.delete(k));
     if (state.m) p.set("m", state.m);
     if (state.p) p.set("p", state.p);
     if (state.only) p.set("only", "1");
     history.replaceState(null, "", location.pathname + (p.toString() ? "?" + p : "") + location.hash);
+    document.querySelectorAll("a[data-keep-filters]").forEach((a) => {     // the range links keep the filters
+      const u = new URL(a.getAttribute("href"), location.href);
+      ["m", "p", "only"].forEach((k) => (p.get(k) ? u.searchParams.set(k, p.get(k)) : u.searchParams.delete(k)));
+      a.setAttribute("href", u.search);
+    });
   }
 
   bar.querySelector('[data-f="m"]').addEventListener("click", (e) => {

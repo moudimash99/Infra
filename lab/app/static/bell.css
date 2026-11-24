@@ -1,0 +1,12 @@
+/* The homelab tool's alarm bell (header): the alerts firing now, as a small count that opens a list. Builds on the
+   shared .switch dropdown (lab.css). */
+.alarm summary { position: relative; }
+.alarm .badge-n { position: absolute; top: -3px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+                  background: var(--bad); color: #fff; font: 700 11px/18px var(--font); text-align: center; }
+.alarm summary.quiet { color: var(--text-3); }
+.alarm .alarm-menu { width: min(360px, calc(100vw - 24px)); }
+.alarm .alarm-menu a { align-items: flex-start; }
+.alarm .alarm-menu small { display: block; color: var(--text-3); font-size: var(--fs-xs); margin-top: 1px; }
+.alarm .alarm-menu .none { padding: 6px 10px 10px; color: var(--text-2); font-size: var(--fs-sm); margin: 0; }
+.adot { width: 9px; height: 9px; border-radius: 50%; flex: none; margin-top: 6px; background: var(--warn); }
+.adot.bad { background: var(--bad); }

@@ -89,3 +89,31 @@
 @media (prefers-color-scheme: dark) {
   [data-site="machines"] { --accent: #7fa3cf; --accent-2: #9db8da; --accent-ink: #a9c3e3; --accent-soft: rgba(127, 163, 207, .14); }
 }
+
+/* pages of the tool: a small title, the range switch, the jobs' day squares */
+.page-head.tight { margin: 2px 0 10px; } .page-head.tight .page-title { font-size: 1.5rem; }
+.head-link { display: inline-flex; align-items: center; gap: 2px; font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; }
+.head-link svg, .all-link svg { width: 15px; height: 15px; }
+.calm { color: var(--ok); font-weight: 650; margin: 6px 0 14px; }
+.calm[hidden] { display: none; }
+.range-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 22px 0 10px; }
+.range-bar h2 { font-size: 1.05rem; font-weight: 700; }
+.qcard .chart { width: 100%; height: auto; display: block; }
+
+.jobrows .it { align-items: center; }
+.jobrows .it .sdot { margin-top: 0; }
+.days { display: inline-flex; gap: 3px; flex: none; }
+.days.empty { width: calc(7 * 15px + 6 * 3px); }
+.day { width: 15px; height: 15px; border-radius: 4px; background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line); cursor: default; }
+.day.ok { background: var(--ok); box-shadow: none; opacity: .85; } .day.some { background: var(--warn); box-shadow: none; opacity: .75; }
+.day.failed { background: var(--bad); box-shadow: none; } .day.oom { background: var(--bad); box-shadow: none;
+  background-image: repeating-linear-gradient(135deg, transparent 0 3px, rgba(255, 255, 255, .45) 3px 5px); }
+.day.running { background: var(--info); box-shadow: none; opacity: .8; }
+.day:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.jobrows .it .tags { width: 200px; max-width: none; flex: none; justify-content: flex-start; }
+.days-head { display: flex; justify-content: flex-end; padding-right: 210px; margin: -2px 0 2px; }
+.days-head .dname { width: 15px; text-align: center; font-size: 10px; color: var(--text-3); font-weight: 600; }
+.legend-days { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: var(--fs-xs); color: var(--text-3); }
+.legend-days .day { width: 11px; height: 11px; margin-left: 6px; }
+@media (max-width: 639px) { .days-head { display: none; } .legend-days { display: none; } .jobrows .it { flex-wrap: wrap; }
+  .jobrows .it .txt { flex-basis: calc(100% - 20px); } .jobrows .it .days { margin-left: 19px; } }

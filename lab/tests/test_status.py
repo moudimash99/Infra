@@ -119,28 +119,40 @@ class Fixed:
         return Reading(True, self.data, "", time.time())
 
 
+ALERTS = [{"name": "JobFailed", "severity": "warning", "summary": "bg-taste-match-fetch failed",
+           "since": "2026-11-24T01:05:00Z", "labels": {}},
+          {"name": "NodeHot", "severity": "critical", "summary": "The Acer is at 98 °C", "since": None, "labels": {}}]
+
+
 def test_page_renders(monkeypatch):
     from starlette.testclient import TestClient
     from app import site_status
+    from app.sources import prom
     monkeypatch.setattr(overview, "now", Fixed(overview.build(raw(), CATALOG, now=NOW)))
+    monkeypatch.setattr(prom, "alerts", Fixed(ALERTS))
     r = TestClient(site_status.app, root_path="/machines").get("/")
     assert r.status_code == 200 and "Traceback" not in r.text
-    for words in ("Anything wrong?", "How are the machines?", "What's using them?", "Did the jobs run?",
-                  "Who's waiting for room?", "Is the GPU busy?", "Are the sites up?", "Did the PC's tasks run?"):
+    for words in ("Machines", "Did the jobs run?", "What's using them?", "Who's waiting for room?", "The GPU", "Sites"):
         assert words in r.text, words
+    assert "Anything wrong?" not in r.text                                 # problems are the bell's: the alerts
     assert 'href="/machines/static/status.css' in r.text and 'data-f="only"' in r.text
     assert '<option value="Board games">' in r.text
     assert 'data-m="acer-laptop" data-p="Board games" data-bad="1"' in r.text                # the failed fetch
+    assert '<span class="badge-n">2</span>' in r.text and 'href="/machines/jobs"' in r.text   # the bell: 2 alerts
+    assert "The Acer is at 98 °C" in r.text
 
 
 def test_memory_tab_and_published_route(monkeypatch):
     """lab.machaka.net/machines is the overview, /machines/memory the memory page; both need the login."""
     from starlette.testclient import TestClient
     from app import main, site_status
+    from app.sources import prom
     monkeypatch.setattr(memory, "now", Fixed(memory.build(raw_fixture())))
     monkeypatch.setattr(memory, "low", Fixed(None))
+    monkeypatch.setattr(prom, "alerts", Fixed([]))
     r = TestClient(site_status.app, root_path="/machines").get("/memory")
     assert r.status_code == 200 and "Where the memory goes" in r.text and 'href="/machines/memory"' in r.text
+    assert "No alarm" in r.text and 'href="/machines/static/bell.css' in r.text
     assert any(sub is site_status.app for _, _, _, sub, _ in main.PATH_SITES)
     gate = TestClient(main.app, base_url="https://lab.machaka.net")
     assert gate.get("/machines/").status_code == 403 and gate.get("/machines/memory").status_code == 403

@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% from "_m.html" import page_head, section_head, alert, unreadable, empty %}
 {% block title %}Memory · Machines{% endblock %}
-{% block head %}<link rel="stylesheet" href="{{ R }}/static/machines.css?v={{ STATIC_V }}">{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ R }}/static/machines.css?v={{ STATIC_V }}">{% if alarms is defined %}<link rel="stylesheet" href="{{ R }}/static/bell.css?v={{ STATIC_V }}">{% endif %}{% endblock %}
+{% block header_end %}{% if alarms is defined %}{% include "status/_bell.html" %}{% endif %}{% endblock %}
 {% block main %}
 {% call page_head("Where the memory goes", "Each machine's memory, split into who is using it, and every app, container and program in one table.") %}{% endcall %}
 {{ unreadable(reading, "Prometheus") }}
