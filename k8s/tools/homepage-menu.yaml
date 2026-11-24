@@ -436,7 +436,7 @@ data:
       "lab-sites": {
        "group": "Website and lab",
        "title": "Lab sites",
-       "what": "The lab, one process serving Taste Match, Deals and Cat cam (status sites for the jobs), the homelab overview (lab.machaka.net/machines:…",
+       "what": "The lab, one process serving Taste Match, Deals and Cat cam (status sites for the jobs), the homelab tool that replaces Grafana's…",
        "url": "https://tastematch.machaka.net"
       },
       "mail-classifier": {
