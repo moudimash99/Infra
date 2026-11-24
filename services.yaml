@@ -221,6 +221,39 @@
       type: frigate
       url: http://192.168.1.93:5000
 
+- name: frigate-test
+  what: A second Frigate for trying the Simba/Nala cat model before the live Frigate changes (Cat-Camera#10).
+  kind: tool
+  system: cats
+  lifecycle: experimental
+  depends_on: [frigate]
+  runs: Docker container `frigate-test` on the server (--restart no, --cpus 3, --memory 1.5g, the server's Intel GPU
+    /dev/dri/renderD128)
+  manifest: none (docker run; command in notes)
+  image: ghcr.io/blakeblackshear/frigate, the same digest as frigate.yaml (upstream)
+  schedule: null
+  url: http://192.168.1.116:5001 (home network only)
+  data:
+    - ~/frigate-test/config on the server (config.yml, model/cat_640.onnx + labels_cat.txt, Frigate DB)
+    - ~/frigate-test/media on the server (snapshots only, no recording; loop.mp4 = two held-out test-day clips)
+  code:
+    repo: none (upstream image); the model comes from ~/cat-labels (v18_pc/best.pt exported to ONNX)
+    branch: null
+  deploy: Copy a new model to ~/frigate-test/config/model/cat_640.onnx and `docker restart frigate-test`.
+  check: GET http://192.168.1.116:5001/api/stats (detectors.ov.inference_speed, cameras living_room and replay)
+  probes:
+    - {docker: frigate-test}
+  drift: []
+  notes:
+    - "Started 2026-11-24 with v18 (640, yolo-generic, OpenVINO on the GPU, ~75-80 ms). MQTT off. Camera living_room
+      reads the live Frigate's restream rtsp://192.168.1.93:8554/tapo_living_room_main (no extra camera connection);
+      camera replay loops loop.mp4. Frigate's yolo-generic drops every score under 0.4 in its own post-processing."
+    - "docker run -d --name frigate-test --restart no --cpus 3 --memory 1.5g --shm-size 256m --device
+      /dev/dri/renderD128 --group-add <render gid> -e TZ=Europe/Paris -p 5001:5000 -v ~/frigate-test/config:/config
+      -v ~/frigate-test/media:/media/frigate --tmpfs /tmp/cache:size=256m <frigate image>"
+    - Remove it (docker rm -f frigate-test, this entry) once the live Frigate runs the cat model.
+  menu: {hide: true}
+
 - name: freemotion-hub
   what: Free Motion's dashboard server (fm-orchestrator/freemotion-hub/server.mjs with fm-web's page) and the agents' hub.
   kind: web-app
