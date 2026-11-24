@@ -17,13 +17,13 @@ spec:
   suspend: true
   timeZone: Europe/Paris
   concurrencyPolicy: Forbid
-  successfulJobsHistoryLimit: 3
-  failedJobsHistoryLimit: 3
+  successfulJobsHistoryLimit: 8   # the page lists the last 8 runs (the CronJob prunes the Jobs it owns, suspended or not)
+  failedJobsHistoryLimit: 8
   jobTemplate:
     spec:
       backoffLimit: 0
       activeDeadlineSeconds: 3600
-      ttlSecondsAfterFinished: 604800   # a week of runs on the page
+      ttlSecondsAfterFinished: 2592000   # 30 days at most
       template:
         metadata:
           labels: { app: mail-open-review }
