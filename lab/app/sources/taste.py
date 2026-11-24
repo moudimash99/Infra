@@ -239,8 +239,10 @@ def by_host(verdicts):
     groups = {}
     for v in verdicts:
         unnamed = (v.get("host") or "").lower().startswith("unknown")
+        team = (v.get("host") or "").lower() == "team"          # the channel's collective verdict
         key = "unknown" if unnamed else v["rid"]
-        gr = groups.setdefault(key, {"rid": None if unnamed else v["rid"], "host": "Unnamed speaker" if unnamed else v["host"],
+        gr = groups.setdefault(key, {"rid": None if unnamed else v["rid"],
+                                     "host": "Unnamed speaker" if unnamed else ("The team" if team else v["host"]),
                                      "channel": v.get("channel"), "m": v.get("m"), "items": [], "unnamed": unnamed})
         gr["items"].append(v)
     for gr in groups.values():

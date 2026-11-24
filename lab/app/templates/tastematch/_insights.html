@@ -30,7 +30,7 @@
     <span class="meta">{{ e.facts.year or "" }}{% if e.facts.min_p %} · {{ e.facts.min_p }}{% if e.facts.max_p and e.facts.max_p != e.facts.min_p %}-{{ e.facts.max_p }}{% endif %} players{% endif %}{% if e.facts.time %} · {{ e.facts.time }} min{% endif %}{% if e.facts.weight %} · weight {{ "%.1f" | format(e.facts.weight) }}{% endif %}</span>
     {% if e.why %}<span class="tm-why">{{ icon("sparkle") }}<span>You rate {% for w in e.why %}<b>{{ w.name }}</b>{{ ", " if not loop.last }}{% endfor %} above BGG</span></span>{% endif %}
     {% if e.fans %}<span class="tm-why">{{ icon("thumbs-up") }}<span>{% for r, sc in e.fans[:3] %}<b>{{ r.name }}</b> {{ "%.0f" | format(sc) }}/5{{ ", " if not loop.last }}{% endfor %}{% if e.fans | length > 3 %} +{{ e.fans | length - 3 }}{% endif %}</span></span>
-    {% elif e.loved %}<span class="tm-why">{{ icon("thumbs-up") }}<span>{{ e.loved }} of {{ e.hosts }} reviewers loved it</span></span>{% endif %}
+    {% elif e.loved %}<span class="tm-why">{{ icon("thumbs-up") }}<span>{% if e.hosts == 1 %}Its one reviewer loved it{% else %}{{ e.loved }} of {{ e.hosts }} reviewers loved it{% endif %}</span></span>{% endif %}
   </span>
   <span class="tm-exp"><small>likely for you</small><b>{{ "%.1f" | format(e.likely) }}<i>/5</i></b><small>BGG {{ "%.1f" | format(e.facts.average / 2) }} · {{ e.n | comma }} ratings</small></span>
 </a>
