@@ -69,7 +69,10 @@
       card.hidden = state.only && bad === 0 && !card.hasAttribute("data-keep");
       if (card.id === "wrong") total = bad;
     });
-    document.querySelectorAll(".room[data-m]").forEach((el) => { el.hidden = !!state.m && el.dataset.m !== state.m; });
+    document.querySelectorAll(".room[data-m], .jobcard[data-m]").forEach((el) => {   // blocks that are one machine's
+      el.hidden = (!!state.m && !!el.dataset.m && el.dataset.m !== state.m) ||
+                  (!!state.p && el.dataset.p !== undefined && el.dataset.p !== state.p);
+    });
     const cards = [...document.querySelectorAll("[data-card]")];
     let calm = document.getElementById("all-calm");
     if (state.only && cards.length && cards.every((c) => c.hidden)) {

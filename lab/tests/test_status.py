@@ -96,10 +96,16 @@ def test_problems_say_why():
     assert "fm-controller was killed for using too much memory" in texts
     assert "fm-webllm has been waiting for room for 10 min" in texts
     assert "Acer disk filling up: 95% full" in texts
-    assert "PC task job-scrapers upwork round failed" in texts
+    assert not any("upwork" in t for t in texts)                       # stopped on purpose: paused, not failing
     assert not any("hot" in t for t in texts)                                             # 85 °C is under 90
     late = next(p for p in d["problems"] if p["text"] == "email-remove is late")
     assert late["p"] == "Gmail" and "expected within 2 h" in late["why"]
+
+
+def test_a_stopped_pc_task_is_paused():
+    d = overview.build(raw(), CATALOG, now=NOW)
+    task = next(t for t in d["pc"]["tasks"] if t["name"] == "job-scrapers upwork round")
+    assert task["state"] == "paused"
 
 
 def test_machines_gpu_and_pushed_out():

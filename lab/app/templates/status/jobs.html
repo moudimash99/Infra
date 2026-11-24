@@ -9,6 +9,7 @@
 {%- macro days(cells) -%}
 <span class="days" aria-label="last 7 days">{% for c in cells %}<span class="day {{ c.state or 'none' }}" data-tip="{{ c.tip }}" tabindex="0"></span>{% endfor %}</span>
 {%- endmacro -%}
+{%- macro mins(s) -%}{% if s is none %}?{% elif s < 90 %}{{ "%.0f" | format(s) }} s{% elif s < 5400 %}{{ "%.0f" | format(s / 60) }} min{% else %}{{ "%.1f" | format(s / 3600) }} h{% endif %}{%- endmacro -%}
 
 {% block main %}
 {% set blank = [] %}{% for s in (w.starts if w else []) %}{% set _ = blank.append({"state": none, "tip": "no run"}) %}{% endfor %}
@@ -20,13 +21,14 @@
 
 <section class="qcard wide" id="all-jobs" data-card data-keep>
   <div class="qhead"><h2>Every job</h2>
-    <span class="legend-days"><span class="day ok"></span>fine<span class="day some"></span>a few failed<span class="day failed"></span>failed<span class="day oom"></span>out of memory<span class="day none"></span>no run</span></div>
+    <span class="legend-days"><span class="day ok"></span>fine<span class="day some"></span>a few failed<span class="day failed"></span>failed<span class="day oom"></span>out of memory<span class="day none"></span>no run or paused</span></div>
   {% if day_names %}<div class="days-head" aria-hidden="true"><span class="days">{% for name in day_names %}<span class="dname">{{ name }}</span>{% endfor %}</span></div>{% endif %}
   <ul class="items jobrows">
-    {% for j in d.jobs %}{% set cells = (w.cells.get(j.name) if w else none) %}{% set runs = (w.runs.get(j.name) if w else none) or [] %}{% set last = runs[-1] if runs else none %}
-    <li class="it" data-m="{{ j.m or '' }}" data-p="{{ j.p or '' }}" data-bad="{{ bad(j.state) }}">
+    {% for j in d.jobs %}{% set cells = (w.cells.get(j.name) if w else none) %}{% set f = (w.fails.get(j.name) if w and w.fails else none) %}
+    <li class="it" data-m="{{ j.m or '' }}" data-p="{{ j.p or '' }}" data-bad="{{ 1 if j.state in ('bad', 'warn') or (f and f.unusual) else 0 }}">
       {{ dot(j.state) }}
-      <div class="txt"><b>{{ j.name }}</b><small>{{ j.text }}{% if j.why %} · {{ j.why }}{% endif %}{% if last and last.took and last.result != "running" %} · last run took {{ dur(last.took) }}{% endif %}</small></div>
+      <div class="txt"><b><a href="#job-{{ j.name }}">{{ j.name }}</a></b><small>{{ j.text }}{% if j.why %} · {{ j.why }}{% endif %}</small>
+        {% if f %}<small class="{{ 'warn-text' if f.unusual else 'muted' }}">{{ f.text }}</small>{% endif %}</div>
       {{ days(cells or blank) }}
       <span class="tags">{% if j.m %}<span class="tag">{{ mname(j.m) }}</span>{% endif %}{% if j.p %}<span class="tag">{{ j.p }}</span>{% endif %}</span>
     </li>
@@ -34,7 +36,7 @@
     {% for t in d.pc.tasks %}{% set cells = (w.pc_cells.get(t.name) if w else none) %}
     <li class="it" data-m="pc" data-p="{{ t.p or '' }}" data-bad="{{ bad(t.state) }}">
       {{ dot(t.state) }}
-      <div class="txt"><b>{{ t.name }}</b><small>{{ t.note or t.status }}{% if t.last %} · last run {{ clock(t.last) }}{% endif %}</small></div>
+      <div class="txt"><b>{{ t.name }}</b><small>{% if t.state == "paused" %}paused: {{ t.note[8:] if t.note.lower().startswith("stopped:") else t.note }}{% else %}{{ t.note or t.status }}{% endif %}{% if t.last %} · last run {{ clock(t.last) }}{% endif %}</small></div>
       {{ days(cells or blank) }}
       <span class="tags"><span class="tag">PC</span>{% if t.p %}<span class="tag">{{ t.p }}</span>{% endif %}</span>
     </li>
@@ -43,30 +45,39 @@
   <p class="none" data-none>No job for this filter.</p>
 </section>
 
+<section class="qcard wide" id="killed" data-card data-keep>
+  <div class="qhead"><h2>Killed for using too much memory</h2><span class="muted xs">the last 7 days, newest first</span></div>
+  <ul class="items" data-limit="15">
+    {% for o in (w.ooms if w else []) %}
+    <li class="it" data-m="*" data-p="*" data-bad="0">{{ dot("warn") }}
+      <div class="txt"><b>{{ o.name }}</b><small>{% if o.at %}{{ clock(o.at) }}{% else %}some time this week{% endif %}{% if o.after %}, {{ mins(o.after) }} into its run{% endif %} · {{ "a job run" if o.kind == "job" else "an app; it restarted" }}{% if o.limit %} · its limit {{ size(o.limit) }}{% if o.peak and o.peak >= 0.9 * o.limit %}, it reached {{ size(o.peak) }}{% else %}; it jumped past it between two readings (every 30 s), too fast to measure{% endif %}{% endif %}</small></div></li>
+    {% else %}
+    <li class="it" data-m="*" data-p="*" data-bad="0">{{ dot("ok") }}<div class="txt"><b>Nothing</b><small>no job or app ran out of memory this week</small></div></li>
+    {% endfor %}
+  </ul>
+  <p class="xs muted">Every container has a memory limit. When it tries to use more, the kernel kills it on the spot: a job run fails, an app restarts.</p>
+</section>
+
 <div class="range-bar">
-  <h2>Runs over time</h2>
+  <h2>Each job, run by run</h2>
   <span class="muted xs">{{ "the last 24 hours" if range == "24h" else "the last 7 days" }}; switch at the top</span>
 </div>
-<div class="qgrid">
-  <section class="qcard">
-    <div class="qhead"><h2>How long each run took</h2><span class="muted xs">minutes, the 5 longest jobs</span></div>
-    {{ charts.lines(graphs.took, height=210, title="How long each run took, in minutes", x_labels=x_labels, unit=" min") }}
+<p class="section-sub">Left: how long each run took. Right: the job's real memory over time; the red line is its limit, and touching it means the run is killed.</p>
+<div class="jobgrid">
+  {% for j in d.jobs %}{% set g = per.get(j.name) %}{% set f = (w.fails.get(j.name) if w and w.fails else none) %}
+  <section class="qcard jobcard" id="job-{{ j.name }}" data-card data-keep data-m="{{ j.m or '' }}" data-p="{{ j.p or '' }}">
+    <div class="qhead"><h2>{{ dot(j.state) }} {{ j.name }}</h2><span class="muted xs">{% if g %}{{ g.runs }} run{{ "s" if g.runs != 1 }}{% endif %}</span></div>
+    {% if g and (g.took or g.mem) %}
+    <div class="g2 tight">
+      <div><h3>Time per run{% if g.median %} · usually {{ mins(g.median) }}{% endif %}</h3>
+        {{ charts.lines(g.took, height=130, title=j.name ~ ": minutes per run", x_labels=x_labels, unit=" min", width=260, x_range=g.span, dots=true) }}</div>
+      <div><h3>Memory{% if g.limit %} · limit {{ size(g.limit) }}{% endif %}</h3>
+        {{ charts.lines(g.mem, height=130, title=j.name ~ ": memory and its limit, GB", x_labels=x_labels, unit=" GB", width=260, x_range=g.span) }}</div>
+    </div>
+    <p class="xs muted">{% if f %}{{ f.text }}{% endif %}{% if g.longest %} · longest {{ mins(g.longest) }}{% endif %}{% if g.peak and g.limit %} · highest memory {{ size(g.peak) }}, {{ "%.0f" | format(100 * g.peak / g.limit) }}% of its limit{% endif %}{% if g.ooms %} · <b class="warn-text">killed for memory {{ g.ooms }}×</b>{% endif %}</p>
+    {% else %}<p class="none">No run in this period{% if j.state == "paused" %}: it's paused{% endif %}.</p>{% endif %}
   </section>
-  <section class="qcard">
-    <div class="qhead"><h2>Memory against its limit</h2><span class="muted xs">each run's peak, % of its limit</span></div>
-    {{ charts.lines(graphs.mem, height=210, title="Each run's peak memory as a share of its limit", x_labels=x_labels, unit="%", y_max=100) }}
-    <p class="xs muted">Past 100% the kernel kills the run (out of memory).</p>
-  </section>
-  <section class="qcard wide">
-    <div class="qhead"><h2>Killed for using too much memory</h2><span class="muted xs">last 7 days</span></div>
-    <ul class="items">
-      {% for o in (w.ooms if w else []) %}
-      <li class="it" data-m="*" data-p="*" data-bad="0">{{ dot("warn") }}<div class="txt"><b>{{ o.name }}</b><small>{{ "a job run" if o.kind == "job" else "an app; it restarted" }}{% if o.limit %} · its limit: {{ size(o.limit) }}{% endif %}</small></div></li>
-      {% else %}
-      <li class="it" data-m="*" data-p="*" data-bad="0">{{ dot("ok") }}<div class="txt"><b>Nothing</b><small>no job or app ran out of memory this week</small></div></li>
-      {% endfor %}
-    </ul>
-  </section>
+  {% endfor %}
 </div>
 {% endif %}
 {% endblock %}

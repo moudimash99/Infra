@@ -52,6 +52,28 @@ def test_runs_and_days():
     assert "40 runs (2 failed)" in today["tip"]
     assert d["pc_cells"]["job-scrapers upwork round"][-1]["state"] == "failed"
     assert [o["name"] for o in d["ooms"]] == ["cat-flash"]
+    assert d["ooms"][0]["at"] == NOW - 2 * H + 280 and d["ooms"][0]["limit"] == 1e9     # no exact time: the run's end
+    assert d["pc_cells"]["job-scrapers upwork round"][-1]["state"] == "failed"         # no "stopped" note here
+
+
+def test_failures_say_if_normal():
+    def runs(bad_before, n_before, bad_today, n_today):
+        out = [{"start": NOW - 3 * 86400 + i, "result": "failed" if i < bad_before else "ok"} for i in range(n_before)]
+        out += [{"start": NOW - 3600 + i, "result": "failed" if i < bad_today else "ok"} for i in range(n_today)]
+        return out
+    usual = jobruns.failures(runs(10, 500, 1, 100), NOW)
+    assert usual["text"] == "11 of 600 runs failed this week (2%): normal for it (usually 2%)" and not usual["unusual"]
+    worse = jobruns.failures(runs(10, 500, 30, 100), NOW)
+    assert worse["unusual"] and "more than usual, 30 of 100 in the last 24 h (usually 2%)" in worse["text"]
+    assert jobruns.failures(runs(0, 0, 0, 2), NOW)["text"] == "2 runs this week, none failed"
+
+
+def test_paused_pc_task_has_no_colour():
+    raw = week_raw()
+    raw["pc"] = [({"task": "\\job-scrapers upwork round", "note": "stopped: Upwork asked for a login"},
+                  [(NOW - 30 * H, 1.0), (NOW - 1 * H, 0.0)])]
+    d = jobruns.build(raw, now=NOW)
+    assert d["pc_cells"]["job-scrapers upwork round"][-1]["state"] == "paused"
 
 
 def test_graphs_peaks_and_five_at_most():
@@ -80,13 +102,17 @@ def test_jobs_page(monkeypatch):
     from app.sources import prom
     monkeypatch.setattr(overview, "now", Fixed(overview.build(raw(), CATALOG, now=NOW)))
     monkeypatch.setattr(jobruns, "week", Fixed(jobruns.build(week_raw(), now=NOW)))
+    monkeypatch.setattr(jobruns, "memory", Fixed({"cat-flash": [(NOW - 2 * H, 0.5e9), (NOW - 2 * H + 300, 0.99e9)]}))
     monkeypatch.setattr(prom, "alerts", Fixed([]))
     client = TestClient(site_status.app, root_path="/machines")
     for path in ("/jobs", "/jobs?range=7d", "/jobs?range=nonsense"):
         r = client.get(path)
         assert r.status_code == 200 and "Traceback" not in r.text, path
     text = client.get("/jobs").text
-    assert "Every job" in text and "How long each run took" in text and "Memory against its limit" in text
+    for words in ("Every job", "Killed for using too much memory", "Each job, run by run", "Time per run",
+                  "the red line is its limit", "runs failed this week", "into its run"):
+        assert words in text, words
+    assert 'id="job-cat-flash"' in text and 'viewBox="0 0 260 130"' in text
     assert text.count('class="day ') >= 7 * 5 and 'class="day some"' in text and 'class="day oom"' in text
     assert 'data-tip="' in text and "job-scrapers upwork round" in text
     assert 'svg class="chart"' in text

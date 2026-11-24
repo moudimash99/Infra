@@ -338,11 +338,13 @@ def build(raw, catalog=None, now=None):
         task = m.get("task", "?")
         name = task.lstrip("\\")
         ok = v >= 1
-        pc_tasks.append({"name": name, "state": "ok" if ok else "bad", "status": m.get("status", ""),
+        paused = not ok and str(m.get("note") or "").strip().lower().startswith(("stopped", "paused"))
+        pc_tasks.append({"name": name, "state": "ok" if ok else "paused" if paused else "bad",
+                         "status": m.get("status", ""),
                          "note": m.get("note", ""), "last": pc_last.get(task), "m": "pc",
                          "next": pc_next.get(task) or pc_next.get(task.lstrip("\\")),
                          "p": P.group("pc", task) or P.group("pc", "\\" + name)})
-        if not ok:
+        if not ok and not paused:
             problem("warn", f"PC task {name} failed", m.get("note") or m.get("status", ""), m="pc",
                     p=pc_tasks[-1]["p"], href="#pc")
     pc_tasks.sort(key=lambda t: (t["state"] == "ok", t["name"].lower()))
@@ -354,6 +356,10 @@ def build(raw, catalog=None, now=None):
         job = pc_jobs.setdefault(m.get("pc_job", "?"), {"key": m.get("pc_job", "?"), "ok": None, "values": [],
                                                          "title": m.get("title") or m.get("pc_job", "?")})
         job["values"].append((m.get("name", "?"), v))
+    for job in pc_jobs.values():           # a PC job whose task is paused (the Upwork scan) is paused too
+        held = [t for t in pc_tasks if t["state"] == "paused" and job["key"] in t["name"].lower()]
+        if job["ok"] is False and held:
+            job["ok"], job["paused"] = None, held[0]["note"]
     pc = {"age": pc_age, "stale": pc_age is None or pc_age > PC_STALE, "tasks": pc_tasks,
           "jobs": sorted(pc_jobs.values(), key=lambda j: (j["ok"] is not False, j["title"]))}
 

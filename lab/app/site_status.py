@@ -89,11 +89,13 @@ def home(request: Request):
 
 @app.get("/jobs", response_class=HTMLResponse)
 def jobs(request: Request, range: str = "24h"):
-    hours = RANGES.get(range, 24)
-    r, w = overview.now.get(), jobruns.week.get()
+    range = range if range in RANGES else "24h"
+    hours = RANGES[range]
+    r, w, mem = overview.now.get(), jobruns.week.get(), jobruns.memory.get(range)
     graphs = jobruns.graphs(w.data, hours) if w.data else {"took": [], "mem": []}
+    per = jobruns.per_job(w.data, mem.data, hours) if w.data else {}
     day_names = [f"{dt.datetime.fromtimestamp(s, TZ):%a}"[:2] for s in w.data["starts"]] if w.data else []
-    return page(request, "status/jobs.html", reading=r, week=w, d=r.data, w=w.data, graphs=graphs, range=range,
+    return page(request, "status/jobs.html", reading=r, week=w, d=r.data, w=w.data, graphs=graphs, per=per, range=range,
                 RANGES=RANGES, hours=hours, day_names=day_names, x_labels=axis(hours), **common(request))
 
 

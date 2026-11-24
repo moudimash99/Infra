@@ -199,3 +199,18 @@
 .log { margin: 0; padding: 12px; max-height: 420px; overflow: auto; background: var(--bg-2); border-radius: var(--r);
        font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
 .applist .txt b a, .users .txt b a { color: inherit; }
+
+/* Jobs: one card per job, run by run; paused things carry no colour */
+.jobgrid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr)); }
+.jobgrid .qcard[hidden] { display: none; }
+.jobcard { container-type: inline-size; } .jobcard .qhead h2 { display: flex; align-items: center; gap: 8px; }
+.jobcard .qhead h2 .sdot { margin-top: 0; } .jobcard h3 { margin-top: 0; }
+.g2.tight { gap: 8px 16px; grid-template-columns: 1fr; }
+@container (min-width: 500px) { .g2.tight { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.warn-text { color: var(--warn); }
+.it .txt small.muted, .it .txt small.warn-text { margin-top: 2px; }
+.qchip.paused { background: var(--bg-2); color: var(--text-3); }
+.day.paused { background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line); }
+.jobrows .txt b a { color: inherit; }
+svg.chart .pt { stroke: none; } .s1.pt { fill: var(--s1); } .s2.pt { fill: var(--s2); } .s3.pt { fill: var(--s3); }
+.s4.pt { fill: var(--s4); } .s5.pt { fill: var(--s5); } .s8.pt { fill: var(--s8); }

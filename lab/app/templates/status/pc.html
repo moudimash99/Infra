@@ -39,7 +39,7 @@
 
   {% for j in pc.jobs %}
   <section class="qcard" data-card>
-    <div class="qhead"><h2>{{ j.title }}</h2>{% if j.ok is not none %}<span class="qchip {{ 'ok' if j.ok else 'bad' }}">{{ "Fine" if j.ok else "Failing" }}</span>{% endif %}</div>
+    <div class="qhead"><h2>{{ j.title }}</h2>{% if j.paused %}<span class="qchip paused">Paused</span>{% elif j.ok is not none %}<span class="qchip {{ 'ok' if j.ok else 'bad' }}">{{ "Fine" if j.ok else "Failing" }}</span>{% endif %}</div>
     <ul class="items">
       {% for name, v in j["values"] %}<li class="it" data-m="pc" data-p="*" data-bad="{{ 0 if j.ok is not false else 1 }}"><div class="txt"><b>{{ name }}</b></div><span class="val">{{ "{:,.0f}".format(v) }}</span></li>
       {% else %}<li class="it" data-m="pc" data-p="*" data-bad="{{ 0 if j.ok is not false else 1 }}"><div class="txt"><small>No numbers in its last report.</small></div></li>{% endfor %}
