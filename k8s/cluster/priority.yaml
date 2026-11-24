@@ -1,10 +1,12 @@
 # Who the cluster keeps when the Acer (6.6 GiB for pods) is booked full. Two separate things decide it:
 #  - Booking (the scheduler): a pod starts only where its memory request fits. A pod whose class may make room
 #    (preemptionPolicy PreemptLowerPriority) may stop pods with a strictly LOWER value to fit; every other pod waits.
-#  - Real memory: this k3s has no kubelet memory-eviction threshold (allocatable = capacity - reserves), so if the
-#    pods together really run out, the kernel's OOM killer picks a process by size and by a bonus Kubernetes sets
-#    from the request (small request = killed first). Priority does not count there. A pod above its own limit is
-#    killed whatever its class.
+#  - Real memory: since 2026-11-24 the kubelet pushes pods out when real free memory runs low (Infra#18; the Acer
+#    soft < 700Mi for 30 s, hard < 300Mi; the server 500 / 200, in each machine's /etc/rancher/k3s/config.yaml).
+#    It picks pods using more than they booked first, then the LOWEST class here, then the one furthest over its
+#    booking; a pushed-out Job pod comes back at its next run. A spike faster than the kubelet's ~10 s check still
+#    reaches the kernel's OOM killer, which picks by size and a bonus from the request (small request = killed
+#    first), not by class. A pod above its own limit is killed whatever its class.
 #   homelab-critical  1000000  Frigate's recordings, the websites, the lab sites, Homepage, monitoring and its agents
 #   homelab-normal     100000  everything not tagged (the default)
 #   batch-high          30000  Free Motion's browsers and website helper, the bg-taste-match rating, cat monitor,

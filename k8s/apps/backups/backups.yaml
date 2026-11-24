@@ -115,8 +115,16 @@ data:
         step("unmatched", tar_copy, f"{out}/unmatched.tar.gz", [(f"{a}/unmatched", "unmatched")])
         step("boardgamefinder Games.db", sqlite_copy, f"{a}/boardgamefinder/data/Games.db", f"{out}/boardgamefinder/Games.db")
         step("bg-taste-match bgtaste.db", sqlite_copy, f"{a}/bg-taste-match/bgtaste.db", f"{out}/bg-taste-match/bgtaste.db")
+        caps_started = datetime.datetime.now().timestamp()
         step("bg-taste-match captions + speakers", tar_copy, f"{out}/bg-taste-match-captions.tar.gz",
              [(f"{a}/bg-taste-match/captions", "captions"), (f"{a}/bg-taste-match/diar", "diar")])
+        # Taste Match deletes a video's audio only once its captions and speakers are older than this stamp, so they
+        # are in a backup (bg-taste-match audio_prune.py, bg-taste-match#8). Written only when the copy succeeded.
+        if "bg-taste-match captions + speakers" in done:
+            def stamp():
+                with open(f"{a}/bg-taste-match/backup-stamp.json", "w") as f:
+                    json.dump({"started": caps_started, "day": DAY, "copy": f"{out}/bg-taste-match-captions.tar.gz"}, f)
+            step("bg-taste-match backup stamp", stamp)
         if os.path.exists(f"{a}/lab/lab.db"):
             step("lab lab.db", sqlite_copy, f"{a}/lab/lab.db", f"{out}/lab/lab.db")
         step("email-remove (private)", tar_copy, f"{out}/email-remove.tar.gz", [(f"{a}/email-remove", "email-remove")],

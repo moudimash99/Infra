@@ -550,7 +550,7 @@
   url: "none (status on https://tastematch.machaka.net through the lab)"
   data:
     - "hostPath /srv/apps/bg-taste-match on the Acer (code + bgtaste.db + captions; never copy bgtaste.db over)"
-    - "hostPath /var/lib/bg-taste-match/audio on the Acer: the system volume (ubuntu-vg/ubuntu-lv, 914 GB, shared with k3s), not a separate disk; get_audio.py stops downloads below MIN_FREE_GB (150) free"
+    - "hostPath /var/lib/bg-taste-match/audio on the Acer: the system volume (ubuntu-vg/ubuntu-lv, 914 GB, shared with k3s), not a separate disk; get_audio.py stops downloads below MIN_FREE_GB (150) free. Since 2026-11-24 (bg-taste-match#8) each fetch pass starts with audio_prune.py: audio whose captions and speakers are done, backed up (backup-stamp.json from backup-acer) and look right (85% of the video, 80+ words a minute) can be deleted; get_audio.py then never fetches it again. REPORT ONLY until PRUNE_AUDIO=1 is set on the fetch CronJob (waits for the user's yes); deletions are logged in audio_pruned.jsonl. With SPEAKERS=0 on the gpu job no new video gets speakers, so only the ones already diarized qualify (1,606 files, 29.3 GB of 106 GB on 2026-11-24)"
     - "hostPath /srv/apps/gpu-lock (GPU lock; was shared with cat-monitor until 2026-11-24)"
     - "NFS 192.168.1.116:/srv/apps/freemotion/ws read-only (llm job runs fm-llm's web-llm.py)"
     - "Secret apps/bg-taste-match (HF_TOKEN)"
@@ -559,7 +559,7 @@
     branch: main
     libs:
       - "C:\\Users\\Moudimash99\\Documents\\Coding\\bgg-core (github.com/moudimash99/bgg-core; deploy/build.sh copies the PC's working tree into the image, not a pinned commit)"
-    deployed: "078cf99, sent with push_code.sh 2026-11-24 (score: the team inference for every host, the 5-game ranking counts team-only games by weight, expansion-named verdicts on a base game left out; before that 5c2c720: anticipated lists weigh 0, rejected verdicts never count; hosts.py merges every table; sources per score and expansions on a base game dropped since ecd7582; anyone's ratings since 4257ba9; shared games counted by verdict weight since 71bea54); 84df3cc before (2026-11-23 23:45, heat guard checks during each piece); f51b9bd before that (2026-11-23 01:43, heat guard, Whisper piece length, give-up count, SPEAKERS switch)"
+    deployed: "e38aa73, sent with push_code.sh 2026-11-24 21:16 (audio_prune.py at the start of each fetch pass, report only; get_audio.py skips finished videos whose audio is gone; recover_names.py reads a clip from YouTube's stream when the file is gone); 078cf99 before, sent 2026-11-24 (score: the team inference for every host, the 5-game ranking counts team-only games by weight, expansion-named verdicts on a base game left out; before that 5c2c720: anticipated lists weigh 0, rejected verdicts never count; hosts.py merges every table; sources per score and expansions on a base game dropped since ecd7582; anyone's ratings since 4257ba9; shared games counted by verdict weight since 71bea54); 84df3cc before (2026-11-23 23:45, heat guard checks during each piece); f51b9bd before that (2026-11-23 01:43, heat guard, Whisper piece length, give-up count, SPEAKERS switch)"
     version_check: "none (code goes out with push_code.sh, not in the image; compare file hashes by hand as on 2026-11-20)"
   deploy: "Code: deploy/push_code.sh from the PC (never sends bgtaste.db). Image: deploy/build.sh, import on the Acer, set the tag, apply."
   check: >-
@@ -1179,6 +1179,7 @@
   notes:
     - "SQLite files are copied with SQLite's backup API (consistent while the app writes), then quick_check'ed; portainer.db (BoltDB) is copied as a file while Portainer runs."
     - "Tested 2026-11-23: both jobs ran by hand with no failed item; cat-weight's copy, restored into a scratch folder on the server, passed integrity_check with the same 150 weights as live."
+    - "Since 2026-11-24 backup-acer writes /srv/apps/bg-taste-match/backup-stamp.json (the time the captions + speakers copy started) after that copy succeeds; Taste Match's audio_prune.py deletes a video's audio only when its captions and speakers are older than that stamp (bg-taste-match#8)."
     - "Left out on purpose: Frigate recordings, bg-taste-match audio and caches, Prometheus, the registry, the session histories in /srv/apps/freemotion/home, fm-data (git) and code (GitHub). Nothing leaves the house yet: an encrypted copy elsewhere is the user's call (Infra#10)."
     - "Restore: stop the app (scale to 0), copy the file back, start it."
     - "Not private from the Acer's pods: NFS trusts the uid a client claims (all_squash makes it 1000, which owns everything), and every pod on the Acer reaches the server's port 2049 (checked 2026-11-23). So the export holds nothing that opens other systems (logins, k3s token and snapshot stay server-only), but it does hold the email archiver's files (email text) and the tools' databases (password hashes). Encrypting the cross-machine copies is the user's call (Infra#10)."
