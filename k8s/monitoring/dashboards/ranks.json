@@ -1,7 +1,7 @@
 {
  "uid": "ranks",
  "title": "Ranks and memory",
- "description": "Every app: its rank, what that rank may do, what the app is, the memory it books and its real memory over the last 24 hours.",
+ "description": "Each machine: every app's rank, what that rank may do, what the app is, the memory it books and its real memory over the last 24 hours.",
  "tags": [
   "homelab"
  ],
@@ -42,7 +42,7 @@
    "title": "The ranks, highest first",
    "options": {
     "mode": "markdown",
-    "content": "| Rank | Number | Can push out lower ranks to start? | Can be pushed out by | What it is for |\n|---|---:|---|---|---|\n| `system-node-critical` | 2,000,001,000 | yes | nothing | k3s's own plumbing. |\n| `system-cluster-critical` | 2,000,000,000 | yes | nothing | Cluster essentials: names, the web front door, GitOps. |\n| `homelab-critical` | 1,000,000 | yes | k3s's own | Keep running: camera recordings, websites, the lab sites, monitoring. |\n| `homelab-normal` | 100,000 | yes | `homelab-critical`, k3s's own | Services with no tag. |\n| `batch-high` | 30,000 | no, waits for room | `homelab-critical`, `homelab-normal`, k3s's own | Free Motion's browsers and website helper, hourly or daily jobs whose results are expected (rating, cat monitor, the archiver). |\n| `batch-make-room` | 25,000 | yes | `homelab-critical`, `homelab-normal`, k3s's own | Short daily jobs that may stop lower pods (the mail classifier) to start: cat flash, BoardGameFinder. |\n| `steps-aside` | 22,000 | no, waits for room | `homelab-critical`, `homelab-normal`, `batch-make-room`, k3s's own | Services that give their room to batch-make-room jobs and come back after: the mail classifier. |\n| `batch-mid` | 20,000 | no, waits for room | `homelab-critical`, `homelab-normal`, `batch-make-room`, k3s's own | Long jobs that resume where they stopped (Whisper, speakers). |\n| `batch-low` | 10,000 | no, waits for room | `homelab-critical`, `homelab-normal`, `batch-make-room`, k3s's own | Jobs that retry on their own, idle helpers (downloads, shell). |\n| `(none)` | 0 | yes | `homelab-critical`, `homelab-normal`, `batch-make-room`, k3s's own | Pods made before the default rank existed; they get homelab-normal at their next restart. |\n\n**Two separate rules.** *Getting in:* a pod starts only where its **booking** fits; a rank marked yes may stop pods of a strictly lower number on that machine to make room, the others wait. *Running out of real memory:* ranks don't count; the kernel kills the biggest containers first (a small booking makes it likelier), and a container above its own limit is killed whatever its rank.",
+    "content": "| Rank | Number | Can push out lower ranks to start? | Can be pushed out by | What it is for |\n|---|---:|---|---|---|\n| `system-node-critical` | 2,000,001,000 | yes | nothing | k3s's own plumbing. |\n| `system-cluster-critical` | 2,000,000,000 | yes | nothing | Cluster essentials: names, the web front door, GitOps. |\n| `homelab-critical` | 1,000,000 | yes | k3s's own | Keep running: camera recordings, websites, the lab sites, monitoring. |\n| `homelab-normal` | 100,000 | yes | `homelab-critical`, k3s's own | Services with no tag. |\n| `batch-high` | 30,000 | no, waits for room | `homelab-critical`, `homelab-normal`, k3s's own | Free Motion's browsers and website helper, hourly or daily jobs whose results are expected (rating, cat monitor, the archiver). |\n| `batch-make-room` | 25,000 | yes | `homelab-critical`, `homelab-normal`, k3s's own | Short daily jobs that may stop lower pods (the mail classifier) to start: cat flash, BoardGameFinder. |\n| `steps-aside` | 22,000 | no, waits for room | `homelab-critical`, `homelab-normal`, `batch-make-room`, k3s's own | Services that give their room to batch-make-room jobs and come back after: the mail classifier. |\n| `batch-mid` | 20,000 | no, waits for room | `homelab-critical`, `homelab-normal`, `batch-make-room`, k3s's own | Long jobs that resume where they stopped (Whisper, speakers). |\n| `batch-low` | 10,000 | no, waits for room | `homelab-critical`, `homelab-normal`, `batch-make-room`, k3s's own | Jobs that retry on their own, idle helpers (downloads, shell). |\n| `(none)` | 0 | no, waits for room | `homelab-critical`, `homelab-normal`, `batch-make-room`, k3s's own | Pods made before the default rank existed; they get homelab-normal at their next restart. |\n\n**Two separate rules.** *Getting in:* a pod starts only where its **booking** fits; a rank marked yes may stop pods of a strictly lower number on that machine to make room, the others wait. *Running out of real memory:* ranks don't count; the kernel kills the biggest containers first (a small booking makes it likelier), and a container above its own limit is killed whatever its rank.",
     "code": {
      "showLineNumbers": false
     }
@@ -56,8 +56,321 @@
    "id": 1
   },
   {
+   "type": "row",
+   "title": "Acer (acer-laptop)",
+   "collapsed": false,
+   "panels": [],
+   "gridPos": {
+    "x": 0,
+    "y": 12,
+    "w": 24,
+    "h": 1
+   },
+   "id": 2
+  },
+  {
+   "type": "stat",
+   "title": "Room for pods",
+   "description": "What the machine gives pods: its memory minus what is kept for the system and k3s.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(kube_node_status_allocatable{resource=\"memory\", node=\"acer-laptop\"})",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bytes",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#2a78d6",
+        "value": null
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "decimals": 1
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "orientation": "auto",
+    "textMode": "value",
+    "colorMode": "none",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 14,
+     "valueSize": 30
+    }
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 13,
+    "w": 6,
+    "h": 3
+   },
+   "id": 3
+  },
+  {
+   "type": "stat",
+   "title": "Booked now",
+   "description": "The running pods' bookings as a share of the room. A new pod gets in only if its booking fits.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(kube_pod_container_resource_requests{resource=\"memory\", node=\"acer-laptop\"} and on (namespace, pod) (kube_pod_status_phase{phase=\"Running\"} == 1)) / sum(kube_node_status_allocatable{resource=\"memory\", node=\"acer-laptop\"}) * 100",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#0ca30c",
+        "value": null
+       },
+       {
+        "color": "#fab219",
+        "value": 90
+       },
+       {
+        "color": "#d03b3b",
+        "value": 97
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "orientation": "auto",
+    "textMode": "value",
+    "colorMode": "value",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 14,
+     "valueSize": 30
+    }
+   },
+   "gridPos": {
+    "x": 6,
+    "y": 13,
+    "w": 6,
+    "h": 3
+   },
+   "id": 4
+  },
+  {
+   "type": "stat",
+   "title": "Really used now",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(container_memory_working_set_bytes{node=\"acer-laptop\", container!=\"\"}) / sum(kube_node_status_allocatable{resource=\"memory\", node=\"acer-laptop\"}) * 100",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#0ca30c",
+        "value": null
+       },
+       {
+        "color": "#fab219",
+        "value": 85
+       },
+       {
+        "color": "#d03b3b",
+        "value": 95
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "orientation": "auto",
+    "textMode": "value",
+    "colorMode": "value",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 14,
+     "valueSize": 30
+    }
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 13,
+    "w": 6,
+    "h": 3
+   },
+   "id": 5
+  },
+  {
+   "type": "stat",
+   "title": "Really used, peak 24 h",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max_over_time((sum(container_memory_working_set_bytes{node=\"acer-laptop\", container!=\"\"}))[24h:1m]) / sum(kube_node_status_allocatable{resource=\"memory\", node=\"acer-laptop\"}) * 100",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#0ca30c",
+        "value": null
+       },
+       {
+        "color": "#fab219",
+        "value": 85
+       },
+       {
+        "color": "#d03b3b",
+        "value": 95
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "orientation": "auto",
+    "textMode": "value",
+    "colorMode": "value",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 14,
+     "valueSize": 30
+    }
+   },
+   "gridPos": {
+    "x": 18,
+    "y": 13,
+    "w": 6,
+    "h": 3
+   },
+   "id": 6
+  },
+  {
    "type": "table",
-   "title": "Every app that ran in the last 24 hours, highest rank first",
+   "title": "Acer: every app that ran in the last 24 hours, highest rank first",
    "description": "Booked: the memory the scheduler counts (the request). Limit: above it the container is killed. Used now and Peak 24 h: real memory (working set). A job that ran in the last 24 h shows its last run's booking; its graph has a bump per run. Names come from the pods: a Deployment's or job's pod is shown by its app, a StatefulSet's by its own name.",
    "datasource": {
     "type": "prometheus",
@@ -70,7 +383,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "max by (key) (label_join(label_replace(label_replace(sum by (pod, node) (container_memory_working_set_bytes{container!=\"\", node!=\"\"}), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\"))",
+     "expr": "max by (key) (label_join(label_replace(label_replace(sum by (pod, node) (container_memory_working_set_bytes{container!=\"\", node=\"acer-laptop\"}), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\"))",
      "legendFormat": "__auto",
      "range": true,
      "instant": false
@@ -81,7 +394,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "max by (key, pod_app, node, priority_class, what, pushes) (label_replace(label_replace(label_join(label_replace(label_replace(max by (pod, node, priority_class) (max_over_time(kube_pod_info{node!=\"\"}[24h])), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\"), \"what\", \"$1\", \"pod_app\", \"(.*)\"), \"pushes\", \"$1\", \"priority_class\", \"(.*)\"))",
+     "expr": "max by (key, pod_app, priority_class, what, pushes) (label_replace(label_replace(label_join(label_replace(label_replace(max by (pod, node, priority_class) (max_over_time(kube_pod_info{node=\"acer-laptop\"}[24h])), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\"), \"what\", \"$1\", \"pod_app\", \"(.*)\"), \"pushes\", \"$1\", \"priority_class\", \"(.*)\"))",
      "legendFormat": "__auto",
      "range": false,
      "instant": true,
@@ -93,7 +406,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "max by (key) (label_join(label_replace(label_replace(sum by (pod, node) (max_over_time(kube_pod_container_resource_requests{resource=\"memory\", node!=\"\"}[24h])), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\"))",
+     "expr": "max by (key) (label_join(label_replace(label_replace(sum by (pod, node) (max_over_time(kube_pod_container_resource_requests{resource=\"memory\", node=\"acer-laptop\"}[24h])), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\"))",
      "legendFormat": "__auto",
      "range": false,
      "instant": true,
@@ -105,7 +418,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "max by (key) (label_join(label_replace(label_replace(sum by (pod, node) (container_memory_working_set_bytes{container!=\"\", node!=\"\"}), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\"))",
+     "expr": "max by (key) (label_join(label_replace(label_replace(sum by (pod, node) (container_memory_working_set_bytes{container!=\"\", node=\"acer-laptop\"}), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\"))",
      "legendFormat": "__auto",
      "range": false,
      "instant": true,
@@ -117,7 +430,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "max by (key) (max_over_time((max by (key) (label_join(label_replace(label_replace(sum by (pod, node) (container_memory_working_set_bytes{container!=\"\", node!=\"\"}), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\")))[24h:1m]))",
+     "expr": "max by (key) (max_over_time((max by (key) (label_join(label_replace(label_replace(sum by (pod, node) (container_memory_working_set_bytes{container!=\"\", node=\"acer-laptop\"}), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\")))[24h:1m]))",
      "legendFormat": "__auto",
      "range": false,
      "instant": true,
@@ -129,7 +442,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "max by (key) (label_join(label_replace(label_replace(sum by (pod, node) (max_over_time(kube_pod_container_resource_limits{resource=\"memory\", node!=\"\"}[24h])), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\"))",
+     "expr": "max by (key) (label_join(label_replace(label_replace(sum by (pod, node) (max_over_time(kube_pod_container_resource_limits{resource=\"memory\", node=\"acer-laptop\"}[24h])), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\"))",
      "legendFormat": "__auto",
      "range": false,
      "instant": true,
@@ -141,7 +454,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "max by (key) ((label_join(label_replace(label_replace(max by (pod, node, priority_class) (max_over_time(kube_pod_info{node!=\"\"}[24h])), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\") * 0) + on (priority_class) group_left () (label_replace(vector(2000001000), \"priority_class\", \"system-node-critical\", \"\", \"\") or label_replace(vector(2000000000), \"priority_class\", \"system-cluster-critical\", \"\", \"\") or label_replace(vector(1000000), \"priority_class\", \"homelab-critical\", \"\", \"\") or label_replace(vector(100000), \"priority_class\", \"homelab-normal\", \"\", \"\") or label_replace(vector(30000), \"priority_class\", \"batch-high\", \"\", \"\") or label_replace(vector(25000), \"priority_class\", \"batch-make-room\", \"\", \"\") or label_replace(vector(22000), \"priority_class\", \"steps-aside\", \"\", \"\") or label_replace(vector(20000), \"priority_class\", \"batch-mid\", \"\", \"\") or label_replace(vector(10000), \"priority_class\", \"batch-low\", \"\", \"\"))) or max by (key) (label_join(label_replace(label_replace(max by (pod, node, priority_class) (max_over_time(kube_pod_info{node!=\"\"}[24h])), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\") * 0)",
+     "expr": "max by (key) ((label_join(label_replace(label_replace(max by (pod, node, priority_class) (max_over_time(kube_pod_info{node=\"acer-laptop\"}[24h])), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\") * 0) + on (priority_class) group_left () (label_replace(vector(2000001000), \"priority_class\", \"system-node-critical\", \"\", \"\") or label_replace(vector(2000000000), \"priority_class\", \"system-cluster-critical\", \"\", \"\") or label_replace(vector(1000000), \"priority_class\", \"homelab-critical\", \"\", \"\") or label_replace(vector(100000), \"priority_class\", \"homelab-normal\", \"\", \"\") or label_replace(vector(30000), \"priority_class\", \"batch-high\", \"\", \"\") or label_replace(vector(25000), \"priority_class\", \"batch-make-room\", \"\", \"\") or label_replace(vector(22000), \"priority_class\", \"steps-aside\", \"\", \"\") or label_replace(vector(20000), \"priority_class\", \"batch-mid\", \"\", \"\") or label_replace(vector(10000), \"priority_class\", \"batch-low\", \"\", \"\"))) or max by (key) (label_join(label_replace(label_replace(max by (pod, node, priority_class) (max_over_time(kube_pod_info{node=\"acer-laptop\"}[24h])), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\") * 0)",
      "legendFormat": "__auto",
      "range": false,
      "instant": true,
@@ -165,6 +478,7 @@
      "options": {
       "excludeByName": {
        "key": true,
+       "node": true,
        "Time": true,
        "Time 1": true,
        "Time 2": true,
@@ -176,20 +490,18 @@
       },
       "indexByName": {
        "pod_app": 0,
-       "node": 1,
-       "priority_class": 2,
-       "Value #G": 3,
-       "pushes": 4,
-       "what": 5,
-       "Value #C": 6,
-       "Value #F": 7,
-       "Value #D": 8,
-       "Value #E": 9,
-       "Trend #A": 10
+       "priority_class": 1,
+       "Value #G": 2,
+       "pushes": 3,
+       "what": 4,
+       "Value #C": 5,
+       "Value #F": 6,
+       "Value #D": 7,
+       "Value #E": 8,
+       "Trend #A": 9
       },
       "renameByName": {
        "pod_app": "App",
-       "node": "Machine",
        "priority_class": "Rank",
        "Value #G": "Rank no.",
        "pushes": "Pushes out lower?",
@@ -215,52 +527,6 @@
      "noValue": "-"
     },
     "overrides": [
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "Machine"
-      },
-      "properties": [
-       {
-        "id": "mappings",
-        "value": [
-         {
-          "type": "value",
-          "options": {
-           "moudimash99": {
-            "text": "Server",
-            "index": 0,
-            "color": "#2a78d6"
-           },
-           "acer-laptop": {
-            "text": "Acer",
-            "index": 1,
-            "color": "#fab219"
-           }
-          }
-         }
-        ]
-       }
-      ]
-     },
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "Machine"
-      },
-      "properties": [
-       {
-        "id": "custom.cellOptions",
-        "value": {
-         "type": "color-text"
-        }
-       },
-       {
-        "id": "custom.width",
-        "value": 80
-       }
-      ]
-     },
      {
       "matcher": {
        "id": "byName",
@@ -639,6 +905,13 @@
         }
        },
        {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#eb6834"
+        }
+       },
+       {
         "id": "unit",
         "value": "bytes"
        },
@@ -745,15 +1018,1223 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 12,
+    "y": 16,
     "w": 24,
-    "h": 26
+    "h": 20
    },
-   "id": 2
+   "id": 7
+  },
+  {
+   "type": "timeseries",
+   "title": "Acer: real memory per app, last 24 hours",
+   "description": "The apps stacked, so the top is the machine's total; the dashed red line is the room for pods. Click a name in the list to see it alone.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sort_desc(max by (pod_app) (label_join(label_replace(label_replace(sum by (pod, node) (container_memory_working_set_bytes{container!=\"\", node=\"acer-laptop\"}), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\")))",
+     "legendFormat": "{{pod_app}}",
+     "range": true,
+     "instant": false
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(kube_node_status_allocatable{resource=\"memory\", node=\"acer-laptop\"})",
+     "legendFormat": "room for pods",
+     "range": true,
+     "instant": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bytes",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 70,
+      "showPoints": "never",
+      "pointSize": 6,
+      "drawStyle": "line",
+      "spanNulls": false,
+      "stacking": {
+       "mode": "normal",
+       "group": "A"
+      },
+      "axisSoftMin": 0,
+      "gradientMode": "none",
+      "lineInterpolation": "smooth"
+     },
+     "color": {
+      "mode": "palette-classic"
+     },
+     "min": 0
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "room for pods"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#d03b3b"
+        }
+       },
+       {
+        "id": "custom.stacking",
+        "value": {
+         "mode": "none",
+         "group": "B"
+        }
+       },
+       {
+        "id": "custom.lineStyle",
+        "value": {
+         "fill": "dash",
+         "dash": [
+          8,
+          6
+         ]
+        }
+       },
+       {
+        "id": "custom.fillOpacity",
+        "value": 0
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 36,
+    "w": 24,
+    "h": 11
+   },
+   "id": 8
+  },
+  {
+   "type": "row",
+   "title": "Server (moudimash99)",
+   "collapsed": false,
+   "panels": [],
+   "gridPos": {
+    "x": 0,
+    "y": 47,
+    "w": 24,
+    "h": 1
+   },
+   "id": 9
+  },
+  {
+   "type": "stat",
+   "title": "Room for pods",
+   "description": "What the machine gives pods: its memory minus what is kept for the system and k3s.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(kube_node_status_allocatable{resource=\"memory\", node=\"moudimash99\"})",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bytes",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#2a78d6",
+        "value": null
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "decimals": 1
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "orientation": "auto",
+    "textMode": "value",
+    "colorMode": "none",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 14,
+     "valueSize": 30
+    }
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 48,
+    "w": 6,
+    "h": 3
+   },
+   "id": 10
+  },
+  {
+   "type": "stat",
+   "title": "Booked now",
+   "description": "The running pods' bookings as a share of the room. A new pod gets in only if its booking fits.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(kube_pod_container_resource_requests{resource=\"memory\", node=\"moudimash99\"} and on (namespace, pod) (kube_pod_status_phase{phase=\"Running\"} == 1)) / sum(kube_node_status_allocatable{resource=\"memory\", node=\"moudimash99\"}) * 100",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#0ca30c",
+        "value": null
+       },
+       {
+        "color": "#fab219",
+        "value": 90
+       },
+       {
+        "color": "#d03b3b",
+        "value": 97
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "orientation": "auto",
+    "textMode": "value",
+    "colorMode": "value",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 14,
+     "valueSize": 30
+    }
+   },
+   "gridPos": {
+    "x": 6,
+    "y": 48,
+    "w": 6,
+    "h": 3
+   },
+   "id": 11
+  },
+  {
+   "type": "stat",
+   "title": "Really used now",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(container_memory_working_set_bytes{node=\"moudimash99\", container!=\"\"}) / sum(kube_node_status_allocatable{resource=\"memory\", node=\"moudimash99\"}) * 100",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#0ca30c",
+        "value": null
+       },
+       {
+        "color": "#fab219",
+        "value": 85
+       },
+       {
+        "color": "#d03b3b",
+        "value": 95
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "orientation": "auto",
+    "textMode": "value",
+    "colorMode": "value",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 14,
+     "valueSize": 30
+    }
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 48,
+    "w": 6,
+    "h": 3
+   },
+   "id": 12
+  },
+  {
+   "type": "stat",
+   "title": "Really used, peak 24 h",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max_over_time((sum(container_memory_working_set_bytes{node=\"moudimash99\", container!=\"\"}))[24h:1m]) / sum(kube_node_status_allocatable{resource=\"memory\", node=\"moudimash99\"}) * 100",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#0ca30c",
+        "value": null
+       },
+       {
+        "color": "#fab219",
+        "value": 85
+       },
+       {
+        "color": "#d03b3b",
+        "value": 95
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "orientation": "auto",
+    "textMode": "value",
+    "colorMode": "value",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 14,
+     "valueSize": 30
+    }
+   },
+   "gridPos": {
+    "x": 18,
+    "y": 48,
+    "w": 6,
+    "h": 3
+   },
+   "id": 13
   },
   {
    "type": "table",
+   "title": "Server: every app that ran in the last 24 hours, highest rank first",
+   "description": "Booked: the memory the scheduler counts (the request). Limit: above it the container is killed. Used now and Peak 24 h: real memory (working set). A job that ran in the last 24 h shows its last run's booking; its graph has a bump per run. Names come from the pods: a Deployment's or job's pod is shown by its app, a StatefulSet's by its own name.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max by (key) (label_join(label_replace(label_replace(sum by (pod, node) (container_memory_working_set_bytes{container!=\"\", node=\"moudimash99\"}), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\"))",
+     "legendFormat": "__auto",
+     "range": true,
+     "instant": false
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max by (key, pod_app, priority_class, what, pushes) (label_replace(label_replace(label_join(label_replace(label_replace(max by (pod, node, priority_class) (max_over_time(kube_pod_info{node=\"moudimash99\"}[24h])), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\"), \"what\", \"$1\", \"pod_app\", \"(.*)\"), \"pushes\", \"$1\", \"priority_class\", \"(.*)\"))",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true,
+     "format": "table"
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max by (key) (label_join(label_replace(label_replace(sum by (pod, node) (max_over_time(kube_pod_container_resource_requests{resource=\"memory\", node=\"moudimash99\"}[24h])), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\"))",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true,
+     "format": "table"
+    },
+    {
+     "refId": "D",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max by (key) (label_join(label_replace(label_replace(sum by (pod, node) (container_memory_working_set_bytes{container!=\"\", node=\"moudimash99\"}), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\"))",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true,
+     "format": "table"
+    },
+    {
+     "refId": "E",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max by (key) (max_over_time((max by (key) (label_join(label_replace(label_replace(sum by (pod, node) (container_memory_working_set_bytes{container!=\"\", node=\"moudimash99\"}), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\")))[24h:1m]))",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true,
+     "format": "table"
+    },
+    {
+     "refId": "F",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max by (key) (label_join(label_replace(label_replace(sum by (pod, node) (max_over_time(kube_pod_container_resource_limits{resource=\"memory\", node=\"moudimash99\"}[24h])), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\"))",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true,
+     "format": "table"
+    },
+    {
+     "refId": "G",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max by (key) ((label_join(label_replace(label_replace(max by (pod, node, priority_class) (max_over_time(kube_pod_info{node=\"moudimash99\"}[24h])), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\") * 0) + on (priority_class) group_left () (label_replace(vector(2000001000), \"priority_class\", \"system-node-critical\", \"\", \"\") or label_replace(vector(2000000000), \"priority_class\", \"system-cluster-critical\", \"\", \"\") or label_replace(vector(1000000), \"priority_class\", \"homelab-critical\", \"\", \"\") or label_replace(vector(100000), \"priority_class\", \"homelab-normal\", \"\", \"\") or label_replace(vector(30000), \"priority_class\", \"batch-high\", \"\", \"\") or label_replace(vector(25000), \"priority_class\", \"batch-make-room\", \"\", \"\") or label_replace(vector(22000), \"priority_class\", \"steps-aside\", \"\", \"\") or label_replace(vector(20000), \"priority_class\", \"batch-mid\", \"\", \"\") or label_replace(vector(10000), \"priority_class\", \"batch-low\", \"\", \"\"))) or max by (key) (label_join(label_replace(label_replace(max by (pod, node, priority_class) (max_over_time(kube_pod_info{node=\"moudimash99\"}[24h])), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\") * 0)",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true,
+     "format": "table"
+    }
+   ],
+   "transformations": [
+    {
+     "id": "timeSeriesTable",
+     "options": {}
+    },
+    {
+     "id": "joinByField",
+     "options": {
+      "byField": "key",
+      "mode": "outer"
+     }
+    },
+    {
+     "id": "organize",
+     "options": {
+      "excludeByName": {
+       "key": true,
+       "node": true,
+       "Time": true,
+       "Time 1": true,
+       "Time 2": true,
+       "Time 3": true,
+       "Time 4": true,
+       "Time 5": true,
+       "Time 6": true,
+       "Value #B": true
+      },
+      "indexByName": {
+       "pod_app": 0,
+       "priority_class": 1,
+       "Value #G": 2,
+       "pushes": 3,
+       "what": 4,
+       "Value #C": 5,
+       "Value #F": 6,
+       "Value #D": 7,
+       "Value #E": 8,
+       "Trend #A": 9
+      },
+      "renameByName": {
+       "pod_app": "App",
+       "priority_class": "Rank",
+       "Value #G": "Rank no.",
+       "pushes": "Pushes out lower?",
+       "what": "What it is",
+       "Value #C": "Booked",
+       "Value #F": "Limit",
+       "Value #D": "Used now",
+       "Value #E": "Peak 24 h",
+       "Trend #A": "Memory, last 24 h"
+      }
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": false
+     },
+     "noValue": "-"
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "What it is"
+      },
+      "properties": [
+       {
+        "id": "mappings",
+        "value": [
+         {
+          "type": "value",
+          "options": {
+           "website": {
+            "text": "Your personal website",
+            "index": 0
+           },
+           "cat-weight": {
+            "text": "Cat weight site",
+            "index": 1
+           },
+           "boardxplorer": {
+            "text": "Board game explorer site",
+            "index": 2
+           },
+           "unmatched": {
+            "text": "Unmatched matcher site",
+            "index": 3
+           },
+           "unmatched-restart": {
+            "text": "Restarts the Unmatched site on Mondays",
+            "index": 4
+           },
+           "frigate": {
+            "text": "Cat camera recorder: records and detects",
+            "index": 5
+           },
+           "freemotion-hub": {
+            "text": "Free Motion's dashboard",
+            "index": 6
+           },
+           "lab": {
+            "text": "Taste Match, Deals and Cat cam sites, and the login bridge",
+            "index": 7
+           },
+           "mail-classifier-waker": {
+            "text": "Starts and stops the mail classifier",
+            "index": 8
+           },
+           "mail-classifier": {
+            "text": "Trained model that decides what the Gmail archiver archives",
+            "index": 9
+           },
+           "llm-gateway": {
+            "text": "fm-llm: one door to the AI models for every project",
+            "index": 10
+           },
+           "spirit-island": {
+            "text": "Spirit Island site",
+            "index": 11
+           },
+           "fm-controller": {
+            "text": "Free Motion's brain: daemon, scan, score loops, hub agent",
+            "index": 12
+           },
+           "fm-browser-acer": {
+            "text": "Free Motion job-application automation (controller daemon, one browser per lane, the ChatGPT/Gemini website writer)",
+            "index": 13
+           },
+           "fm-webllm-waker": {
+            "text": "Starts and stops fm-webllm",
+            "index": 14
+           },
+           "fm-webllm": {
+            "text": "Free Motion's ChatGPT/Gemini website writer, started on demand",
+            "index": 15
+           },
+           "boardgamefinder": {
+            "text": "Nightly board game deals",
+            "index": 16
+           },
+           "boardgamefinder-fetch": {
+            "text": "Loads Okkazeo pages through the day",
+            "index": 17
+           },
+           "bg-taste-match-fetch": {
+            "text": "Downloads the reviewers' videos' audio, every 2 hours",
+            "index": 18
+           },
+           "bg-taste-match-llm": {
+            "text": "Rates the reviewers with AI, hourly at night",
+            "index": 19
+           },
+           "bg-taste-match-gpu": {
+            "text": "Whisper captions on the GPU, hourly, with a heat guard",
+            "index": 20
+           },
+           "bg-taste-match-shell": {
+            "text": "Idle helper for running bg-taste-match stages by hand",
+            "index": 21
+           },
+           "cat-flash": {
+            "text": "The cat's flash-of-the-day video, 00:20 and 19:20",
+            "index": 22
+           },
+           "cat-monitor": {
+            "text": "Nightly GPU cat detection",
+            "index": 23
+           },
+           "portainer": {
+            "text": "Web page for Docker and Kubernetes",
+            "index": 24
+           },
+           "beszel": {
+            "text": "Simple per-machine monitor (beszel.machaka.net)",
+            "index": 25
+           },
+           "beszel-agent": {
+            "text": "Beszel's collector on the server",
+            "index": 26
+           },
+           "beszel-agent-worker": {
+            "text": "Beszel's collector on the Acer",
+            "index": 27
+           },
+           "uptime-kuma": {
+            "text": "Up/down checks of the sites",
+            "index": 28
+           },
+           "homepage": {
+            "text": "The lab.machaka.net menu",
+            "index": 29
+           },
+           "prometheus": {
+            "text": "Collects every metric every 30 s, keeps 15 days",
+            "index": 30
+           },
+           "kube-state-metrics": {
+            "text": "Numbers about pods, jobs and restarts for Prometheus",
+            "index": 31
+           },
+           "grafana": {
+            "text": "These dashboards",
+            "index": 32
+           },
+           "alertmanager": {
+            "text": "Emails Prometheus's alerts",
+            "index": 33
+           },
+           "node-exporter": {
+            "text": "Machine CPU, memory, disks and temperatures",
+            "index": 34
+           },
+           "process-exporter": {
+            "text": "Memory per program outside containers",
+            "index": 35
+           },
+           "nvidia-gpu-exporter": {
+            "text": "The GTX 1050's load, memory and heat",
+            "index": 36
+           },
+           "gpu-procs": {
+            "text": "Which program is on the GPU",
+            "index": 37
+           },
+           "coredns": {
+            "text": "k3s: name lookups inside the cluster",
+            "index": 38
+           },
+           "traefik": {
+            "text": "Web front door: sends each site's traffic to its pod",
+            "index": 39
+           },
+           "metrics-server": {
+            "text": "k3s: live CPU and memory for kubectl top",
+            "index": 40
+           },
+           "local-path-provisioner": {
+            "text": "k3s: makes the disk folders pods keep data in",
+            "index": 41
+           },
+           "svclb-traefik-*": {
+            "text": "The k3s cluster itself: k3s server, Traefik ingress, CoreDNS, metrics-server, local-path storage, priority classes, old-address forward",
+            "index": 42
+           },
+           "registry": {
+            "text": "Local image store (not used yet)",
+            "index": 43
+           },
+           "source-controller": {
+            "text": "Flux: pulls the Infra repo from GitHub",
+            "index": 44
+           },
+           "kustomize-controller": {
+            "text": "Flux: applies k8s/ from main every 10 min",
+            "index": 45
+           },
+           "backup-server": {
+            "text": "Nightly backup of the server",
+            "index": 46
+           },
+           "backup-acer": {
+            "text": "Nightly backup of the Acer",
+            "index": 47
+           },
+           "email-remove": {
+            "text": "Gmail archiver, every 3 minutes",
+            "index": 48
+           },
+           "svclb-traefik": {
+            "text": "k3s: passes ports 80/443 on each machine to Traefik",
+            "index": 49
+           },
+           "fm-browser-acer-0": {
+            "text": "Free Motion browser, lane 1",
+            "index": 50
+           },
+           "fm-browser-acer-1": {
+            "text": "Free Motion browser, lane 2",
+            "index": 51
+           }
+          }
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "What it is"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 330
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Pushes out lower?"
+      },
+      "properties": [
+       {
+        "id": "mappings",
+        "value": [
+         {
+          "type": "value",
+          "options": {
+           "system-node-critical": {
+            "text": "yes",
+            "index": 0,
+            "color": "#0ca30c"
+           },
+           "system-cluster-critical": {
+            "text": "yes",
+            "index": 1,
+            "color": "#0ca30c"
+           },
+           "homelab-critical": {
+            "text": "yes",
+            "index": 2,
+            "color": "#0ca30c"
+           },
+           "homelab-normal": {
+            "text": "yes",
+            "index": 3,
+            "color": "#0ca30c"
+           },
+           "batch-high": {
+            "text": "no, waits",
+            "index": 4,
+            "color": "#898781"
+           },
+           "batch-make-room": {
+            "text": "yes",
+            "index": 5,
+            "color": "#0ca30c"
+           },
+           "steps-aside": {
+            "text": "no, waits",
+            "index": 6,
+            "color": "#898781"
+           },
+           "batch-mid": {
+            "text": "no, waits",
+            "index": 7,
+            "color": "#898781"
+           },
+           "batch-low": {
+            "text": "no, waits",
+            "index": 8,
+            "color": "#898781"
+           }
+          }
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Pushes out lower?"
+      },
+      "properties": [
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "color-text"
+        }
+       },
+       {
+        "id": "custom.width",
+        "value": 120
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Rank"
+      },
+      "properties": [
+       {
+        "id": "mappings",
+        "value": [
+         {
+          "type": "special",
+          "options": {
+           "match": "empty",
+           "result": {
+            "text": "(none)",
+            "index": 0
+           }
+          }
+         }
+        ]
+       },
+       {
+        "id": "custom.width",
+        "value": 170
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Rank no."
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 100
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Memory, last 24 h"
+      },
+      "properties": [
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "sparkline",
+         "hideValue": true,
+         "lineWidth": 1,
+         "fillOpacity": 20
+        }
+       },
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#2a78d6"
+        }
+       },
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "custom.width",
+        "value": 220
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Booked"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       },
+       {
+        "id": "custom.width",
+        "value": 84
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Limit"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       },
+       {
+        "id": "custom.width",
+        "value": 84
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Used now"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       },
+       {
+        "id": "custom.width",
+        "value": 84
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Peak 24 h"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       },
+       {
+        "id": "custom.width",
+        "value": 84
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm",
+    "footer": {
+     "show": false
+    },
+    "sortBy": [
+     {
+      "displayName": "Rank no.",
+      "desc": true
+     }
+    ]
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 51,
+    "w": 24,
+    "h": 18
+   },
+   "id": 14
+  },
+  {
+   "type": "timeseries",
+   "title": "Server: real memory per app, last 24 hours",
+   "description": "The apps stacked, so the top is the machine's total; the dashed red line is the room for pods. Click a name in the list to see it alone.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sort_desc(max by (pod_app) (label_join(label_replace(label_replace(sum by (pod, node) (container_memory_working_set_bytes{container!=\"\", node=\"moudimash99\"}), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\")))",
+     "legendFormat": "{{pod_app}}",
+     "range": true,
+     "instant": false
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(kube_node_status_allocatable{resource=\"memory\", node=\"moudimash99\"})",
+     "legendFormat": "room for pods",
+     "range": true,
+     "instant": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bytes",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 70,
+      "showPoints": "never",
+      "pointSize": 6,
+      "drawStyle": "line",
+      "spanNulls": false,
+      "stacking": {
+       "mode": "normal",
+       "group": "A"
+      },
+      "axisSoftMin": 0,
+      "gradientMode": "none",
+      "lineInterpolation": "smooth"
+     },
+     "color": {
+      "mode": "palette-classic"
+     },
+     "min": 0
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "room for pods"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#d03b3b"
+        }
+       },
+       {
+        "id": "custom.stacking",
+        "value": {
+         "mode": "none",
+         "group": "B"
+        }
+       },
+       {
+        "id": "custom.lineStyle",
+        "value": {
+         "fill": "dash",
+         "dash": [
+          8,
+          6
+         ]
+        }
+       },
+       {
+        "id": "custom.fillOpacity",
+        "value": 0
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 69,
+    "w": 24,
+    "h": 11
+   },
+   "id": 15
+  },
+  {
+   "type": "row",
    "title": "Paused jobs (not running on purpose)",
+   "collapsed": false,
+   "panels": [],
+   "gridPos": {
+    "x": 0,
+    "y": 80,
+    "w": 24,
+    "h": 1
+   },
+   "id": 16
+  },
+  {
+   "type": "table",
+   "title": "Paused jobs",
    "description": "",
    "datasource": {
     "type": "prometheus",
@@ -1057,76 +2538,11 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 38,
+    "y": 81,
     "w": 24,
     "h": 5
    },
-   "id": 3
-  },
-  {
-   "type": "timeseries",
-   "title": "Real memory per app, last 24 hours",
-   "description": "The same numbers as the small graphs above, on one scale. Click a name in the list to see it alone.",
-   "datasource": {
-    "type": "prometheus",
-    "uid": "prometheus"
-   },
-   "targets": [
-    {
-     "refId": "A",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "prometheus"
-     },
-     "expr": "sort_desc(max by (pod_app, node) (label_join(label_replace(label_replace(sum by (pod, node) (container_memory_working_set_bytes{container!=\"\", node!=\"\"}), \"pod_app\", \"$1\", \"pod\", \"(.+)\"), \"pod_app\", \"$1\", \"pod\", \"^(.+?)(-[0-9]{6,}|-[a-f0-9]{8,10})?-[a-z0-9]{5}$\"), \"key\", \" on \", \"pod_app\", \"node\")))",
-     "legendFormat": "{{pod_app}} ({{node}})",
-     "range": true,
-     "instant": false
-    }
-   ],
-   "fieldConfig": {
-    "defaults": {
-     "unit": "bytes",
-     "custom": {
-      "lineWidth": 2,
-      "fillOpacity": 10,
-      "showPoints": "never",
-      "pointSize": 6,
-      "drawStyle": "line",
-      "spanNulls": false,
-      "stacking": {
-       "mode": "none",
-       "group": "A"
-      },
-      "axisSoftMin": 0,
-      "gradientMode": "none",
-      "lineInterpolation": "smooth"
-     },
-     "color": {
-      "mode": "palette-classic"
-     },
-     "min": 0
-    },
-    "overrides": []
-   },
-   "options": {
-    "legend": {
-     "displayMode": "table",
-     "placement": "bottom",
-     "showLegend": true
-    },
-    "tooltip": {
-     "mode": "multi",
-     "sort": "desc"
-    }
-   },
-   "gridPos": {
-    "x": 0,
-    "y": 43,
-    "w": 24,
-    "h": 12
-   },
-   "id": 4
+   "id": 17
   }
  ]
 }

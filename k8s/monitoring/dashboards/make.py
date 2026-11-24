@@ -656,8 +656,14 @@ def keyed(x):
     return f'label_join({named(x)}, "key", " on ", "pod_app", "node")'
 
 
-MEM = 'sum by (pod, node) (container_memory_working_set_bytes{container!="", node!=""})'
-INFO_24H = 'max by (pod, node, priority_class) (max_over_time(kube_pod_info{node!=""}[24h]))'
+def mem_q(node):
+    return f'sum by (pod, node) (container_memory_working_set_bytes{{container!="", node="{node}"}})'
+
+
+def info_q(node):
+    return f'max by (pod, node, priority_class) (max_over_time(kube_pod_info{{node="{node}"}}[24h]))'
+
+
 RANK_VEC = " or ".join(f'label_replace(vector({v}), "priority_class", "{n}", "", "")'
                        for n, v, _, _ in RANKS if n != "(none)")
 
@@ -689,41 +695,37 @@ def ladder_md():
         "likelier), and a container above its own limit is killed whatever its rank.")
 
 
-RANK_TABLE_COLS = {"pod_app": "App", "node": "Machine", "priority_class": "Rank", "Value #G": "Rank no.",
+RANK_TABLE_COLS = {"pod_app": "App", "priority_class": "Rank", "Value #G": "Rank no.",
                    "pushes": "Pushes out lower?", "what": "What it is", "Value #C": "Booked", "Value #F": "Limit",
                    "Value #D": "Used now", "Value #E": "Peak 24 h", "Trend #A": "Memory, last 24 h"}
 
-ranks = dashboard("ranks", "Ranks and memory", time="now-24h", refresh="5m",
-                  desc="Every app: its rank, what that rank may do, what the app is, the memory it books and its real "
-                       "memory over the last 24 hours.", panels=[
-    text(ladder_md(), w=24, h=12, title="The ranks, highest first"),
-    table("Every app that ran in the last 24 hours, highest rank first",
-          [target('max by (key) (' + keyed(MEM) + ')', ref="A"),
-           target('max by (key, pod_app, node, priority_class, what, pushes) (' +
-                  copy_label(copy_label(keyed(INFO_24H), "what", "pod_app"), "pushes", "priority_class") + ')',
+
+def rank_table(node):
+    mem, info = mem_q(node), info_q(node)
+    req = ('sum by (pod, node) (max_over_time(kube_pod_container_resource_requests'
+           '{resource="memory", node="' + node + '"}[24h]))')
+    lim = ('sum by (pod, node) (max_over_time(kube_pod_container_resource_limits'
+           '{resource="memory", node="' + node + '"}[24h]))')
+    return table(f"{MACHINE_NAMES[node]}: every app that ran in the last 24 hours, highest rank first",
+          [target('max by (key) (' + keyed(mem) + ')', ref="A"),
+           target('max by (key, pod_app, priority_class, what, pushes) (' +
+                  copy_label(copy_label(keyed(info), "what", "pod_app"), "pushes", "priority_class") + ')',
                   instant=True, fmt="table", ref="B"),
-           target('max by (key) (' + keyed('sum by (pod, node) (max_over_time(kube_pod_container_resource_requests'
-                                           '{resource="memory", node!=""}[24h]))') + ')',
-                  instant=True, fmt="table", ref="C"),
-           target('max by (key) (' + keyed(MEM) + ')', instant=True, fmt="table", ref="D"),
-           target('max by (key) (max_over_time((max by (key) (' + keyed(MEM) + '))[24h:1m]))',
+           target('max by (key) (' + keyed(req) + ')', instant=True, fmt="table", ref="C"),
+           target('max by (key) (' + keyed(mem) + ')', instant=True, fmt="table", ref="D"),
+           target('max by (key) (max_over_time((max by (key) (' + keyed(mem) + '))[24h:1m]))',
                   instant=True, fmt="table", ref="E"),
-           target('max by (key) (' + keyed('sum by (pod, node) (max_over_time(kube_pod_container_resource_limits'
-                                           '{resource="memory", node!=""}[24h]))') + ')',
-                  instant=True, fmt="table", ref="F"),
-           target('max by (key) ((' + keyed(INFO_24H) + ' * 0) + on (priority_class) group_left () (' + RANK_VEC + '))'
-                  ' or max by (key) (' + keyed(INFO_24H) + ' * 0)', instant=True, fmt="table", ref="G")],
+           target('max by (key) (' + keyed(lim) + ')', instant=True, fmt="table", ref="F"),
+           target('max by (key) ((' + keyed(info) + ' * 0) + on (priority_class) group_left () (' + RANK_VEC + '))'
+                  ' or max by (key) (' + keyed(info) + ' * 0)', instant=True, fmt="table", ref="G")],
           [{"id": "timeSeriesTable", "options": {}},
            {"id": "joinByField", "options": {"byField": "key", "mode": "outer"}},
            {"id": "organize", "options": {
-               "excludeByName": {k: True for k in ("key", "Time", "Time 1", "Time 2", "Time 3", "Time 4", "Time 5",
-                                                   "Time 6", "Value #B")},
+               "excludeByName": {k: True for k in ("key", "node", "Time", "Time 1", "Time 2", "Time 3", "Time 4",
+                                                   "Time 5", "Time 6", "Value #B")},
                "indexByName": {k: i for i, k in enumerate(RANK_TABLE_COLS)},
                "renameByName": RANK_TABLE_COLS}}],
-          [text_map("Machine", MACHINE_NAMES, {"moudimash99": BLUE, "acer-laptop": ORANGE}),
-           field("Machine", [{"id": "custom.cellOptions", "value": {"type": "color-text"}},
-                             {"id": "custom.width", "value": 80}]),
-           text_map("What it is", NOTES),
+          [text_map("What it is", NOTES),
            field("What it is", [{"id": "custom.width", "value": 330}]),
            text_map("Pushes out lower?", {n: ("yes" if p else "no, waits") for n, _, p, _ in RANKS if n != "(none)"},
                     {n: (GREEN if p else GREY) for n, _, p, _ in RANKS if n != "(none)"}),
@@ -735,28 +737,64 @@ ranks = dashboard("ranks", "Ranks and memory", time="now-24h", refresh="5m",
            field("Memory, last 24 h", [{"id": "custom.cellOptions",
                                         "value": {"type": "sparkline", "hideValue": True,
                                                   "lineWidth": 1, "fillOpacity": 20}},
+                                       {"id": "color", "value": {"mode": "fixed",
+                                                                 "fixedColor": MACHINE_COLORS[node]}},
                                        {"id": "unit", "value": "bytes"}, {"id": "custom.width", "value": 220}])]
           + [field(n, [{"id": "unit", "value": "bytes"}, {"id": "decimals", "value": 0},
                        {"id": "custom.width", "value": 84}])
              for n in ("Booked", "Limit", "Used now", "Peak 24 h")],
-          w=24, h=26, sort=[{"displayName": "Rank no.", "desc": True}], no_value="-",
+          w=24, h=20 if node == "acer-laptop" else 18, sort=[{"displayName": "Rank no.", "desc": True}],
+          no_value="-",
           desc="Booked: the memory the scheduler counts (the request). Limit: above it the container is killed. Used "
                "now and Peak 24 h: real memory (working set). A job that ran in the last 24 h shows its last run's "
                "booking; its graph has a bump per run. Names come from the pods: a Deployment's or job's pod is shown "
-               "by its app, a StatefulSet's by its own name."),
-    table("Paused jobs (not running on purpose)",
-          [target(copy_label('kube_cronjob_spec_suspend{namespace=~"apps|tools"} == 1', "what", "cronjob"),
-                  instant=True, fmt="table")],
-          [{"id": "organize", "options": {"excludeByName": {"Time": True, "Value": True, "__name__": True,
-                                                            "job": True, "instance": True, "namespace": True},
-                                          "indexByName": {"cronjob": 0, "what": 1},
-                                          "renameByName": {"cronjob": "Job", "what": "What it is"}}},
-           {"id": "filterFieldsByName", "options": {"include": {"names": ["Job", "What it is"]}}}],
-          [text_map("What it is", NOTES)], w=24, h=5, no_value="None"),
-    series("Real memory per app, last 24 hours", [
-        ('sort_desc(max by (pod_app, node) (' + keyed(MEM) + '))', "{{pod_app}} ({{node}})")],
-        w=24, h=12, unit="bytes", legend="table",
-        desc="The same numbers as the small graphs above, on one scale. Click a name in the list to see it alone."),
+               "by its app, a StatefulSet's by its own name.")
+
+
+def machine_section(node):
+    alloc = 'sum(kube_node_status_allocatable{resource="memory", node="' + node + '"})'
+    booked = ('sum(kube_pod_container_resource_requests{resource="memory", node="' + node + '"} '
+              'and on (namespace, pod) (kube_pod_status_phase{phase="Running"} == 1))')
+    used = 'sum(container_memory_working_set_bytes{node="' + node + '", container!=""})'
+    return row(f"{MACHINE_NAMES[node]} ({node})", panels=[
+        stat("Room for pods", [(alloc, "")], w=6, h=3, unit="bytes", text="value", color_mode="none", decimals=1,
+             desc="What the machine gives pods: its memory minus what is kept for the system and k3s."),
+        stat("Booked now", [(f"{booked} / {alloc} * 100", "")], w=6, h=3, unit="percent", text="value",
+             color_mode="value", thr=steps(GREEN, 90, ORANGE, 97, RED), decimals=0,
+             desc="The running pods' bookings as a share of the room. A new pod gets in only if its booking fits."),
+        stat("Really used now", [(f"{used} / {alloc} * 100", "")], w=6, h=3, unit="percent", text="value",
+             color_mode="value", thr=steps(GREEN, 85, ORANGE, 95, RED), decimals=0),
+        stat("Really used, peak 24 h", [(f"max_over_time(({used})[24h:1m]) / {alloc} * 100", "")], w=6, h=3,
+             unit="percent", text="value", color_mode="value", thr=steps(GREEN, 85, ORANGE, 95, RED), decimals=0),
+        rank_table(node),
+        series(f"{MACHINE_NAMES[node]}: real memory per app, last 24 hours", [
+            ('sort_desc(max by (pod_app) (' + keyed(mem_q(node)) + '))', "{{pod_app}}"),
+            (alloc, "room for pods")], w=24, h=11, unit="bytes", legend="table", stack=True,
+            overrides=[field("room for pods", [{"id": "color", "value": {"mode": "fixed", "fixedColor": RED}},
+                                               {"id": "custom.stacking", "value": {"mode": "none", "group": "B"}},
+                                               {"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [8, 6]}},
+                                               {"id": "custom.fillOpacity", "value": 0}])],
+            desc="The apps stacked, so the top is the machine's total; the dashed red line is the room for pods. "
+                 "Click a name in the list to see it alone."),
+    ])
+
+
+ranks = dashboard("ranks", "Ranks and memory", time="now-24h", refresh="5m",
+                  desc="Each machine: every app's rank, what that rank may do, what the app is, the memory it books "
+                       "and its real memory over the last 24 hours.", panels=[
+    text(ladder_md(), w=24, h=12, title="The ranks, highest first"),
+    machine_section("acer-laptop"),
+    machine_section("moudimash99"),
+    row("Paused jobs (not running on purpose)", panels=[
+        table("Paused jobs",
+              [target(copy_label('kube_cronjob_spec_suspend{namespace=~"apps|tools"} == 1', "what", "cronjob"),
+                      instant=True, fmt="table")],
+              [{"id": "organize", "options": {"excludeByName": {"Time": True, "Value": True, "__name__": True,
+                                                                "job": True, "instance": True, "namespace": True},
+                                              "indexByName": {"cronjob": 0, "what": 1},
+                                              "renameByName": {"cronjob": "Job", "what": "What it is"}}},
+               {"id": "filterFieldsByName", "options": {"include": {"names": ["Job", "What it is"]}}}],
+              [text_map("What it is", NOTES)], w=24, h=5, no_value="None")]),
 ])
 
 if __name__ == "__main__":
