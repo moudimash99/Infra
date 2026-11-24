@@ -98,6 +98,14 @@
     if (ctl("p")) ctl("p").value = state.p;
     if (ctl("q") && ctl("q").value !== state.q) ctl("q").value = state.q;
     if (ctl("only")) ctl("only").checked = state.only;
+    const sum = bar.querySelector("[data-fsum-text]");     // the folded bar on a phone says what is chosen
+    if (sum) {
+      const mName = state.m && bar.querySelector(`[data-f="m"] [data-v="${state.m}"]`)?.textContent;
+      const words = [ctl("m") ? mName || "All machines" : null, state.p || (ctl("p") ? "all projects" : null),
+                     state.q ? `"${state.q}"` : null, state.only ? "problems only" : null].filter(Boolean);
+      sum.textContent = words.join(", ") || "Filters";
+      bar.querySelector("[data-fsum]").classList.toggle("on", !!(state.m || state.p || state.q || state.only));
+    }
     const p = new URLSearchParams(location.search);
     ["m", "p", "q", "only"].forEach((k) => p.delete(k));
     if (state.m) p.set("m", state.m);
@@ -112,6 +120,11 @@
     });
   }
 
+  const fsum = bar.querySelector("[data-fsum]");
+  if (fsum) fsum.addEventListener("click", () => {
+    const open = bar.classList.toggle("open");
+    fsum.setAttribute("aria-expanded", open ? "true" : "false");
+  });
   if (ctl("m")) ctl("m").addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (b) { state.m = b.dataset.v; apply(); }

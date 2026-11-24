@@ -138,7 +138,8 @@ def test_page_renders(monkeypatch):
     monkeypatch.setattr(prom, "alerts", Fixed(ALERTS))
     r = TestClient(site_status.app, root_path="/machines").get("/")
     assert r.status_code == 200 and "Traceback" not in r.text
-    for words in ("Machines", "Did the jobs run?", "What's using them?", "Who's waiting for room?", "The GPU", "Sites"):
+    for words in ("Machines", "Did the jobs run?", "What's using them?", "Room, GPU and sites", "machaka.net is down",
+                  "The other 0 sites are up", "The GPU is 95% busy", "fm-webllm is waiting for room"):
         assert words in r.text, words
     assert "Anything wrong?" not in r.text                                 # problems are the bell's: the alerts
     assert 'href="/machines/static/status.css' in r.text and 'data-f="only"' in r.text

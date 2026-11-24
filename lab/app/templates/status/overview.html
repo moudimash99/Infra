@@ -4,6 +4,8 @@
 {% block head %}<link rel="stylesheet" href="{{ R }}/static/status.css?v={{ STATIC_V }}"><link rel="stylesheet" href="{{ R }}/static/bell.css?v={{ STATIC_V }}">{% endblock %}
 {% block header_end %}{% include "status/_bell.html" %}{% endblock %}
 
+{#- The first page: a summary. Things that are fine stay quiet (grey, or one line); only what needs a look takes
+    colour and room. Every name opens its own page. -#}
 {%- macro dot(state) -%}<span class="sdot {{ state }}" aria-hidden="true"></span>{%- endmacro -%}
 {%- macro bad(state) -%}{{ 1 if state in ("bad", "warn") else 0 }}{%- endmacro -%}
 
@@ -19,43 +21,38 @@
     <div class="qhead"><h2>Machines</h2><span class="muted xs">read {{ clock(d.at) }}</span></div>
     <div class="items mtiles">
       {% for m in d.machines %}
-      <article class="it mtile" data-m="{{ m.node }}" data-p="*" data-bad="{{ bad(m.state) }}">
-        <div class="mt-head">{{ dot(m.state) }}<b><a href="{{ R }}/{{ SLUG[m.node] }}">{{ m.name }}</a></b><span class="muted xs">{{ W[m.state] }}</span></div>
+      <a class="it mtile" href="{{ R }}/{{ SLUG[m.node] }}" data-m="{{ m.node }}" data-p="*" data-bad="{{ bad(m.state) }}">
+        <div class="mt-head">{{ dot(m.state) }}<b>{{ m.name }}</b><span class="muted xs">{{ W[m.state] }}</span>{{ icon("chevron-right") }}</div>
         <dl class="facts4">
           {% for key, label in [("mem", "Memory"), ("cpu", "CPU"), ("disk", "Disk"), ("temp", "Temperature")] %}{% set f = m.facts[key] %}
-          <div class="f {{ f.state }}"><dt>{{ label }}</dt><dd><b>{{ f.value }}</b> <span class="muted">{{ f.of }}</span>
+          <div class="f {{ f.state }}"><dt>{{ label }}</dt><dd><b>{{ f.value }}</b>
             <span class="meter"><span style="width:{{ [f.pct, 100] | min }}%"></span></span>
-            {% if f.why %}<small>{{ f.why }}</small>{% endif %}</dd></div>
+            {% if f.why and (key in ("mem", "cpu") or f.state != "ok") %}<small>{{ f.why }}</small>{% endif %}</dd></div>
           {% endfor %}
         </dl>
-        <a class="more" href="{{ R }}/{{ SLUG[m.node] }}">Everything about the {{ m.name }} {{ icon("chevron-right") }}</a>
-      </article>
+      </a>
       {% endfor %}
       {% set pc = d.pc %}{% set pc_bad = pc.tasks | selectattr("state", "equalto", "bad") | list %}
-      <article class="it mtile" data-m="pc" data-p="*" data-bad="{{ 1 if pc_bad else 0 }}">
-        <div class="mt-head">{{ dot("warn" if pc_bad else "info" if pc.stale else "ok") }}<b><a href="{{ R }}/pc">PC</a></b><span class="muted xs">{{ "Off or asleep" if pc.stale else "On" }}</span></div>
-        <p class="small">{% if pc.age is not none %}Last report {{ dur(pc.age) }} ago{% else %}No report yet{% endif %}. {{ pc.tasks | length }} scheduled task{{ "s" if pc.tasks | length != 1 }}, {{ pc_bad | length }} failing.</p>
-        <p class="xs muted">The PC reports its tasks every 10 minutes while it's on. Its memory and CPU aren't measured.</p>
-        <a class="more" href="{{ R }}/pc">Its tasks {{ icon("chevron-right") }}</a>
-      </article>
+      <a class="it mtile" href="{{ R }}/pc" data-m="pc" data-p="*" data-bad="{{ 1 if pc_bad else 0 }}">
+        <div class="mt-head">{{ dot("warn" if pc_bad else "paused" if pc.stale else "ok") }}<b>PC</b><span class="muted xs">{{ "Off or asleep" if pc.stale else "On" }}</span>{{ icon("chevron-right") }}</div>
+        <p class="small">{% if pc_bad %}{{ pc_bad | length }} task{{ "s" if pc_bad | length > 1 }} failing{% else %}{{ pc.tasks | length }} tasks, none failing{% endif %}{% if pc.age is not none %} · reported {{ dur(pc.age) }} ago{% endif %}</p>
+      </a>
     </div>
   </section>
 
-  {# ---- Did the jobs run? ---- #}
+  {# ---- Did the jobs run? (the whole list) ---- #}
   <section class="qcard" id="jobs" data-card>
     <div class="qhead"><h2>Did the jobs run?</h2><a class="head-link" href="{{ R }}/jobs">Last 7 days {{ icon("chevron-right") }}</a></div>
     <ul class="items">
       {% for j in d.jobs %}
       <li class="it" data-m="{{ j.m or '' }}" data-p="{{ j.p or '' }}" data-bad="{{ bad(j.state) }}">
         {{ dot(j.state) }}
-        <div class="txt"><b>{{ j.name }}</b><small>{{ j.text }}{% if j.why %} · {{ j.why }}{% endif %}</small></div>
-        <span class="tags">{% if j.p %}<span class="tag">{{ j.p }}</span>{% endif %}</span>
+        <div class="txt"><b><a href="{{ R }}/jobs#job-{{ j.name }}">{{ j.name }}</a></b><small>{{ j.text }}{% if j.why and j.state in ("bad", "warn") %} · {{ j.why }}{% endif %}</small></div>
       </li>
       {% endfor %}
       {% for t in d.pc.tasks %}
       <li class="it" data-m="pc" data-p="{{ t.p or '' }}" data-bad="{{ bad(t.state) }}">
-        {{ dot(t.state) }}<div class="txt"><b>{{ t.name }}</b><small>PC · {{ t.note or t.status }}{% if t.last %} · last run {{ clock(t.last) }}{% endif %}</small></div>
-        <span class="tags">{% if t.p %}<span class="tag">{{ t.p }}</span>{% endif %}</span>
+        {{ dot(t.state) }}<div class="txt"><b><a href="{{ R }}/pc">{{ t.name }}</a></b><small>PC · {% if t.state == "paused" %}paused{% elif t.state == "ok" %}ran well{% if t.last %} {{ clock(t.last) }}{% endif %}{% else %}{{ t.note or t.status }}{% endif %}</small></div>
       </li>
       {% endfor %}
     </ul>
@@ -69,75 +66,52 @@
     <ul class="items" data-limit="10" data-pane="mem">
       {% for r in d.mem_rows %}
       <li class="it" data-m="{{ r.machine }}" data-p="{{ r.p or '' }}" data-bad="0">
-        <div class="txt"><b>{{ r.name }}</b><small>{{ r.machine_name }}{% if r.p %} · {{ r.p }}{% endif %}</small></div>
-        <span class="val">{{ size(r.now) }}<small>{{ (100 * (r.share or 0)) | round | int }}% of {{ r.machine_name }}</small></span>
+        <div class="txt"><b><a href="{{ R }}/{{ ('apps/' ~ r.detail.split('/')[0] ~ '/' ~ r.name) if r.kind == 'pod' else (SLUG[r.machine] ~ '#using') }}">{{ r.name }}</a></b><small>{{ r.machine_name }}</small></div>
+        <span class="val">{{ size(r.now) }}<small>{{ (100 * (r.share or 0)) | round | int }}% of it</small></span>
       </li>
       {% endfor %}
     </ul>
     <ul class="items" data-limit="10" data-pane="cpu" hidden>
       {% for r in d.cpu_rows %}
       <li class="it" data-m="{{ r.machine }}" data-p="{{ r.p or '' }}" data-bad="0">
-        <div class="txt"><b>{{ r.name }}</b><small>{{ mname(r.machine) }}{% if r.p %} · {{ r.p }}{% endif %}</small></div>
-        <span class="val">{{ "%.1f" | format(r.cores) }} cores<small>{{ (100 * (r.share or 0)) | round | int }}% of {{ mname(r.machine) }}</small></span>
+        <div class="txt"><b><a href="{{ R }}/{{ ('apps/' ~ r.detail.split('/')[0] ~ '/' ~ r.name) if r.kind == 'pod' else (SLUG[r.machine] ~ '#using') }}">{{ r.name }}</a></b><small>{{ mname(r.machine) }}</small></div>
+        <span class="val">{{ "%.1f" | format(r.cores) }} cores<small>{{ (100 * (r.share or 0)) | round | int }}% of it</small></span>
       </li>
       {% endfor %}
     </ul>
     <p class="none" data-none>Nothing for this filter.</p>
-    <p class="all-links">All {{ d.n_users }}, with search: {% for m in d.machines %}<a href="{{ R }}/{{ SLUG[m.node] }}#using">{{ m.name }}</a>{{ ", " if not loop.last }}{% endfor %}</p>
+    <p class="all-links">Everything on {% for m in d.machines %}<a href="{{ R }}/{{ SLUG[m.node] }}#using">the {{ m.name }}</a>{{ " or " if not loop.last }}{% endfor %}</p>
   </section>
 
-  {# ---- Who gets in? ---- #}
+  {# ---- Room, the GPU, the sites: one line each while all is well ---- #}
   <section class="qcard" id="gets-in" data-card>
-    <div class="qhead"><h2>Who's waiting for room?</h2></div>
+    <div class="qhead"><h2>Room, GPU and sites</h2></div>
     <ul class="items">
       {% for w in d.waiting %}
-      <li class="it" data-m="{{ w.m or '*' }}" data-p="{{ w.p or '' }}" data-bad="{{ bad(w.state) }}">
-        {{ dot(w.state) }}<div class="txt"><b>{{ w.name }}</b><small>waiting {{ dur(w.age) }} for room{% if w.need %}: it books {{ size(w.need) }}{% endif %}</small></div>
-      </li>
+      <li class="it" data-m="{{ w.m or '*' }}" data-p="{{ w.p or '' }}" data-bad="{{ bad(w.state) }}">{{ dot(w.state) }}
+        <div class="txt"><b><a href="{{ R }}/apps#gets-in">{{ w.name }} is waiting for room</a></b><small>for {{ dur(w.age) }}{% if w.need %}; it books {{ size(w.need) }}{% endif %}</small></div></li>
       {% endfor %}
       {% for e in d.pushed %}
-      <li class="it" data-m="{{ e.m or '*' }}" data-p="{{ e.p or '' }}" data-bad="0">
-        {{ dot("info") }}<div class="txt"><b>{{ e.name }}</b><small>pushed out at {{ clock(e.at) }} to make room for {{ e.by }}; it starts again when there's room</small></div>
-      </li>
+      <li class="it" data-m="{{ e.m or '*' }}" data-p="{{ e.p or '' }}" data-bad="0">{{ dot("info") }}
+        <div class="txt"><b><a href="{{ R }}/apps#gets-in">{{ e.name }} was pushed out</a></b><small>at {{ clock(e.at) }}, for {{ e.by }}; it starts again when there's room</small></div></li>
       {% endfor %}
-      {% if not d.waiting and not d.pushed %}<li class="it" data-m="*" data-p="*" data-bad="0">{{ dot("ok") }}<div class="txt"><b>Nobody is waiting</b><small>and nobody was pushed out in the last hour</small></div></li>{% endif %}
-      {% for m in d.machines %}
-      <li class="it booking" data-m="{{ m.node }}" data-p="*" data-bad="0">
-        <div class="txt"><b>{{ m.name }}: {{ (100 * m.booked_share) | round | int }}% booked</b>
-          <small>pods reserved {{ size(m.booked) }} of {{ size(m.allocatable) }}; they really use {{ size(m.used_pods) }}</small>
-          <span class="meter two" aria-hidden="true"><span class="b" style="width:{{ [100 * m.booked_share, 100] | min }}%"></span><span class="u" style="width:{{ [100 * m.used_pods / m.allocatable, 100] | min if m.allocatable else 0 }}%"></span></span></div>
-      </li>
+      {% if not d.waiting and not d.pushed %}
+      <li class="it" data-m="*" data-p="*" data-bad="0">{{ dot("ok") }}
+        <div class="txt"><b><a href="{{ R }}/apps#room">Nobody is waiting for room</a></b><small>{% for m in d.machines %}{{ m.name }} {{ (100 * m.booked_share) | round | int }}% booked{{ ", " if not loop.last }}{% endfor %}</small></div></li>
+      {% endif %}
+      {% if d.gpu %}{% set g = d.gpu %}
+      <li class="it" data-m="acer-laptop" data-p="*" data-bad="0">{{ dot("running" if g.users else "ok") }}
+        <div class="txt"><b><a href="{{ R }}/acer#gpu">The GPU is {{ "%.0f" | format(g.util or 0) }}% busy</a></b><small>{% if g.users %}{% for name, pct in g.users %}{{ name }}{{ ", " if not loop.last }}{% endfor %}{% else %}nobody is on it{% endif %} · {{ "%.0f" | format(g.temp or 0) }} °C</small></div></li>
+      {% endif %}
+      {% set down = d.sites | rejectattr("state", "in", ["ok", "unknown"]) | list %}
+      {% for s in down %}
+      <li class="it" data-m="*" data-p="{{ s.p or '' }}" data-bad="1">{{ dot(s.state) }}
+        <div class="txt"><b><a href="{{ R }}/network">{{ s.name }} is down</a></b><small>it answered {{ s.code or s.error }}</small></div></li>
       {% endfor %}
+      {% set up = d.sites | selectattr("state", "equalto", "ok") | list %}
+      <li class="it" data-m="*" data-p="*" data-bad="0">{{ dot("ok") }}
+        <div class="txt"><b><a href="{{ R }}/network">{% if down %}The other {{ up | length }} sites are up{% else %}All {{ up | length }} sites are up{% endif %}</a></b><small>{{ up | map(attribute="name") | join(", ") }}</small></div></li>
     </ul>
-    <p class="xs muted">A pod starts only when its booking fits. On the Acer a higher-ranked pod pushes a lower one out; it comes back when there's room.</p>
-  </section>
-
-  {# ---- The GPU ---- #}
-  {% if d.gpu %}{% set g = d.gpu %}
-  <section class="qcard" id="gpu" data-card>
-    <div class="qhead"><h2>The GPU</h2><span class="muted xs">in the Acer</span></div>
-    <ul class="items">
-      <li class="it" data-m="acer-laptop" data-p="*" data-bad="0">
-        {{ dot("running" if g.users else "ok") }}<div class="txt"><b>{{ "%.0f" | format(g.util or 0) }}% busy</b><small>{% if g.users %}{% for name, pct in g.users %}{{ name }} ({{ "%.0f" | format(pct) }}%){{ ", " if not loop.last }}{% endfor %}{% else %}nobody is using it{% endif %}</small></div>
-        <span class="val">{{ size(g.mem) }}<small>of {{ size(g.mem_total) }} · {{ "%.0f" | format(g.temp or 0) }} °C</small></span>
-      </li>
-    </ul>
-    <p class="none" data-none>The GPU is in the Acer.</p>
-  </section>
-  {% endif %}
-
-  {# ---- Sites ---- #}
-  <section class="qcard" id="sites" data-card>
-    <div class="qhead"><h2>Sites</h2></div>
-    <ul class="items">
-      {% for s in d.sites %}
-      <li class="it" data-m="*" data-p="{{ s.p or '' }}" data-bad="{{ bad(s.state) }}">
-        {{ dot(s.state) }}<div class="txt"><b><a href="{{ s.url }}">{{ s.name }}</a></b><small>{% if s.state == "ok" %}up, answered in {{ s.ms }} ms{% elif s.state == "unknown" %}not checked from here{% else %}down: {{ s.code or s.error }}{% endif %}</small></div>
-        <span class="tags">{% if s.p %}<span class="tag">{{ s.p }}</span>{% endif %}</span>
-      </li>
-      {% endfor %}
-    </ul>
-    <p class="none" data-none>No site for this filter.</p>
   </section>
 
 </div>

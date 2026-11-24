@@ -20,6 +20,9 @@ LABEL_WORDS = {"instance": "a machine", "node": "a machine", "pod": "an app", "j
                "container": "a container", "namespace": "", "storage": "", "job": "a target", "reason": "a reason"}
 AREAS = {"nodes": "Machines", "machines": "Machines", "gpu": "GPU", "kubernetes": "Kubernetes", "jobs": "Jobs",
          "scheduled-jobs": "Jobs", "apps": "Apps", "alerting": "Alerts", "monitoring": "Alerts"}
+# Where a rule's own page is: what it watches (an alert firing now links to the very machine or app instead).
+AREA_PAGES = {"Machines": "/server", "GPU": "/acer#gpu", "Kubernetes": "/apps", "Jobs": "/jobs", "Apps": "/apps",
+              "Alerts": "/alarms#rules"}
 # Rules whose summary is mostly its numbers: a plain title instead (the limits are alert-rules.yml's).
 TITLES = {
     "NodeHot": "A machine is running hot (over 90 °C)", "NodeVeryHot": "A machine is very hot (over 97 °C)",
@@ -112,7 +115,7 @@ def build(raw, now=None):
             alerts = r.get("alerts") or []
             ann = r.get("annotations") or {}
             row = {
-                "name": name, "area": area, "severity": sev, "title": TITLES.get(name) or rule_title(ann.get("summary", name)),
+                "name": name, "area": area, "severity": sev, "href": AREA_PAGES.get(area, "/alarms#rules"), "title": TITLES.get(name) or rule_title(ann.get("summary", name)),
                 "what": first_sentence(ann.get("description", "")), "wait": r.get("duration") or 0,
                 "event": (r.get("labels") or {}).get("kind") == "event", "rule_state": state,
                 "firing": [a for a in alerts if a.get("state") == "firing"],

@@ -53,6 +53,7 @@ Q = {
     "used": f"max by (node) ({USED})",
     "used_peak": f"max by (node) (max_over_time({USED}[24h]))",
     "wanted": WANTED,
+    "suspended": "kube_cronjob_spec_suspend == 1",
 }
 STRIP = {          # always the last 24 hours, every 5 minutes: each app's hours
     "running": 'max by (namespace, pod) (kube_pod_status_phase{phase="Running"} == 1)',
@@ -153,6 +154,7 @@ def build(raw, mem, catalog=None, now=None, range_key="24h"):
             last_stop[k2] = stop
     waiting = {(m.get("namespace"), m.get("pod")): m.get("reason") for m, _ in raw.get("waiting", [])}
     qos = {(m.get("namespace"), m.get("pod")): m.get("qos_class") for m, _ in raw.get("qos", [])}
+    suspended = {(m.get("namespace"), m.get("cronjob")) for m, _ in raw.get("suspended", [])}
     oom = {}
     for m, _ in raw.get("oom", []):
         oom[(m.get("namespace"), app_name(m.get("pod", "")))] = True
@@ -256,6 +258,8 @@ def build(raw, mem, catalog=None, now=None, range_key="24h"):
         elif live:
             row.update(state="running" if is_job else "ok",
                        text=("running for " if is_job else "up ") + dur(now - row["since"]) if row["since"] else "running")
+        elif is_job and (ns, app) in suspended:          # turned off on purpose: no colour, nothing is wrong
+            row.update(state="idle", text="paused (turned off on purpose)")
         elif is_job and phase.get((ns, latest)) == "Failed":
             row.update(state="warn", text="its last run failed")
         elif is_job:

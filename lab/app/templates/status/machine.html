@@ -13,10 +13,13 @@
 
 <div class="filters" id="filters" role="search">
   {{ machine_switch(R, d.slug, range) }}
-  <label class="sel"><span class="sr">Project</span>
-    <select data-f="p" aria-label="Project"><option value="">All projects</option>{% for g in d.groups %}<option value="{{ g }}">{{ g }}</option>{% endfor %}</select></label>
-  <label class="search"><span class="sr">Find</span><input type="search" data-f="q" placeholder="Find an app" autocomplete="off"></label>
-  <label class="toggle"><input type="checkbox" data-f="only"><span>Problems only</span></label>
+  <button type="button" class="fsum" data-fsum aria-expanded="false">{{ icon("filter") }}<span data-fsum-text>All projects</span></button>
+  <div class="fbody">
+    <label class="sel"><span class="sr">Project</span>
+      <select data-f="p" aria-label="Project"><option value="">All projects</option>{% for g in d.groups %}<option value="{{ g }}">{{ g }}</option>{% endfor %}</select></label>
+    <label class="search"><span class="sr">Find</span><input type="search" data-f="q" placeholder="Find an app" autocomplete="off"></label>
+    <label class="toggle"><input type="checkbox" data-f="only"><span>Problems only</span></label>
+  </div>
   <span class="grow"></span>
   {{ range_switch(RANGES, range) }}
 </div>
@@ -76,7 +79,7 @@
       {% for u in d.users %}{# memory.py sorts them: running first, biggest first #}
       <li class="it" data-m="{{ d.node }}" data-p="{{ u.p or '' }}" data-bad="{{ bad(u.state) }}" data-name="{{ u.name | lower }} {{ u.ns }} {{ u.kind }}">
         {{ dot(u.state) }}
-        <div class="txt"><b>{% if u.kind == "pod" %}<a href="{{ R }}/apps/{{ u.ns }}/{{ u.name }}">{{ u.name }}</a>{% else %}{{ u.name }}{% endif %}</b><small>{{ KINDS[u.kind] }}{% if u.ns %} in {{ u.ns }}{% endif %}{% if u.p %} · {{ u.p }}{% endif %}{% if u.booked %} · books {{ size(u.booked) }}{% endif %}{% if u.limit %} · limit {{ size(u.limit) }}{% endif %} · peak today {{ size(u.peak) }}</small></div>
+        <div class="txt"><b>{% if u.kind == "pod" %}<a href="{{ R }}/apps/{{ u.ns }}/{{ u.name }}">{{ u.name }}</a>{% else %}{{ u.name }}{% endif %}</b><small>{{ KINDS[u.kind] }}{% if u.p %} · {{ u.p }}{% endif %} · peak today {{ size(u.peak) }}</small></div>
         <span class="spk">{{ spark(u.trend) }}</span>
         <span class="val">{{ size(u.now) if u.running else "stopped" }}<small>{% if u.mem_share %}{{ '%.0f' | format(100 * u.mem_share) if u.mem_share >= 0.01 else "<1" }}% of the machine{% else %}ran earlier today{% endif %}</small></span>
       </li>
@@ -86,7 +89,7 @@
       {% for u in d.users | selectattr("cores") | sort(attribute="cores", reverse=true) %}
       <li class="it" data-m="{{ d.node }}" data-p="{{ u.p or '' }}" data-bad="0" data-name="{{ u.name | lower }} {{ u.ns }} {{ u.kind }}">
         {{ dot("ok") }}
-        <div class="txt"><b>{{ u.name }}</b><small>{{ KINDS[u.kind] }}{% if u.ns %} in {{ u.ns }}{% endif %}{% if u.p %} · {{ u.p }}{% endif %}{% if u.cpu_req %} · asked for {{ "%.2g" | format(u.cpu_req) }} cores{% endif %}{% if u.cpu_peak %} · peak today {{ "%.1f" | format(u.cpu_peak) }} cores{% endif %}</small></div>
+        <div class="txt"><b>{% if u.kind == "pod" %}<a href="{{ R }}/apps/{{ u.ns }}/{{ u.name }}">{{ u.name }}</a>{% else %}{{ u.name }}{% endif %}</b><small>{{ KINDS[u.kind] }}{% if u.p %} · {{ u.p }}{% endif %}{% if u.cpu_peak %} · peak today {{ "%.1f" | format(u.cpu_peak) }} cores{% endif %}</small></div>
         <span class="val">{{ "%.2f" | format(u.cores) if u.cores < 1 else "%.1f" | format(u.cores) }} cores<small>{{ '%.0f' | format(100 * u.cpu_share) if u.cpu_share >= 0.01 else "<1" }}% of the machine</small></span>
       </li>
       {% endfor %}

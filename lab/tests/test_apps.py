@@ -55,6 +55,7 @@ def apps_raw():
         "alloc": [s(6.6, node=acer), s(7.4, node=srv)], "booked": [s(6.1, node=acer), s(4.6, node=srv)],
         "used": [s(4.5, node=acer), s(2.9, node=srv)], "used_peak": [s(5.3, node=acer), s(4.6, node=srv)],
         "wanted": [s(0.5)],
+        "suspended": [one("apps", "", cronjob="cat-flash")],
         "strip": {"running": [({"namespace": "apps", "pod": "frigate-64b885b9c7-rf2bv"},
                                [(NOW - k * 300, 1.0) for k in range(288)]),
                               ({"namespace": "apps", "pod": "cat-flash-29924600-gc777"}, [(NOW - 5 * H, 1.0)])],
@@ -81,7 +82,7 @@ def test_apps_rows_and_states():
     assert frigate["mem"] == 1.2 * G and frigate["booked"] == 1.5 * G
     assert all(c["state"] == "running" for c in frigate["cells"])
     flash = rows[("cat-flash", "acer-laptop")]
-    assert flash["state"] == "idle" and flash["text"] == "finished (ran today)" and flash["is_job"]
+    assert flash["state"] == "idle" and flash["text"] == "paused (turned off on purpose)" and flash["is_job"]
     assert sum(1 for c in flash["cells"] if c["state"] == "running") == 1
     assert [r["name"] for r in d["rows"]][:2] == ["broken", "fm-webllm"]                 # the worst first
 

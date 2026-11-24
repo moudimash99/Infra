@@ -24,8 +24,8 @@
       {% for s in n.sites %}
       <li class="it" data-m="*" data-p="{{ s.p or '' }}" data-bad="{{ bad(s.state) }}" data-name="{{ s.name | lower }} {{ s.app }}">
         {{ dot(s.state) }}
-        <div class="txt"><b>{% if s.url %}<a href="{{ s.url }}">{{ s.name }}</a>{% else %}{{ s.name }}{% endif %}</b>
-          <small>{% if s.why %}{{ s.why }} · {% endif %}{% if s.check and s.check.up %}up, answered the check in {{ s.check.ms }} ms · {% endif %}{% if s.requests is not none %}{{ "{:,.0f}".format(s.requests) }} requests today{% if s.errors >= 0.5 %}, {{ "%.0f" | format(s.errors) }} failed{% endif %}{% if s.refused >= 0.5 %}, {{ "%.0f" | format(s.refused) }} refused (4xx){% endif %}{% if s.fast is not none %} · {{ pct(s.fast) }} answered within 300 ms, the slowest 5% in {{ secs(s.p95) }} or more{% endif %}{% else %}not served by Traefik{% endif %}</small></div>
+        <div class="txt"><b>{% if s.ns and s.app %}<a href="{{ R }}/apps/{{ s.ns }}/{{ s.app }}">{{ s.name }}</a>{% else %}{{ s.name }}{% endif %}{% if s.url %} <a class="ext" href="{{ s.url }}" title="Open the site" aria-label="Open {{ s.name }}">{{ icon("external") }}</a>{% endif %}</b>
+          <small>{% if s.why %}{{ s.why }} · {% elif s.state == "warn" and s.p95 %}slow: the slowest 5% take {{ secs(s.p95) }} or more · {% endif %}{% if s.requests is not none %}{{ "{:,.0f}".format(s.requests) }} requests today{% if s.errors >= 0.5 %}, {{ "%.0f" | format(s.errors) }} failed{% endif %}{% else %}not served by Traefik{% endif %}</small></div>
         <span class="val">{% if s.rpm %}{{ "%.1f" | format(s.rpm) if s.rpm < 10 else "%.0f" | format(s.rpm) }}<small>a minute now</small>{% elif s.requests is not none %}<small>quiet now</small>{% endif %}</span>
         <span class="tags">{% if s.p %}<span class="tag">{{ s.p }}</span>{% endif %}</span>
       </li>

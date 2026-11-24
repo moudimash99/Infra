@@ -1,18 +1,22 @@
 {#- The filter bar every page of the homelab tool shares (status.js applies it to every [data-card] list).
     Needs MACHINES and the project names in `groups` (or d.groups). Optional: with_search (a box that finds a name),
-    and RANGES + range (the graphs' 24 h / 7 d switch, on the right). -#}
+    and RANGES + range (the graphs' 24 h / 7 d switch, on the right). On a phone the filters fold into one
+    "Filters" button showing what is chosen; the range switch stays out. -#}
 {% from "status/_ui.html" import range_switch %}
 <div class="filters" id="filters" role="search">
-  <div class="seg" data-f="m" role="group" aria-label="Machine">
-    <button type="button" data-v="" class="on">All machines</button>
-    {% for node, name in MACHINES %}<button type="button" data-v="{{ node }}">{{ name }}</button>{% endfor %}
+  <button type="button" class="fsum" data-fsum aria-expanded="false">{{ icon("filter") }}<span data-fsum-text>All machines, all projects</span></button>
+  <div class="fbody">
+    <div class="seg" data-f="m" role="group" aria-label="Machine">
+      <button type="button" data-v="" class="on">All machines</button>
+      {% for node, name in MACHINES %}<button type="button" data-v="{{ node }}">{{ name }}</button>{% endfor %}
+    </div>
+    <label class="sel"><span class="sr">Project</span>
+      <select data-f="p" aria-label="Project">
+        <option value="">All projects</option>
+        {% for g in (groups if groups is defined else d.groups if d else []) %}<option value="{{ g }}">{{ g }}</option>{% endfor %}
+      </select></label>
+    {% if with_search is defined and with_search %}<label class="search"><span class="sr">Find</span><input type="search" data-f="q" placeholder="Find an app" autocomplete="off"></label>{% endif %}
+    <label class="toggle"><input type="checkbox" data-f="only"><span>Problems only</span></label>
   </div>
-  <label class="sel"><span class="sr">Project</span>
-    <select data-f="p" aria-label="Project">
-      <option value="">All projects</option>
-      {% for g in (groups if groups is defined else d.groups if d else []) %}<option value="{{ g }}">{{ g }}</option>{% endfor %}
-    </select></label>
-  {% if with_search is defined and with_search %}<label class="search"><span class="sr">Find</span><input type="search" data-f="q" placeholder="Find an app" autocomplete="off"></label>{% endif %}
-  <label class="toggle"><input type="checkbox" data-f="only"><span>Problems only</span></label>
   {% if RANGES is defined and range is defined and range %}<span class="grow"></span>{{ range_switch(RANGES, range) }}{% endif %}
 </div>

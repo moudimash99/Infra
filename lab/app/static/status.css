@@ -214,3 +214,33 @@
 .jobrows .txt b a { color: inherit; }
 svg.chart .pt { stroke: none; } .s1.pt { fill: var(--s1); } .s2.pt { fill: var(--s2); } .s3.pt { fill: var(--s3); }
 .s4.pt { fill: var(--s4); } .s5.pt { fill: var(--s5); } .s8.pt { fill: var(--s8); }
+
+/* Colour means attention: a fine thing is a quiet grey, only what needs a look is amber or red; running is blue,
+   paused an empty ring. */
+.sdot.ok { background: color-mix(in srgb, var(--text-3) 45%, transparent); }
+.sdot.paused, .sdot.unknown { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line-2); }
+.qchip.ok { background: var(--bg-2); color: var(--text-3); }
+.day.ok, .h.running { background: color-mix(in srgb, var(--text-3) 38%, transparent); opacity: 1; }
+.ok-line { color: var(--text-2); }
+
+/* the machine tiles are links */
+a.mtile { color: inherit; } a.mtile:hover { text-decoration: none; border-color: var(--accent); }
+.mt-head svg { width: 16px; height: 16px; color: var(--text-3); flex: none; }
+.ext { display: inline-flex; vertical-align: -2px; margin-left: 4px; color: var(--text-3); }
+.ext svg { width: 14px; height: 14px; }
+
+/* the filter bar folds into one button on a phone */
+.fsum { display: none; }
+.fbody { display: contents; }
+@media (max-width: 639px) {
+  .fsum { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 10px;
+          border: 1px solid var(--line-2); background: var(--surface); font: 600 var(--fs-sm) var(--font);
+          color: var(--text-2); min-width: 0; max-width: 62%; cursor: pointer; }
+  .fsum span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fsum svg { width: 15px; height: 15px; flex: none; }
+  .fsum.on { border-color: var(--accent); color: var(--accent-ink); }
+  .filters:not(.open) .fbody { display: none; }
+  .filters.open .fbody { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; order: 9; }
+  .filters > .seg.sm { width: auto; margin-left: auto; }
+  .filters .seg.sm a { flex: none; }
+}

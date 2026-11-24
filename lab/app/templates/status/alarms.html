@@ -36,7 +36,7 @@
       {% for r in x.rules %}
       <li class="it" data-m="*" data-p="*" data-bad="{{ 1 if r.firing or r.pending else 0 }}" data-name="{{ r.name | lower }} {{ r.title | lower }} {{ r.area | lower }}">
         {{ dot(r.state) }}
-        <div class="txt"><b>{{ r.title }}</b><small>{{ r.text }}{% if r.what %} · {{ r.what }}{% endif %}</small></div>
+        <div class="txt"><b><a href="{{ R }}{{ r.href }}">{{ r.title }}</a></b><small>{{ r.text }}{% if r.what %} · {{ r.what }}{% endif %}</small></div>
         {{ days(r.cells) }}
         <span class="tags"><span class="tag">{{ r.area }}</span><span class="tag">{{ "critical" if r.severity == "critical" else "warning" }}</span>{% if r.wait %}<span class="tag">after {{ dur(r.wait) }}</span>{% endif %}</span>
       </li>
