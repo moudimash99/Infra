@@ -311,6 +311,10 @@ phone first, so each reads top to bottom as answers, details in collapsed rows, 
   (preempted or evicted) and red ones for memory kills. Job runs are drawn from their start and end times read 1 minute
   ahead, so 20-second runs between two 30 s scrapes still show (the last minute lags). Then booked against really used
   memory, who is waiting now, and each running pod's rank, booking, use and limit.
+- **Ranks and memory** (`/d/ranks`, made 2026-11-24): the ranks highest first (from `k8s/cluster/priority.yaml`: number,
+  may it push out lower ranks, who can push it out), then every app that ran in the last 24 h on either machine with
+  its rank, what it is (`APP_NOTES` in make.py, else the first sentence of its services.yaml `what`), booked, limit,
+  used now, peak and a small graph of its real memory over 24 h; paused jobs; and all apps' memory on one chart.
 - **PC jobs**: the Windows PC's scheduled tasks and its jobs' numbers (archived today, FreeMotion, Upwork), from the
   reports `lab/pc-report/report.ps1` sends to the lab every 10 minutes (set up with `lab/pc-report/install.ps1`; not
   installed on the PC as of 2026-11-20, and its archiver numbers read the PC's archiver.log, which stopped growing when

@@ -44,3 +44,5 @@ configMapGenerator:
     files: [dashboards/pc.json]
   - name: dashboard-scheduling           # Who gets in: each app running / waiting for room / failed, and booked memory
     files: [dashboards/scheduling.json]
+  - name: dashboard-ranks                # Ranks and memory: every app's rank, booking and real memory over 24 h
+    files: [dashboards/ranks.json]

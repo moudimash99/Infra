@@ -1,6 +1,7 @@
 """The homelab's own Grafana dashboards, made from short definitions so they stay consistent. Run after a change:
 
-    python k8s/monitoring/dashboards/make.py      (writes home.json, usage.json, jobs.json, pc.json, scheduling.json here)
+    python k8s/monitoring/dashboards/make.py      (writes home.json, usage.json, jobs.json, pc.json, scheduling.json,
+                                                   ranks.json here)
 
 Phone first: Grafana stacks panels in one column below 769 px, in grid order, so each dashboard reads top to bottom
 as answers: the one-glance stats first (short stat tiles), then lists (bar gauges and short tables), then charts.
@@ -11,6 +12,7 @@ Details are in collapsed rows. Each machine keeps its own colour everywhere (ser
   jobs   "Scheduled jobs"               every run of the last week: when, how long, result, memory, OOM kills
   pc     "PC jobs"                       the Windows PC's scheduled jobs, from its reports to the lab
   scheduling "Who gets in"           each app on a machine: running, waiting for room, failed; booked vs used memory
+  ranks  "Ranks and memory"           every app: rank, what the rank may do, what it is, booked, real memory over 24 h
 """
 import json
 import os
@@ -549,8 +551,217 @@ scheduling["annotations"]["list"] = [
                      "{{pod}} / {{container}} killed for memory", "red"),
 ]
 
+# ---------------------------------------------------------------------------------------------------------------
+# ranks: every app's rank, what that rank may do, what the app is, its booking and its real memory over 24 hours
+# (made 2026-11-24, user: "this is the rank that we give it, this is the memory that it books, and this is its actual
+# memory usage over the last 24 hours in a graph").
+#
+# The ranks and their numbers come from k8s/cluster/priority.yaml (kube-state-metrics has no PriorityClass metrics),
+# the k3s ones are fixed. "What it is" comes from APP_NOTES below, else from services.yaml: the first sentence of
+# the `what` of the entry whose k8s probe names the app. One row per app and machine: a DaemonSet has one per machine.
+
+import yaml  # noqa: E402  (only this section needs it)
+
+INFRA = os.path.normpath(os.path.join(HERE, "..", "..", ".."))
+SYSTEM_RANKS = [("system-node-critical", 2000001000, True, "k3s's own plumbing."),
+                ("system-cluster-critical", 2000000000, True, "Cluster essentials: names, the web front door, GitOps.")]
+
+
+def load_ranks():
+    with open(os.path.join(INFRA, "k8s", "cluster", "priority.yaml"), encoding="utf-8") as f:
+        docs = [d for d in yaml.safe_load_all(f) if d and d.get("kind") == "PriorityClass"]
+    ours = [(d["metadata"]["name"], int(d["value"]), d.get("preemptionPolicy", "PreemptLowerPriority") != "Never",
+             d.get("description", "")) for d in docs]
+    return sorted(SYSTEM_RANKS + ours + [("(none)", 0, False, "Pods made before the default rank existed; they get "
+                                          "homelab-normal at their next restart.")], key=lambda r: -r[1])
+
+
+RANKS = load_ranks()
+
+# Short words for apps whose services.yaml entry covers several pods, or that have no entry (k3s, monitoring agents).
+APP_NOTES = {
+    "local-path-provisioner": "k3s: makes the disk folders pods keep data in",
+    "metrics-server": "k3s: live CPU and memory for kubectl top",
+    "svclb-traefik": "k3s: passes ports 80/443 on each machine to Traefik",
+    "coredns": "k3s: name lookups inside the cluster",
+    "traefik": "Web front door: sends each site's traffic to its pod",
+    "source-controller": "Flux: pulls the Infra repo from GitHub",
+    "kustomize-controller": "Flux: applies k8s/ from main every 10 min",
+    "frigate": "Cat camera recorder: records and detects",
+    "lab": "Taste Match, Deals and Cat cam sites, and the login bridge",
+    "homepage": "The lab.machaka.net menu",
+    "prometheus": "Collects every metric every 30 s, keeps 15 days",
+    "grafana": "These dashboards",
+    "alertmanager": "Emails Prometheus's alerts",
+    "kube-state-metrics": "Numbers about pods, jobs and restarts for Prometheus",
+    "beszel": "Simple per-machine monitor (beszel.machaka.net)",
+    "beszel-agent": "Beszel's collector on the server",
+    "beszel-agent-worker": "Beszel's collector on the Acer",
+    "node-exporter": "Machine CPU, memory, disks and temperatures",
+    "process-exporter": "Memory per program outside containers",
+    "nvidia-gpu-exporter": "The GTX 1050's load, memory and heat",
+    "gpu-procs": "Which program is on the GPU",
+    "fm-controller": "Free Motion's brain: daemon, scan, score loops, hub agent",
+    "fm-browser-acer-0": "Free Motion browser, lane 1",
+    "fm-browser-acer-1": "Free Motion browser, lane 2",
+    "fm-webllm": "Free Motion's ChatGPT/Gemini website writer, started on demand",
+    "fm-webllm-waker": "Starts and stops fm-webllm",
+    "freemotion-hub": "Free Motion's dashboard",
+    "llm-gateway": "fm-llm: one door to the AI models for every project",
+    "mail-classifier": "Trained model that decides what the Gmail archiver archives",
+    "mail-classifier-waker": "Starts and stops the mail classifier",
+    "email-remove": "Gmail archiver, every 3 minutes",
+    "bg-taste-match-gpu": "Whisper captions on the GPU, hourly, with a heat guard",
+    "bg-taste-match-llm": "Rates the reviewers with AI, hourly at night",
+    "bg-taste-match-fetch": "Downloads the reviewers' videos' audio, every 2 hours",
+    "bg-taste-match-shell": "Idle helper for running bg-taste-match stages by hand",
+    "backup-acer": "Nightly backup of the Acer",
+    "backup-server": "Nightly backup of the server",
+    "unmatched-restart": "Restarts the Unmatched site on Mondays",
+    "cat-flash": "The cat's flash-of-the-day video, 00:20 and 19:20",
+    "cat-monitor": "Nightly GPU cat detection",
+    "boardgamefinder": "Nightly board game deals",
+    "boardgamefinder-fetch": "Loads Okkazeo pages through the day",
+    "cat-weight": "Cat weight site",
+    "unmatched": "Unmatched matcher site",
+    "boardxplorer": "Board game explorer site",
+    "website": "Your personal website",
+    "spirit-island": "Spirit Island site",
+    "registry": "Local image store (not used yet)",
+    "portainer": "Web page for Docker and Kubernetes",
+    "uptime-kuma": "Up/down checks of the sites",
+}
+
+
+def app_notes():
+    """APP_NOTES, plus the first sentence of each services.yaml `what` for the apps its k8s probes name."""
+    notes = {}
+    with open(os.path.join(INFRA, "services.yaml"), encoding="utf-8") as f:
+        catalog = yaml.safe_load(f)
+    for e in catalog if isinstance(catalog, list) else catalog.get("services", []):
+        what = re.split(r"(?<=[.!?])\s", str(e.get("what", "")).strip())[0].rstrip(".")
+        for p in e.get("probes") or []:
+            if isinstance(p, dict) and "k8s" in p and what:
+                notes.setdefault(p["k8s"].split("/")[-1], what)
+    notes.update(APP_NOTES)
+    return notes
+
+
+NOTES = app_notes()
+MACHINE_NAMES = {"moudimash99": "Server", "acer-laptop": "Acer"}
+
+
+def keyed(x):
+    """pod -> pod_app (as `named`), plus `key` = app and machine, the row of the table."""
+    return f'label_join({named(x)}, "key", " on ", "pod_app", "node")'
+
+
+MEM = 'sum by (pod, node) (container_memory_working_set_bytes{container!="", node!=""})'
+INFO_24H = 'max by (pod, node, priority_class) (max_over_time(kube_pod_info{node!=""}[24h]))'
+RANK_VEC = " or ".join(f'label_replace(vector({v}), "priority_class", "{n}", "", "")'
+                       for n, v, _, _ in RANKS if n != "(none)")
+
+
+def copy_label(x, to, frm):
+    return f'label_replace({x}, "{to}", "$1", "{frm}", "(.*)")'
+
+
+def text_map(field_name, mapping, colors=None):
+    """Value mappings that turn a label's value into words (and an optional colour)."""
+    opts = {k: {"text": v, "index": i, **({"color": colors[k]} if colors and k in colors else {})}
+            for i, (k, v) in enumerate(mapping.items())}
+    return field(field_name, [{"id": "mappings", "value": [{"type": "value", "options": opts}]}])
+
+
+def ladder_md():
+    lines = ["| Rank | Number | Can push out lower ranks to start? | Can be pushed out by | What it is for |",
+             "|---|---:|---|---|---|"]
+    for i, (n, v, pushes, desc) in enumerate(RANKS):
+        above = [m for m, w, p, _ in RANKS[:i] if p and w > v and not m.startswith("system")]
+        by = "nothing" if n.startswith("system") else (", ".join(f"`{m}`" for m in above) or "nothing")
+        if not n.startswith("system") and any(p for m, w, p, _ in RANKS[:i] if m.startswith("system")):
+            by = (by + ", k3s's own") if by != "nothing" else "k3s's own"
+        lines.append(f"| `{n}` | {v:,} | {'yes' if pushes else 'no, waits for room'} | {by} | {desc} |")
+    return "\n".join(lines) + (
+        "\n\n**Two separate rules.** *Getting in:* a pod starts only where its **booking** fits; a rank marked yes "
+        "may stop pods of a strictly lower number on that machine to make room, the others wait. *Running out of "
+        "real memory:* ranks don't count; the kernel kills the biggest containers first (a small booking makes it "
+        "likelier), and a container above its own limit is killed whatever its rank.")
+
+
+RANK_TABLE_COLS = {"pod_app": "App", "node": "Machine", "priority_class": "Rank", "Value #G": "Rank no.",
+                   "pushes": "Pushes out lower?", "what": "What it is", "Value #C": "Booked", "Value #F": "Limit",
+                   "Value #D": "Used now", "Value #E": "Peak 24 h", "Trend #A": "Memory, last 24 h"}
+
+ranks = dashboard("ranks", "Ranks and memory", time="now-24h", refresh="5m",
+                  desc="Every app: its rank, what that rank may do, what the app is, the memory it books and its real "
+                       "memory over the last 24 hours.", panels=[
+    text(ladder_md(), w=24, h=12, title="The ranks, highest first"),
+    table("Every app that ran in the last 24 hours, highest rank first",
+          [target('max by (key) (' + keyed(MEM) + ')', ref="A"),
+           target('max by (key, pod_app, node, priority_class, what, pushes) (' +
+                  copy_label(copy_label(keyed(INFO_24H), "what", "pod_app"), "pushes", "priority_class") + ')',
+                  instant=True, fmt="table", ref="B"),
+           target('max by (key) (' + keyed('sum by (pod, node) (max_over_time(kube_pod_container_resource_requests'
+                                           '{resource="memory", node!=""}[24h]))') + ')',
+                  instant=True, fmt="table", ref="C"),
+           target('max by (key) (' + keyed(MEM) + ')', instant=True, fmt="table", ref="D"),
+           target('max by (key) (max_over_time((max by (key) (' + keyed(MEM) + '))[24h:1m]))',
+                  instant=True, fmt="table", ref="E"),
+           target('max by (key) (' + keyed('sum by (pod, node) (max_over_time(kube_pod_container_resource_limits'
+                                           '{resource="memory", node!=""}[24h]))') + ')',
+                  instant=True, fmt="table", ref="F"),
+           target('max by (key) ((' + keyed(INFO_24H) + ' * 0) + on (priority_class) group_left () (' + RANK_VEC + '))'
+                  ' or max by (key) (' + keyed(INFO_24H) + ' * 0)', instant=True, fmt="table", ref="G")],
+          [{"id": "timeSeriesTable", "options": {}},
+           {"id": "joinByField", "options": {"byField": "key", "mode": "outer"}},
+           {"id": "organize", "options": {
+               "excludeByName": {k: True for k in ("key", "Time", "Time 1", "Time 2", "Time 3", "Time 4", "Time 5",
+                                                   "Time 6", "Value #B")},
+               "indexByName": {k: i for i, k in enumerate(RANK_TABLE_COLS)},
+               "renameByName": RANK_TABLE_COLS}}],
+          [text_map("Machine", MACHINE_NAMES, {"moudimash99": BLUE, "acer-laptop": ORANGE}),
+           field("Machine", [{"id": "custom.cellOptions", "value": {"type": "color-text"}},
+                             {"id": "custom.width", "value": 80}]),
+           text_map("What it is", NOTES),
+           field("What it is", [{"id": "custom.width", "value": 330}]),
+           text_map("Pushes out lower?", {n: ("yes" if p else "no, waits") for n, _, p, _ in RANKS if n != "(none)"},
+                    {n: (GREEN if p else GREY) for n, _, p, _ in RANKS if n != "(none)"}),
+           field("Pushes out lower?", [{"id": "custom.cellOptions", "value": {"type": "color-text"}},
+                                       {"id": "custom.width", "value": 120}]),
+           field("Rank", [{"id": "mappings", "value": [{"type": "special", "options": {
+               "match": "empty", "result": {"text": "(none)", "index": 0}}}]}, {"id": "custom.width", "value": 170}]),
+           field("Rank no.", [{"id": "custom.width", "value": 100}, {"id": "decimals", "value": 0}]),
+           field("Memory, last 24 h", [{"id": "custom.cellOptions",
+                                        "value": {"type": "sparkline", "hideValue": True,
+                                                  "lineWidth": 1, "fillOpacity": 20}},
+                                       {"id": "unit", "value": "bytes"}, {"id": "custom.width", "value": 220}])]
+          + [field(n, [{"id": "unit", "value": "bytes"}, {"id": "decimals", "value": 0},
+                       {"id": "custom.width", "value": 84}])
+             for n in ("Booked", "Limit", "Used now", "Peak 24 h")],
+          w=24, h=26, sort=[{"displayName": "Rank no.", "desc": True}], no_value="-",
+          desc="Booked: the memory the scheduler counts (the request). Limit: above it the container is killed. Used "
+               "now and Peak 24 h: real memory (working set). A job that ran in the last 24 h shows its last run's "
+               "booking; its graph has a bump per run. Names come from the pods: a Deployment's or job's pod is shown "
+               "by its app, a StatefulSet's by its own name."),
+    table("Paused jobs (not running on purpose)",
+          [target(copy_label('kube_cronjob_spec_suspend{namespace=~"apps|tools"} == 1', "what", "cronjob"),
+                  instant=True, fmt="table")],
+          [{"id": "organize", "options": {"excludeByName": {"Time": True, "Value": True, "__name__": True,
+                                                            "job": True, "instance": True, "namespace": True},
+                                          "indexByName": {"cronjob": 0, "what": 1},
+                                          "renameByName": {"cronjob": "Job", "what": "What it is"}}},
+           {"id": "filterFieldsByName", "options": {"include": {"names": ["Job", "What it is"]}}}],
+          [text_map("What it is", NOTES)], w=24, h=5, no_value="None"),
+    series("Real memory per app, last 24 hours", [
+        ('sort_desc(max by (pod_app, node) (' + keyed(MEM) + '))', "{{pod_app}} ({{node}})")],
+        w=24, h=12, unit="bytes", legend="table",
+        desc="The same numbers as the small graphs above, on one scale. Click a name in the list to see it alone."),
+])
+
 if __name__ == "__main__":
-    for name, d in (("home", home), ("usage", usage), ("jobs", jobs), ("pc", pc), ("scheduling", scheduling)):
+    for name, d in (("home", home), ("usage", usage), ("jobs", jobs), ("pc", pc), ("scheduling", scheduling),
+                    ("ranks", ranks)):
         with open(os.path.join(HERE, f"{name}.json"), "w", encoding="utf-8") as f:
             json.dump(d, f, indent=1)
         print(f"{name}.json: {len(d['panels'])} panels")

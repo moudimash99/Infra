@@ -78,6 +78,7 @@ spec:
               - configMap: { name: dashboard-jobs }
               - configMap: { name: dashboard-pc }
               - configMap: { name: dashboard-scheduling }
+              - configMap: { name: dashboard-ranks }
         - name: dashboards-more
           projected:
             sources:

@@ -858,6 +858,10 @@
         href: https://grafana.machaka.net/d/scheduling
         icon: mdi-account-clock
         description: Who runs, waits for room or was pushed out (Grafana)
+    - Ranks and memory:
+        href: https://grafana.machaka.net/d/ranks
+        icon: mdi-podium
+        description: Every app's rank, booking and real memory over 24 h (Grafana)
     - Temperatures:
         href: https://grafana.machaka.net/d/node-temperatures
         icon: mdi-thermometer
