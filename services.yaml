@@ -281,7 +281,7 @@
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\Infra\lab
     branch: main
-    deployed: "ec89447 (tag 2026-11-24-app, built from a clean export of that commit: f55210f's Taste Match plus the homelab tool, all its pages; Infra/lab is a folder, not a repo of its own, so status.py does not compare it)"
+    deployed: "18bad85 (tag 2026-11-24-jobs2, built from a clean export of that commit: f55210f's Taste Match plus the homelab tool, all its pages; Infra/lab is a folder, not a repo of its own, so status.py does not compare it)"
   deploy: "From the PC, Infra root: `sh lab/build.sh TAG` (builds on the server, imports on the Acer through the PC), set the tag in lab.yaml, apply."
   check: "Readiness/liveness GET /healthz on :8080; Prometheus scrapes :8081/metrics (pod annotations); Homepage Pipelines tiles read /api/summary/*"
   probes:
