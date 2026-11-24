@@ -258,7 +258,7 @@
     description: Job applications dashboard
 
 - name: lab-sites
-  what: "The lab, one process serving Taste Match, Deals and Cat cam (status sites for the jobs), Machines (where each machine's memory goes, lab.machaka.net/machines) plus the PC report intake."
+  what: "The lab, one process serving Taste Match, Deals and Cat cam (status sites for the jobs), the homelab overview (lab.machaka.net/machines: problems, machines, jobs, who waits for room, GPU, sites, PC tasks, memory) plus the PC report intake."
   kind: web-app
   system: lab
   lifecycle: production
@@ -272,7 +272,7 @@
     - https://deals.machaka.net
     - https://catcam.machaka.net
     - "https://lab.machaka.net/lab-sso (Access sign-in bridge; the rest of lab.machaka.net is Homepage)"
-    - "https://lab.machaka.net/machines (Machines: memory per machine and per pod, from Prometheus)"
+    - "https://lab.machaka.net/machines (the homelab overview; /machines/memory: memory per machine and per pod)"
     - "PC report intake: NodePort 30881 (home network, token in Secret tools/lab-intake)"
   data:
     - "hostPath /srv/apps/lab on the Acer (lab.db: job runs, log summaries, clip cache; table visitors: Taste Match visitors' BGG ratings and results, kept a day)"
@@ -281,7 +281,7 @@
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\Infra\lab
     branch: main
-    deployed: "f55210f (tag 2026-11-24-exp, built from the committed tree, with the Machines page of 7c4cd66; Infra/lab is a folder, not a repo of its own, so status.py does not compare it)"
+    deployed: "a0c0695 (tag 2026-11-24-overview, built from a clean export of that commit: f55210f's Taste Match plus the overview; Infra/lab is a folder, not a repo of its own, so status.py does not compare it)"
   deploy: "From the PC, Infra root: `sh lab/build.sh TAG` (builds on the server, imports on the Acer through the PC), set the tag in lab.yaml, apply."
   check: "Readiness/liveness GET /healthz on :8080; Prometheus scrapes :8081/metrics (pod annotations); Homepage Pipelines tiles read /api/summary/*"
   probes:
@@ -297,10 +297,10 @@
     href: null
     description: Taste Match, Deals and Cat cam, one process
     extra:
-    - Machines:
+    - Homelab overview:
         href: https://lab.machaka.net/machines/
-        icon: mdi-memory
-        description: Where each machine's memory goes, and who is using it
+        icon: mdi-monitor-dashboard
+        description: Is everything all right, and why; filter by machine and project
 
 - name: mail-classifier
   what: "Trained mail classifier API for the Gmail archiver. Since 2026-11-11 it decides (archiver MODEL_DECIDES = True): it archives emails the rules keep when it is sure and no guard or block applies. If it does not answer within 3 s, the email stays in the inbox."

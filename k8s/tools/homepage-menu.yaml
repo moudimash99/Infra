@@ -210,10 +210,10 @@ data:
           namespace: tools
           app: lab-sites
           podSelector: app=lab
-      - Machines:
+      - Homelab overview:
           href: https://lab.machaka.net/machines/
-          icon: mdi-memory
-          description: Where each machine's memory goes, and who is using it
+          icon: mdi-monitor-dashboard
+          description: Is everything all right, and why; filter by machine and project
     - Monitoring:
       - Beszel:
           href: https://beszel.machaka.net
@@ -385,3 +385,379 @@ data:
       - Tailscale:
           description: Free Motion's agents reach the hub through it
           icon: tailscale.png
+  catalog.json: |
+    {
+     "groups": [
+      "Board games",
+      "Cats",
+      "Job search",
+      "Gmail",
+      "Website and lab",
+      "Monitoring",
+      "Platform"
+     ],
+     "services": {
+      "website": {
+       "group": "Website and lab",
+       "title": "Website",
+       "what": "Personal website (Next.js) with the CV link tracking and its admin links dashboard"
+      },
+      "cat-weight": {
+       "group": "Cats",
+       "title": "Cat weight",
+       "what": "Cat weight tracker (Flask + SQLite)"
+      },
+      "boardxplorer": {
+       "group": "Board games",
+       "title": "BoardXplorer",
+       "what": "BoardGameGeek collection explorer (Django + SQLite)"
+      },
+      "unmatched": {
+       "group": "Board games",
+       "title": "Unmatched",
+       "what": "Unmatched fighter matcher, strategy guides and tournaments (Flask + gunicorn)"
+      },
+      "frigate": {
+       "group": "Cats",
+       "title": "Frigate",
+       "what": "Frigate NVR for the living-room camera (recordings, detection on the Intel GPU)"
+      },
+      "freemotion-hub": {
+       "group": "Job search",
+       "title": "Free Motion",
+       "what": "Free Motion's dashboard server (fm-orchestrator/freemotion-hub/server.mjs with fm-web's page) and the agents' hub"
+      },
+      "lab-sites": {
+       "group": "Website and lab",
+       "title": "Lab sites",
+       "what": "The lab, one process serving Taste Match, Deals and Cat cam (status sites for the jobs), the homelab overview (lab.machaka.net/machines:…"
+      },
+      "mail-classifier": {
+       "group": "Gmail",
+       "title": "Mail classifier",
+       "what": "Trained mail classifier API for the Gmail archiver"
+      },
+      "llm-gateway": {
+       "group": "Job search",
+       "title": "LLM gateway",
+       "what": "fm-llm's ask service, the one way the home's projects call a model (gemma, Gemini, Claude)"
+      },
+      "spirit-island": {
+       "group": "Board games",
+       "title": "Spirit Island",
+       "what": "Spirit Island Planner: setups for 1 to 6 players (spirits that work well together, with an adversary, level and scenario matched to skill)"
+      },
+      "free-motion": {
+       "group": "Job search",
+       "title": "Free Motion jobs",
+       "what": "Free Motion job-application automation (controller daemon, one browser per lane, the ChatGPT/Gemini website writer)"
+      },
+      "boardgamefinder": {
+       "group": "Board games",
+       "title": "Deals",
+       "what": "Daily board game deal search (Okkazeo listings, BGG ranks, prices, deal email)"
+      },
+      "bg-taste-match": {
+       "group": "Board games",
+       "title": "Taste Match",
+       "what": "Board game YouTube reviewers matched to a BGG profile (downloads, Whisper captions, speaker separation, LLM rating)"
+      },
+      "cat-camera-jobs": {
+       "group": "Cats",
+       "title": "Cat cam",
+       "what": "Cat camera jobs from the Cat-Camera repo: cat-flash (flash of the day video) and cat-monitor (feeding monitor, YOLO on the GPU)"
+      },
+      "portainer": {
+       "group": "Platform",
+       "title": "Portainer",
+       "what": "Web UI for the cluster and for Docker on the server"
+      },
+      "beszel": {
+       "group": "Monitoring",
+       "title": "Beszel",
+       "what": "Light monitoring with history and alerts per machine (hub + one agent per node)"
+      },
+      "uptime-kuma": {
+       "group": "Monitoring",
+       "title": "Uptime Kuma",
+       "what": "Checks each site every minute and emails when one is down; status page `homelab` feeds Homepage"
+      },
+      "homepage": {
+       "group": "Website and lab",
+       "title": "homepage",
+       "what": "lab.machaka.net: the menu, one tile per entry in this file, grouped by system, with live numbers"
+      },
+      "prometheus": {
+       "group": "Monitoring",
+       "title": "Prometheus",
+       "what": "Collects metrics every 30 s, keeps 15 days (max 4 GB), evaluates the alert rules; with kube-state-metrics"
+      },
+      "grafana": {
+       "group": "Monitoring",
+       "title": "Grafana",
+       "what": "Dashboards over Prometheus (Homelab folder made by dashboards/make.py, More detail from grafana.com)"
+      },
+      "alertmanager": {
+       "group": "Monitoring",
+       "title": "Alerts",
+       "what": "Turns Prometheus alerts into plain-word emails through Gmail SMTP"
+      },
+      "node-exporters": {
+       "group": "Monitoring",
+       "title": "Machine metrics",
+       "what": "Machine metrics (node-exporter, port 9110) and per-program memory outside containers (process-exporter, 9256) on every node"
+      },
+      "gpu-metrics": {
+       "group": "Monitoring",
+       "title": "GPU (Acer)",
+       "what": "The Acer's GTX 1050 for Prometheus (nvidia_gpu_exporter) and per-process GPU use with the owning pod (gpu-procs)"
+      },
+      "docker-monitoring": {
+       "group": "Monitoring",
+       "title": "Docker monitoring",
+       "what": "cAdvisor for the server's Docker containers (scraped by Prometheus) and the old Docker node-exporter (no longer read)"
+      },
+      "edge-proxy": {
+       "group": "Platform",
+       "title": "Edge proxy",
+       "what": "The way in from the internet: Cloudflare tunnel (cloudflared) to nginx, which sends names to Traefik or Docker"
+      },
+      "k3s-system": {
+       "group": "Platform",
+       "title": "k3s cluster",
+       "what": "The k3s cluster itself: k3s server, Traefik ingress, CoreDNS, metrics-server, local-path storage, priority classes, old-address forward"
+      },
+      "registry": {
+       "group": "Platform",
+       "title": "Registry",
+       "what": "The cluster's own image registry, so images reach every node without docker save/import"
+      },
+      "flux": {
+       "group": "Platform",
+       "title": "flux",
+       "what": "GitOps: Flux applies k8s/cluster, k8s/tools, k8s/monitoring and k8s/apps from main on GitHub (user OK 2026-11-23, Infra#7)"
+      },
+      "backups": {
+       "group": "Platform",
+       "title": "Backups",
+       "what": "Nightly copies of the app data, each machine's onto the other (user 2026-11-23: the Acer's to the server and the server's to the Acer)"
+      },
+      "nfs-exports": {
+       "group": "Platform",
+       "title": "NFS",
+       "what": "NFS server on the server, sharing Free Motion's data and code with the Acer"
+      },
+      "tailscale": {
+       "group": "Platform",
+       "title": "Tailscale",
+       "what": "Tailscale on the server; Free Motion's agents reach the hub at 100.111.127.103:8791 through it"
+      },
+      "gmail-archiver": {
+       "group": "Gmail",
+       "title": "Gmail archiver",
+       "what": "Every 3 minutes, archives job rejections, application confirmations and job-board notices in the user's 3 Gmail accounts (labels Auto-*)"
+      },
+      "gmail-daily-review": {
+       "group": "Gmail",
+       "title": "Daily review",
+       "what": "Daily review email of the archiver's decisions (Email-remove daily_review.py, with ml/audit.py's model check)"
+      },
+      "gmail-open-review": {
+       "group": "Gmail",
+       "title": "Mail review now",
+       "what": "On demand, from a button: what is still open in the last 30 days of mail in the 3 accounts (to do, coming up, waiting on someone, missed),…"
+      },
+      "job-scrapers": {
+       "group": "Job search",
+       "title": "Upwork scan",
+       "what": "Upwork job scan four times a day (plus two finished keyword/search test tasks)"
+      }
+     },
+     "objects": {
+      "apps/Deployment/website": {
+       "service": "website"
+      },
+      "apps/Deployment/cat-weight": {
+       "service": "cat-weight"
+      },
+      "apps/Deployment/boardxplorer": {
+       "service": "boardxplorer"
+      },
+      "apps/Deployment/unmatched": {
+       "service": "unmatched"
+      },
+      "apps/CronJob/unmatched-restart": {
+       "service": "unmatched",
+       "max_age_h": 170
+      },
+      "apps/Deployment/frigate": {
+       "service": "frigate"
+      },
+      "apps/Deployment/freemotion-hub": {
+       "service": "freemotion-hub"
+      },
+      "pc_task:\\lab-report": {
+       "service": "lab-sites"
+      },
+      "tools/Deployment/lab": {
+       "service": "lab-sites"
+      },
+      "apps/Deployment/mail-classifier-waker": {
+       "service": "mail-classifier"
+      },
+      "apps/Deployment/mail-classifier": {
+       "service": "mail-classifier"
+      },
+      "apps/Deployment/llm-gateway": {
+       "service": "llm-gateway"
+      },
+      "apps/Deployment/spirit-island": {
+       "service": "spirit-island"
+      },
+      "apps/Deployment/fm-controller": {
+       "service": "free-motion"
+      },
+      "apps/StatefulSet/fm-browser-acer": {
+       "service": "free-motion"
+      },
+      "apps/Deployment/fm-webllm-waker": {
+       "service": "free-motion"
+      },
+      "apps/Deployment/fm-webllm": {
+       "service": "free-motion"
+      },
+      "apps/CronJob/boardgamefinder": {
+       "service": "boardgamefinder"
+      },
+      "apps/CronJob/boardgamefinder-fetch": {
+       "service": "boardgamefinder"
+      },
+      "apps/CronJob/bg-taste-match-fetch": {
+       "service": "bg-taste-match",
+       "max_age_h": 5
+      },
+      "apps/CronJob/bg-taste-match-llm": {
+       "service": "bg-taste-match",
+       "max_age_h": 26
+      },
+      "apps/CronJob/bg-taste-match-gpu": {
+       "service": "bg-taste-match",
+       "max_age_h": 26
+      },
+      "apps/Deployment/bg-taste-match-shell": {
+       "service": "bg-taste-match"
+      },
+      "apps/CronJob/cat-flash": {
+       "service": "cat-camera-jobs",
+       "max_age_h": 38
+      },
+      "apps/CronJob/cat-monitor": {
+       "service": "cat-camera-jobs"
+      },
+      "tools/Deployment/portainer": {
+       "service": "portainer"
+      },
+      "docker:portainer-agent": {
+       "service": "portainer"
+      },
+      "tools/Deployment/beszel": {
+       "service": "beszel"
+      },
+      "tools/DaemonSet/beszel-agent": {
+       "service": "beszel"
+      },
+      "tools/DaemonSet/beszel-agent-worker": {
+       "service": "beszel"
+      },
+      "tools/Deployment/uptime-kuma": {
+       "service": "uptime-kuma"
+      },
+      "tools/Deployment/homepage": {
+       "service": "homepage"
+      },
+      "monitoring/Deployment/prometheus": {
+       "service": "prometheus"
+      },
+      "monitoring/Deployment/kube-state-metrics": {
+       "service": "prometheus"
+      },
+      "monitoring/Deployment/grafana": {
+       "service": "grafana"
+      },
+      "tools/Deployment/alertmanager": {
+       "service": "alertmanager"
+      },
+      "monitoring/DaemonSet/node-exporter": {
+       "service": "node-exporters"
+      },
+      "monitoring/DaemonSet/process-exporter": {
+       "service": "node-exporters"
+      },
+      "monitoring/DaemonSet/nvidia-gpu-exporter": {
+       "service": "gpu-metrics"
+      },
+      "monitoring/DaemonSet/gpu-procs": {
+       "service": "gpu-metrics"
+      },
+      "docker:cadvisor": {
+       "service": "docker-monitoring"
+      },
+      "docker:node-exporter": {
+       "service": "docker-monitoring"
+      },
+      "docker:cloudflared": {
+       "service": "edge-proxy"
+      },
+      "docker:nginx": {
+       "service": "edge-proxy"
+      },
+      "kube-system/Deployment/coredns": {
+       "service": "k3s-system"
+      },
+      "kube-system/Deployment/traefik": {
+       "service": "k3s-system"
+      },
+      "kube-system/Deployment/metrics-server": {
+       "service": "k3s-system"
+      },
+      "kube-system/Deployment/local-path-provisioner": {
+       "service": "k3s-system"
+      },
+      "kube-system/DaemonSet/svclb-traefik-*": {
+       "service": "k3s-system"
+      },
+      "kube-system/Deployment/registry": {
+       "service": "registry"
+      },
+      "flux-system/Deployment/source-controller": {
+       "service": "flux"
+      },
+      "flux-system/Deployment/kustomize-controller": {
+       "service": "flux"
+      },
+      "apps/CronJob/backup-server": {
+       "service": "backups",
+       "max_age_h": 26
+      },
+      "apps/CronJob/backup-acer": {
+       "service": "backups",
+       "max_age_h": 26
+      },
+      "apps/CronJob/email-remove": {
+       "service": "gmail-archiver",
+       "max_age_h": 2
+      },
+      "pc_task:\\GmailDailyReview": {
+       "service": "gmail-daily-review"
+      },
+      "apps/CronJob/mail-open-review": {
+       "service": "gmail-open-review"
+      },
+      "apps/Deployment/mail-review-button": {
+       "service": "gmail-open-review"
+      },
+      "pc_task:\\job-scrapers upwork round": {
+       "service": "job-scrapers"
+      }
+     }
+    }
