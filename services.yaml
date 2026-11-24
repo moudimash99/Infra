@@ -1315,6 +1315,47 @@
     icon: mdi-email-check
     description: Review of the archiver's decisions, 17:00 on the PC
 
+- name: gmail-open-review
+  what: >-
+    On demand, from a button: what is still open in the last 30 days of mail in the 3 accounts (to do, coming up,
+    waiting on someone, missed), job search only or everything, emailed (Email-remove open_review.py). The 17:00
+    review says what is new; this one says what is still needed.
+  kind: scheduled-job
+  system: gmail
+  lifecycle: experimental
+  depends_on: [llm-gateway]
+  runs: "k8s apps/Job from the suspended CronJob mail-open-review on acer-laptop, started by the page apps/Deployment mail-review-button on moudimash99"
+  manifest: Infra/k8s/apps/mail-review/mail-review.yaml (the page's code is its ConfigMap)
+  image: "python:3.13-slim (upstream, both; the review's code comes from the archiver's hostPath, the page's from the ConfigMap)"
+  schedule: "none: on demand (CronJob suspended on purpose); a second press while a run is going is refused"
+  url: https://lab.machaka.net/mail-review/ (Cloudflare login; the page checks the Access token itself)
+  data:
+    - "Reads the 3 accounts read-only over IMAP (Secret apps/email-remove), the archiver's folder /srv/apps/email-remove read-only; writes nothing, sends one email to REVIEW_TO"
+    - "Sends conversation excerpts to the llm-gateway (claude-sonnet, then gemini-flash, then gemini-pro: the key has no Pro quota, 2026-11-24); its Job log has counts only"
+  code:
+    repo: C:\Users\Moudimash99\Documents\Coding\Email-remove\Email-remove (repo github.com/moudimash99/Email-remove, private; open_review.py)
+    branch: main
+    version_check: none (compare open_review.py with the Acer's copy)
+    deployed: "2026-11-24: open_review.py copied to the Acer's /srv/apps/email-remove"
+  deploy: >-
+    Review: scp open_review.py moudimash99@192.168.1.93:/srv/apps/email-remove/ (try it first on the PC with
+    python open_review.py --dry-run). Page: edit the ConfigMap in mail-review.yaml, push (Flux), then
+    kubectl -n apps rollout restart deploy/mail-review-button.
+  check: "The page lists the last runs; kubectl -n apps get jobs -l app=mail-open-review; kubectl -n apps logs job/<name>"
+  probes:
+    - {k8s: apps/CronJob/mail-open-review, paused_on_purpose: true}
+    - {k8s: apps/Deployment/mail-review-button}
+  drift: []
+  notes:
+    - "Made 2026-11-24 at the user's request (a button for an overall review instead of the daily one; both scopes; 30 days; email only)."
+    - "Reads every conversation of 30 days that is not from him and not auto-archived (about 2,300: headers for all, the newest email's text for the ~1,300 without List-Unsubscribe), plus the conversations the 17:00 reviews flagged, with what they said. It says when he wrote after the newest email. Batches of 120,000 characters, then one call merges them."
+    - "Uses the llm-gateway, not the PC's codex like the 17:00 review: it runs without the PC."
+  menu:
+    title: Mail review now
+    icon: mdi-email-search
+    description: What is still open in 30 days of mail, by email
+    href: https://lab.machaka.net/mail-review/
+
 - name: job-scrapers
   what: Upwork job scan four times a day (plus two finished keyword/search test tasks).
   kind: pc-task

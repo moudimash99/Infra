@@ -188,6 +188,13 @@ data:
       - Daily review:
           description: Review of the archiver's decisions, 17:00 on the PC
           icon: mdi-email-check
+      - Mail review now:
+          href: https://lab.machaka.net/mail-review/
+          description: What is still open in 30 days of mail, by email
+          icon: mdi-email-search
+          namespace: apps
+          app: gmail-open-review
+          podSelector: app=mail-review-button
     - Website and lab:
       - Website:
           href: https://machaka.net
