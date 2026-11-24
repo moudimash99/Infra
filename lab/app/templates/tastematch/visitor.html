@@ -33,7 +33,7 @@
   <div class="card">{{ empty("No reviewer to rank yet", "You share fewer than 5 rated games with every host so far. Rate more games on BGG, or come back as more reviews are added.", "users") }}</div>
   {% endif %}
   {% if thin %}
-  <details class="more mt-2"><summary>{{ thin | length }} hosts share fewer than 5 games with you</summary>
+  <details class="more mt-2"><summary>{{ thin | length }} hosts rated fewer than 5 of your games themselves</summary>
     <div class="card flush"><div class="list">{% for r in thin %}{{ host_row(r, False) }}{% endfor %}</div></div>
   </details>
   {% endif %}

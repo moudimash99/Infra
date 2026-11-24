@@ -160,3 +160,12 @@ a.hero:hover { text-decoration: none; box-shadow: var(--sh-2); }
 @media (max-width: 899px) { body[data-site="tastematch"] .tabbar a:nth-child(n+6) { display: none; } }
 .tm-exp b i { font-style: normal; font-size: .5em; font-weight: 650; color: var(--text-3); margin-left: 1px; }
 .tm-vids a i { font-style: normal; color: var(--text-3); }
+
+/* phone: the estimate goes under the reasons, so they keep the card's width */
+@media (max-width: 560px) {
+  .tm-pick { grid-template-columns: 64px minmax(0, 1fr); gap: 12px; }
+  .tm-pick .media { width: 64px; height: 64px; }
+  .tm-pick .tm-exp { grid-column: 2; flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; text-align: left; }
+  .tm-pick .tm-exp b { font-size: 1.2rem; order: -1; }
+  .tm-pick .tm-exp small { white-space: normal; }
+}
