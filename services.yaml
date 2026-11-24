@@ -281,7 +281,7 @@
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\Infra\lab
     branch: main
-    deployed: "094c5ae (tag 2026-11-24-team, built from the committed tree, with the Machines page of 7c4cd66; Infra/lab is a folder, not a repo of its own, so status.py does not compare it)"
+    deployed: "0879930 (tag 2026-11-24-exp, built from the committed tree, with the Machines page of 7c4cd66; Infra/lab is a folder, not a repo of its own, so status.py does not compare it)"
   deploy: "From the PC, Infra root: `sh lab/build.sh TAG` (builds on the server, imports on the Acer through the PC), set the tag in lab.yaml, apply."
   check: "Readiness/liveness GET /healthz on :8080; Prometheus scrapes :8081/metrics (pod annotations); Homepage Pipelines tiles read /api/summary/*"
   probes:
