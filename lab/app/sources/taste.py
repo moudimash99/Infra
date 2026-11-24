@@ -42,7 +42,8 @@ keep = ("id", "name", "n", "rated", "corr", "match", "low", "high", "evidence", 
 json.dump({"user": {str(g): v for g, v in mine.items()},
            "ures": {str(g): v for g, v in (results[0]["ures"] if results else {}).items()},
            "reviewers": [dict({k: r.get(k) for k in keep}, rres={str(g): v for g, v in r["rres"].items()},
-                              points={str(g): v for g, v in r["points"].items()}) for r in results]}, sys.stdout)
+                              points={str(g): v for g, v in r["points"].items()},
+                              sources={str(g): v for g, v in r.get("sources", {}).items()}) for r in results]}, sys.stdout)
 '''
 
 
@@ -107,7 +108,8 @@ def build(raw, username):
         ch = r["id"].split(":")[0]
         r.update(name=nice_name(r["name"]), channel=ch, channel_name=(chans.get(ch) or {}).get("name", ch),
                  rres={int(g): v for g, v in r["rres"].items()},
-                 points={int(g): tuple(v) for g, v in r["points"].items()}, ranked=r["n"] >= MIN_SHARED)
+                 points={int(g): tuple(v) for g, v in r["points"].items()},
+                 sources={int(g): v for g, v in (r.get("sources") or {}).items()}, ranked=r["n"] >= MIN_SHARED)
         r["label"], r["badge"] = label(r)
         r["short"] = SHORT.get(r["label"], r["label"])
         reviewers.append(r)
@@ -183,11 +185,65 @@ def common_games(s, r, sort="agree", names=None):
     ures, rres = s["ures"], r["rres"]
     rows = [{"gid": g, "name": (names.get(g) or {}).get("name") or str(g), "you": s["user"][g][0] / 2,
              "them": r["points"][g][0], "bgg": s["user"][g][1] / 2, "signal": ures[g] * rres[g],
-             "you_lean": ures[g], "them_lean": rres[g], "weight": r["points"][g][2]}
+             "you_lean": ures[g], "them_lean": rres[g], "weight": r["points"][g][2],
+             "notes": source_notes(r.get("sources", {}).get(g, []), r["name"], r.get("channel_name", ""))}
             for g in rres if g in ures and g in s["user"]]
     key = {"agree": lambda x: -x["signal"], "differ": lambda x: x["signal"], "you": lambda x: -x["you"],
            "them": lambda x: -x["them"], "name": lambda x: x["name"].lower()}.get(sort, lambda x: -x["signal"])
     return sorted(rows, key=key)
+
+
+KIND_WORDS = {"top list": "in a top list", "roundup": "a short verdict in a roundup video",
+              "gift guide": "in a gift guide", "showcase": "in a paid showcase"}
+
+
+def source_notes(srcs, host, channel):
+    """Where a host's score on a game comes from, in words, one per video: [{text, video, score, plain}]. plain:
+    their own verdict in a review of their own, which needs no note."""
+    out = []
+    for x in srcs:
+        if x.get("from") == "team":
+            text = f"{channel or 'The channel'}'s team verdict ({host} isn't in this video)"
+        elif x.get("from") == "own list":
+            text = f"on {host}'s own top list"
+        else:
+            text = KIND_WORDS.get(x.get("kind"), f"{host}'s review")
+        if x.get("confidence") == "low":
+            text += ", said without much certainty"
+        out.append({"text": text, "video": x.get("video"), "score": x.get("score"),
+                    "plain": x.get("from") == "own" and x.get("kind") == "review" and x.get("confidence") != "low"})
+    return out
+
+
+def by_game(verdicts):
+    """A host's verdicts grouped by game (a game they rated in several videos is one entry), best first."""
+    groups = {}
+    for v in verdicts:
+        key = v.get("gid") or v.get("game")
+        groups.setdefault(key, {"gid": v.get("gid"), "name": v.get("game_name") or v.get("game"), "items": []})["items"].append(v)
+    for gr in groups.values():
+        scores = [v["score"] for v in gr["items"] if v["score"] is not None]
+        gr["score"] = sum(scores) / len(scores) if scores else None
+        gr["changed"] = len(set(scores)) > 1
+        gr["quote"] = next((v["quote"] for v in gr["items"] if v.get("quote")), "")
+    return sorted(groups.values(), key=lambda gr: (-(gr["score"] or 0), (gr["name"] or "").lower()))
+
+
+def by_host(verdicts):
+    """A game's verdicts grouped by host (several videos by one host are one entry); hosts the transcript couldn't
+    name ("unknown") last, together."""
+    groups = {}
+    for v in verdicts:
+        unnamed = (v.get("host") or "").lower().startswith("unknown")
+        key = "unknown" if unnamed else v["rid"]
+        gr = groups.setdefault(key, {"rid": None if unnamed else v["rid"], "host": "Unnamed speaker" if unnamed else v["host"],
+                                     "channel": v.get("channel"), "m": v.get("m"), "items": [], "unnamed": unnamed})
+        gr["items"].append(v)
+    for gr in groups.values():
+        scores = [v["score"] for v in gr["items"] if v["score"] is not None]
+        gr["score"] = sum(scores) / len(scores) if scores else None
+        gr["changed"] = len(set(scores)) > 1
+    return list(groups.values())
 
 
 def distribution(values, low=1, high=5):

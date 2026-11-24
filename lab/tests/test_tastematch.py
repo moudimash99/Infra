@@ -213,7 +213,9 @@ def test_reviewer_page(monkeypatch):
 
     r = host("susd:paul", 0.27, 6, {g: (5 if g % 2 else 2, 3.5, 1 if g != 3 else 0.4) for g in range(1, 8)},
              rres={g: (0.6 if g % 2 else -0.4) for g in range(1, 8)})
-    r.update(corr=0.85, counts=0.32, evidence=4.7, rated=7, channel="susd", channel_name="SU&SD")
+    r.update(corr=0.85, counts=0.32, evidence=4.7, rated=7, channel="susd", channel_name="SU&SD",
+             sources={3: [{"from": "team", "kind": "review", "confidence": "high", "score": 2, "video": "v3", "member": 0.8}],
+                      1: [{"from": "own", "kind": "review", "confidence": "high", "score": 5, "video": "v1"}]})
     s = result([r], {g: (8 if g % 2 else 4, 7, 1) for g in range(1, 7)}, ures={g: (1.0 if g % 2 else -1.0) for g in range(1, 7)})
     s["at"] = _time.time()
     monkeypatch.setattr(taste, "scores", Fixed(s))
@@ -227,5 +229,23 @@ def test_reviewer_page(monkeypatch):
     for sort in ("agree", "differ", "you", "them", "name", "bogus"):
         t = client.get(f"/reviewers/susd:paul?sort={sort}").text
         assert "Traceback" not in t and "Every game you both rated" in t and "How they score" in t
-    assert "32%" in t and "+0.85" in t and "Same way" in t and "Opposite" in t and "counts 40%" in t
+    assert "32%" in t and "+0.85" in t and "Same way" in t and "Opposite" in t and "counts 40%" not in t
+    assert "team verdict (Paul isn" in t                       # a lent team verdict says so, in words
     assert "67%" in t                      # two of the three verdicts are 5s
+
+
+def test_grouping_by_game_and_host():
+    vs = [{"gid": 1, "game": "Brass", "game_name": "Brass", "score": 5, "quote": "", "video_id": "a", "title": "Review"},
+          {"gid": 1, "game": "Brass", "game_name": "Brass", "score": 4, "quote": "top", "video_id": "b", "title": "Top 10"},
+          {"gid": 2, "game": "Ark", "game_name": "Ark", "score": 3, "quote": "", "video_id": "c", "title": "Ark"}]
+    g = taste.by_game(vs)
+    assert [x["gid"] for x in g] == [1, 2] and g[0]["score"] == 4.5 and g[0]["changed"] and g[0]["quote"] == "top"
+    hv = [{"rid": "hc:ed", "host": "Edward", "score": 5, "video_id": "a"}, {"rid": "hc:ed", "host": "Edward", "score": 5, "video_id": "b"},
+          {"rid": "hc:unknown", "host": "unknown 2", "score": 3, "video_id": "c"}, {"rid": "bgco:unknown", "host": "Unknown", "score": 2, "video_id": "d"}]
+    h = taste.by_host(hv)
+    assert len(h) == 2 and h[0]["host"] == "Edward" and len(h[0]["items"]) == 2 and not h[0]["changed"]
+    assert h[1]["unnamed"] and h[1]["host"] == "Unnamed speaker" and len(h[1]["items"]) == 2
+    notes = taste.source_notes([{"from": "team", "kind": "review", "confidence": "high", "score": 5, "video": "x"},
+                                {"from": "own", "kind": "top list", "confidence": "low", "score": 4, "video": "y"}], "Paul", "SU&SD")
+    assert notes[0]["text"] == "SU&SD's team verdict (Paul isn't in this video)" and not notes[0]["plain"]
+    assert notes[1]["text"] == "in a top list, said without much certainty"

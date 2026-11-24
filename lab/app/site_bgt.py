@@ -116,7 +116,7 @@ def reviewer(request: Request, rid: str):
                 dist_them=taste.distribution(scores),
                 dist_you=taste.distribution([v[0] / 2 for v in s["user"].values()]) if s else [],
                 you_mean=(sum(v[0] for v in s["user"].values()) / 2 / len(s["user"])) if s and s["user"] else None,
-                visitor=vname, UQ=("?u=" + quote(vname)) if vname else "")
+                visitor=vname, UQ=("?u=" + quote(vname)) if vname else "", groups=taste.by_game(verdicts))
 
 
 # ---- anyone's matches -----------------------------------------------------------------------------------------------
@@ -209,7 +209,9 @@ def game(request: Request, gid: int):
     verdicts.sort(key=lambda v: (not (v["m"] and v["m"]["ranked"]),
                                  -(v["m"]["match"] if v["m"] and v["m"]["ranked"] else 0), -(v["score"] or 0)))
     scores = [v["score"] for v in verdicts if v["score"] is not None]
-    return page(request, "tastematch/game.html", active="/games", r=r, g=r.data, verdicts=verdicts, mine=mine,
+    hosts = taste.by_host(verdicts)
+    hosts.sort(key=lambda h: h["unnamed"])                 # keeps the match order; unnamed speakers last
+    return page(request, "tastematch/game.html", active="/games", r=r, g=r.data, verdicts=verdicts, mine=mine, hosts=hosts,
                 say=taste.matches_say(s, gid) if s else None, avg=(sum(scores) / len(scores)) if scores else None,
                 chans=bgt.channel_info.get().data or {})
 

@@ -29,22 +29,23 @@
 </header>
 
 <section class="section">
-  {{ section_head("What the reviewers said", count=verdicts | length, sub=("Average " ~ ("%.1f" | format(avg)) ~ " out of 5. Hosts who match you first.") if avg is not none else None) }}
-  {% if verdicts %}
+  {{ section_head("What the reviewers said", count=hosts | length, sub=((verdicts | length) ~ " verdicts from " ~ (hosts | length) ~ " hosts" ~ ((", average " ~ ("%.1f" | format(avg)) ~ " out of 5") if avg is not none else "") ~ ". Hosts who match you first.")) }}
+  {% if hosts %}
   <div class="card flush"><div class="list">
-    {% for v in verdicts %}
+    {% for h in hosts %}{% set top = h["items"][0] %}
     <div class="item" style="align-items:flex-start">
-      {{ who(v.host, v.rid) }}
+      {% if h.unnamed %}<span class="avatar ph" aria-hidden="true">?</span>{% else %}{{ who(h.host, h.rid) }}{% endif %}
       <div class="body">
         <div class="row wrap" style="gap:6px">
-          {% if v.m %}<a class="strong" href="{{ R }}/reviewers/{{ v.rid }}">{{ v.host }}</a>{% else %}<span class="strong">{{ v.host }}</span>{% endif %}
-          {% if v.m and v.m.ranked %}<span class="badge {{ 'accent' if v.m.match >= 0.05 else '' }}">match {{ signed(v.m.match) }}</span>{% endif %}
+          {% if h.m %}<a class="strong" href="{{ R }}/reviewers/{{ h.rid }}{{ UQ or '' }}">{{ h.host }}</a>{% else %}<span class="strong">{{ h.host }}</span>{% endif %}
+          {% if h.m and h.m.ranked %}<span class="badge {{ 'accent' if h.m.match >= 0.05 else '' }}">match {{ signed(h.m.match) }}</span>{% endif %}
+          {% if h.changed %}<span class="badge outline">changed their score</span>{% endif %}
         </div>
-        <span class="meta">{{ (chans.get(v.channel) or {}).get("name", v.channel) }}</span>
-        {% if v.quote %}<p class="quote mt-2">{{ v.quote }}</p>{% endif %}
-        <a class="xs strong mt-1" style="display:inline-flex;align-items:center;gap:4px" href="{{ R }}/v/{{ v.video_id }}">{{ icon("video") }}<span class="clamp-2">{{ v.title }}</span></a>
+        <span class="meta">{{ (chans.get(h.channel) or {}).get("name", h.channel) }}{% if h.unnamed %} · the transcript didn't say who{% endif %}</span>
+        {% if top.quote %}<p class="quote mt-2">{{ top.quote }}</p>{% endif %}
+        <span class="tm-vids">{% for v in h["items"] %}<a href="{{ ('https://www.youtube.com/watch?v=' ~ v.video_id) if OPEN else (R ~ '/v/' ~ v.video_id) }}"><b>{{ "%.0f" | format(v.score) if v.score is not none else "?" }}</b> {{ v.title }}</a>{% endfor %}</span>
       </div>
-      {{ score(v.score) }}
+      {{ score(h.score) }}
     </div>
     {% endfor %}
   </div></div>

@@ -98,7 +98,8 @@
     {% for g in common %}
     <a class="item" href="{{ ('https://boardgamegeek.com/boardgame/' ~ g.gid) if OPEN else (R ~ '/games/' ~ g.gid) }}">{{ box(g.gid, "s", "thumb box") }}
       <span class="body"><span class="title">{{ g.name }}</span>
-        <span class="tm-vs"><span>You <b>{{ "%.1f" | format(g.you) }}</b></span><span class="them">{{ hname }} <b>{{ "%.1f" | format(g.them) }}</b></span><span>BGG <b>{{ "%.1f" | format(g.bgg) }}</b></span>{% if g.weight < 0.95 %}<span>counts {{ (g.weight * 100) | round | int }}%</span>{% endif %}</span></span>
+        <span class="tm-vs"><span>You <b>{{ "%.1f" | format(g.you) }}</b></span><span class="them">{{ hname }} <b>{{ "%.1f" | format(g.them) }}</b></span><span>BGG <b>{{ "%.1f" | format(g.bgg) }}</b></span></span>
+        {% for n in g.notes if not n.plain %}<span class="tm-src">{{ icon("info") }}{{ "%.0f" | format(n.score) }} {{ n.text }}</span>{% endfor %}</span>
       <span class="badge {{ 'accent' if g.signal > 0 else 'outline' }}">{{ "Same way" if g.signal > 0 else "Opposite" }}</span></a>
     {% endfor %}
   </div></div>
@@ -118,19 +119,20 @@
 {% endif %}
 
 <section class="section">
-  {{ section_head("Every verdict", count=verdicts | length) }}
+  {{ section_head("Every verdict", count=groups | length, sub=(verdicts | length) ~ " verdicts on " ~ (groups | length) ~ " games. A game " ~ hname ~ " rated in several videos is one row.") }}
   {{ unreadable(hv, "the verdicts") }}
-  {% if verdicts %}
+  {% if groups %}
   <div class="card flush"><div class="list">
-    {% for v in (verdicts if show_all else verdicts[:30]) %}
-    <a class="item" href="{{ ('https://www.youtube.com/watch?v=' ~ v.video_id) if OPEN else (R ~ '/v/' ~ v.video_id) }}">{% if v.gid %}{{ box(v.gid, "s", "thumb box") }}{% else %}<span class="thumb box ph">{{ icon("dices") }}</span>{% endif %}
-      <span class="body"><span class="title">{{ v.game_name or v.game }}</span>
-        {% if v.quote %}<span class="meta wrap clamp-2">“{{ v.quote }}”</span>{% endif %}
-        <span class="meta">{{ v.title }}</span></span>
-      {{ score(v.score) }}</a>
+    {% for gr in (groups if show_all else groups[:30]) %}
+    <div class="item" style="align-items:flex-start">{% if gr.gid %}{{ box(gr.gid, "s", "thumb box") }}{% else %}<span class="thumb box ph">{{ icon("dices") }}</span>{% endif %}
+      <span class="body"><span class="title">{% if gr.gid %}<a href="{{ ('https://boardgamegeek.com/boardgame/' ~ gr.gid) if OPEN else (R ~ '/games/' ~ gr.gid) }}">{{ gr.name }}</a>{% else %}{{ gr.name }}{% endif %}</span>
+        {% if gr.quote %}<span class="meta wrap clamp-2">“{{ gr.quote }}”</span>{% endif %}
+        <span class="tm-vids">{% for v in gr["items"] %}<a href="{{ ('https://www.youtube.com/watch?v=' ~ v.video_id) if OPEN else (R ~ '/v/' ~ v.video_id) }}"><b>{{ "%.0f" | format(v.score) if v.score is not none else "?" }}</b> {{ v.title }}</a>{% endfor %}</span>
+        {% if gr.changed %}<span class="badge outline mt-1">Changed their score between videos</span>{% endif %}</span>
+      {{ score(gr.score) }}</div>
     {% endfor %}
   </div>
-  {% if verdicts | length > 30 and not show_all %}<div class="card-foot"><span class="muted">{{ verdicts | length - 30 }} more</span><a href="?all=1{{ ('&u=' ~ (visitor | urlencode)) if visitor }}">Show all{{ icon("chevron-right") }}</a></div>{% endif %}
+  {% if groups | length > 30 and not show_all %}<div class="card-foot"><span class="muted">{{ groups | length - 30 }} more games</span><a href="?all=1{{ ('&u=' ~ (visitor | urlencode)) if visitor }}">Show all{{ icon("chevron-right") }}</a></div>{% endif %}
   </div>
   {% else %}<div class="card">{{ empty("No verdicts", "None of this host's verdicts passed the checks yet.", "quote") }}</div>{% endif %}
 </section>

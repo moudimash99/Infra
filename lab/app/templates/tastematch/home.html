@@ -78,9 +78,10 @@
       {% for key, label, ic in [("audio", "Downloaded", "download"), ("text", "Transcribed", "file-text"), ("speakers", "Speakers found", "mic"), ("rated", "Rated", "star")] %}
       {% set paused = pipe.data and pipe.data.gpu_paused and key in ("text", "speakers") %}
       <div class="step"><span class="ic">{{ icon(ic) }}</span>
-        <div><div class="what"><b>{{ label }}</b><span>{{ "paused" if paused else (t[key] | comma ~ " of " ~ t.videos | comma) }}</span></div>
-          <span class="progress{{ ' muted' if paused }}"><span style="width:{{ pct(t[key], t.videos) }}%"></span></span></div>
-        <span class="n">{{ pct(t[key], t.videos) }}%</span></div>
+        {% set h = t[key ~ "_h"] or 0 %}
+        <div><div class="what"><b>{{ label }}</b><span>{{ "paused" if paused else ((h | round | int | comma) ~ " of " ~ (t.hours | round | int | comma) ~ " h") }}</span></div>
+          <span class="progress{{ ' muted' if paused }}"><span style="width:{{ pct(h, t.hours) }}%"></span></span></div>
+        <span class="n">{{ h | round | int | comma }} h</span></div>
       {% endfor %}
     </div>
     {% endif %}
