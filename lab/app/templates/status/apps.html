@@ -34,7 +34,7 @@
       </div>
       {% endfor %}
     </div>
-    {% if a.wanted %}<p class="banner warn">{{ dot("warn") }} Pods waiting to start want {{ size(a.wanted) }} more than fits.</p>{% endif %}
+    {% if a.wanted %}<p class="banner warn">{{ dot("warn") }} Pods waiting to start book {{ size(a.wanted) }} between them: <a href="#gets-in">who</a>.</p>{% endif %}
     <p class="xs muted">Booked is what the pods reserved (their request); it decides who gets in. Really used is their real memory. On the Acer a pod of a higher rank may push a lower one out to start; the rest wait.</p>
   </section>
 

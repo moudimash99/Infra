@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% from "_m.html" import unreadable %}
+{% from "status/_ui.html" import dot, bad %}
+{% block title %}Network · Homelab{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ R }}/static/status.css?v={{ STATIC_V }}"><link rel="stylesheet" href="{{ R }}/static/bell.css?v={{ STATIC_V }}">{% endblock %}
+{% block header_end %}{% include "status/_bell.html" %}{% endblock %}
+
+{%- macro pct(v) -%}{{ "%.0f" | format(100 * v) if v is not none else "?" }}%{%- endmacro -%}
+{%- macro secs(v) -%}{% if v is none %}?{% elif v < 1 %}{{ "%.0f" | format(1000 * v) }} ms{% else %}{{ "%.1f" | format(v) }} s{% endif %}{%- endmacro -%}
+
+{% block main %}
+{{ unreadable(reading, "the network's numbers") }}
+{% if n %}
+<header class="page-head tight"><h1 class="page-title">Network</h1>
+  <p class="page-sub">Every address the homelab serves: is it up, how much it was asked, what failed, how fast it answered; and the traffic in and out of each machine.</p></header>
+{% include "status/_filters.html" %}
+
+<div class="qgrid">
+
+  {# ---- The sites ---- #}
+  <section class="qcard wide" id="sites" data-card>
+    <div class="qhead"><h2>The sites</h2><span class="muted xs">today: {{ "{:,.0f}".format(n.total) }} requests through Traefik</span></div>
+    <ul class="items sitelist">
+      {% for s in n.sites %}
+      <li class="it" data-m="*" data-p="{{ s.p or '' }}" data-bad="{{ bad(s.state) }}" data-name="{{ s.name | lower }} {{ s.app }}">
+        {{ dot(s.state) }}
+        <div class="txt"><b>{% if s.url %}<a href="{{ s.url }}">{{ s.name }}</a>{% else %}{{ s.name }}{% endif %}</b>
+          <small>{% if s.why %}{{ s.why }} · {% endif %}{% if s.check and s.check.up %}up, answered the check in {{ s.check.ms }} ms · {% endif %}{% if s.requests is not none %}{{ "{:,.0f}".format(s.requests) }} requests today{% if s.errors >= 0.5 %}, {{ "%.0f" | format(s.errors) }} failed{% endif %}{% if s.refused >= 0.5 %}, {{ "%.0f" | format(s.refused) }} refused (4xx){% endif %}{% if s.fast is not none %} · {{ pct(s.fast) }} answered within 300 ms, the slowest 5% in {{ secs(s.p95) }} or more{% endif %}{% else %}not served by Traefik{% endif %}</small></div>
+        <span class="val">{% if s.rpm %}{{ "%.1f" | format(s.rpm) if s.rpm < 10 else "%.0f" | format(s.rpm) }}<small>a minute now</small>{% elif s.requests is not none %}<small>quiet now</small>{% endif %}</span>
+        <span class="tags">{% if s.p %}<span class="tag">{{ s.p }}</span>{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="none" data-none>No site for this filter.</p>
+    {% if n.classes %}<p class="xs muted">Today's answers: {% for k, v in n.classes.items() %}{{ k }} {{ "{:,.0f}".format(v) }}{{ " · " if not loop.last }}{% endfor %}. 2xx: fine; 3xx: sent elsewhere (often to the login); 4xx: refused or not found; 5xx: the app failed.</p>{% endif %}
+  </section>
+
+  {# ---- Over time ---- #}
+  <section class="qcard" id="requests" data-card data-keep>
+    <div class="qhead"><h2>Requests a minute</h2><span class="muted xs">the 5 busiest</span></div>
+    {{ charts.lines(n.graphs.rpm, height=200, title="Requests a minute, by site", x_labels=x_labels, unit="/min") }}
+  </section>
+  <section class="qcard" id="slow" data-card data-keep>
+    <div class="qhead"><h2>Slow answers</h2><span class="muted xs">% taking over 300 ms</span></div>
+    {{ charts.lines(n.graphs.slow, height=200, title="Share of answers over 300 ms, by site", x_labels=x_labels, unit="%", y_max=100) }}
+  </section>
+  <section class="qcard" id="errors" data-card data-keep>
+    <div class="qhead"><h2>Failed requests</h2><span class="muted xs">5xx a minute</span></div>
+    {% if n.graphs.err %}{{ charts.lines(n.graphs.err, height=200, title="Failed requests a minute, by site", x_labels=x_labels, unit="/min") }}
+    {% else %}<ul class="items"><li class="it" data-m="*" data-p="*" data-bad="0">{{ dot("ok") }}<div class="txt"><b>None</b><small>no site failed a request in this period</small></div></li></ul>{% endif %}
+  </section>
+
+  {# ---- Traffic ---- #}
+  <section class="qcard" id="traffic" data-card data-keep>
+    <div class="qhead"><h2>Traffic in and out</h2><span class="muted xs">each machine's own network card</span></div>
+    <ul class="items">
+      {% for m in n.machines %}
+      <li class="it" data-m="{{ m.node }}" data-p="*" data-bad="0">{{ dot("ok") }}
+        <div class="txt"><b><a href="{{ R }}/{{ SLUG[m.node] }}#network">{{ m.name }}</a></b><small>today {{ size(m.rx_24h) }} in, {{ size(m.tx_24h) }} out</small></div>
+        <span class="val">{{ rate(m.rx) }}<small>in, {{ rate(m.tx) }} out</small></span></li>
+      {% endfor %}
+    </ul>
+    {{ charts.lines(n.graphs.traffic, height=190, title="Traffic, MB/s", x_labels=x_labels, unit=" MB/s") }}
+  </section>
+
+  {# ---- Who moved the most ---- #}
+  <section class="qcard wide" id="movers" data-card>
+    <div class="qhead"><h2>Which apps moved the most today?</h2></div>
+    <ul class="items" data-limit="12">
+      {% for a in n.movers %}
+      <li class="it" data-m="*" data-p="{{ a.p or '' }}" data-bad="0" data-name="{{ a.name | lower }} {{ a.ns }}">
+        <div class="txt"><b>{{ a.name }}</b><small>{{ a.ns }}{% if a.p %} · {{ a.p }}{% endif %}</small></div>
+        <span class="val">{{ size(a.rx) }}<small>in, {{ size(a.tx) }} out</small></span></li>
+      {% endfor %}
+    </ul>
+    <p class="none" data-none>Nothing for this filter.</p>
+    <p class="xs muted">Apps on the machine's own network (Frigate, the monitoring agents) see the whole machine's traffic, so they're left out.</p>
+  </section>
+
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="{{ R }}/static/status.js?v={{ STATIC_V }}" defer></script>{% endblock %}

@@ -191,3 +191,4 @@
 @media (max-width: 899px) { .applist .it .tags { display: none; } }
 @media (max-width: 639px) { .applist .it { flex-wrap: wrap; } .applist .it .txt { flex-basis: calc(100% - 20px); }
   .applist .hours { margin-left: 19px; } .roomfacts { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 639px) { .qhead { flex-wrap: wrap; } }

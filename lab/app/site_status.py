@@ -7,6 +7,8 @@
   /pc       the PC: on or asleep, its scheduled tasks and their last 7 days, what its jobs reported
   /apps     every app and job in Kubernetes: room on each machine, rank, booking and real memory, restarts and why,
             its last 24 hours; who waits for room; the ranks
+  /network  every address Traefik serves (up, requests, failures, speed), traffic in and out of each machine, the
+            apps that moved the most
   /memory   (old address) sends you to the machine's page
 
 The bell in the header lists the alerts firing now: the Prometheus alert rules (k8s/monitoring/alert-rules.yml),
@@ -20,11 +22,12 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import site_machines
-from .sources import apps, hosts, jobruns, memory, overview, prom
+from .sources import apps, hosts, jobruns, memory, net, overview, prom
 from .config import TZ
 from .web import SITES, STATIC, day_labels, page
 
-NAV = [("/", "Now", "gauge"), ("/jobs", "Jobs", "calendar"), ("/server", "Machines", "cpu"), ("/apps", "Apps", "package")]
+NAV = [("/", "Now", "gauge"), ("/jobs", "Jobs", "calendar"), ("/server", "Machines", "cpu"), ("/apps", "Apps", "package"),
+       ("/network", "Network", "activity")]
 MACHINES = [("moudimash99", "Server"), ("acer-laptop", "Acer"), ("pc", "PC")]
 RANGES = {"24h": 24, "7d": 168}
 
@@ -153,6 +156,15 @@ def apps_page(request: Request, range: str = "24h"):
     return page(request, "status/apps.html", reading=r, a=a, d=ov.data, range=range, RANGES=apps.RANGES,
                 groups=a["groups"] if a else [], with_search=True, x_labels=axis(apps.RANGES[range][0]),
                 **{**common(request), "MACHINES": MACHINES[:2]})
+
+
+@app.get("/network", response_class=HTMLResponse)
+def network_page(request: Request, range: str = "24h"):
+    range = range if range in net.RANGES else "24h"
+    r = net.read.get(range)
+    n = net.build(r.data, overview.load_catalog(), range) if r.data else None
+    return page(request, "status/network.html", reading=r, n=n, d=None, range=range, RANGES=net.RANGES,
+                groups=n["groups"] if n else [], x_labels=axis(net.RANGES[range][0]), **common(request))
 
 
 @app.get("/memory")

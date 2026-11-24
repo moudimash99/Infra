@@ -215,7 +215,7 @@ def notes(services):
 
 
 def catalog(services):
-    """{"groups": [menu headings in order], "services": {name: {group, title, what}}, "objects": {probe: {service,
+    """{"groups": [menu headings in order], "services": {name: {group, title, what, url}}, "objects": {probe: {service,
     max_age_h}}, "notes": {app: what it is}, "ranks": [...]}, probes as services.yaml writes them:
     "apps/CronJob/cat-flash", "docker:cadvisor", "pc_task:\\lab-report". max_age_h is the probe's own limit (a job is
     late past it, the same rule as status.py)."""
@@ -225,7 +225,8 @@ def catalog(services):
     for svc in services:
         group = group_of.get(svc.get("system"), "Other")
         out["services"][svc["name"]] = {"group": group, "title": (svc.get("menu") or {}).get("title") or svc["name"],
-                                        "what": first_sentence(svc.get("what") or "", 140)}
+                                        "what": first_sentence(svc.get("what") or "", 140),
+                                        "url": first_https(svc.get("url"))}
         for probe in svc.get("probes") or []:
             for kind in ("k8s", "docker", "pc_task"):
                 if kind in probe:

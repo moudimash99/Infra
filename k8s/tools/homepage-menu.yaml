@@ -400,177 +400,212 @@ data:
       "website": {
        "group": "Website and lab",
        "title": "Website",
-       "what": "Personal website (Next.js) with the CV link tracking and its admin links dashboard"
+       "what": "Personal website (Next.js) with the CV link tracking and its admin links dashboard",
+       "url": "https://machaka.net"
       },
       "cat-weight": {
        "group": "Cats",
        "title": "Cat weight",
-       "what": "Cat weight tracker (Flask + SQLite)"
+       "what": "Cat weight tracker (Flask + SQLite)",
+       "url": "https://cat.machaka.net"
       },
       "boardxplorer": {
        "group": "Board games",
        "title": "BoardXplorer",
-       "what": "BoardGameGeek collection explorer (Django + SQLite)"
+       "what": "BoardGameGeek collection explorer (Django + SQLite)",
+       "url": "https://boardxplorer.machaka.net"
       },
       "unmatched": {
        "group": "Board games",
        "title": "Unmatched",
-       "what": "Unmatched fighter matcher, strategy guides and tournaments (Flask + gunicorn)"
+       "what": "Unmatched fighter matcher, strategy guides and tournaments (Flask + gunicorn)",
+       "url": "https://unmatched.machaka.net"
       },
       "frigate": {
        "group": "Cats",
        "title": "Frigate",
-       "what": "Frigate NVR for the living-room camera (recordings, detection on the Intel GPU)"
+       "what": "Frigate NVR for the living-room camera (recordings, detection on the Intel GPU)",
+       "url": null
       },
       "freemotion-hub": {
        "group": "Job search",
        "title": "Free Motion",
-       "what": "Free Motion's dashboard server (fm-orchestrator/freemotion-hub/server.mjs with fm-web's page) and the agents' hub"
+       "what": "Free Motion's dashboard server (fm-orchestrator/freemotion-hub/server.mjs with fm-web's page) and the agents' hub",
+       "url": "https://freemotion.machaka.net"
       },
       "lab-sites": {
        "group": "Website and lab",
        "title": "Lab sites",
-       "what": "The lab, one process serving Taste Match, Deals and Cat cam (status sites for the jobs), the homelab overview (lab.machaka.net/machines:…"
+       "what": "The lab, one process serving Taste Match, Deals and Cat cam (status sites for the jobs), the homelab overview (lab.machaka.net/machines:…",
+       "url": "https://tastematch.machaka.net"
       },
       "mail-classifier": {
        "group": "Gmail",
        "title": "Mail classifier",
-       "what": "Trained mail classifier API for the Gmail archiver"
+       "what": "Trained mail classifier API for the Gmail archiver",
+       "url": null
       },
       "llm-gateway": {
        "group": "Job search",
        "title": "LLM gateway",
-       "what": "fm-llm's ask service, the one way the home's projects call a model (gemma, Gemini, Claude)"
+       "what": "fm-llm's ask service, the one way the home's projects call a model (gemma, Gemini, Claude)",
+       "url": null
       },
       "spirit-island": {
        "group": "Board games",
        "title": "Spirit Island",
-       "what": "Spirit Island Planner: setups for 1 to 6 players (spirits that work well together, with an adversary, level and scenario matched to skill)"
+       "what": "Spirit Island Planner: setups for 1 to 6 players (spirits that work well together, with an adversary, level and scenario matched to skill)",
+       "url": "https://spirit.machaka.net"
       },
       "free-motion": {
        "group": "Job search",
        "title": "Free Motion jobs",
-       "what": "Free Motion job-application automation (controller daemon, one browser per lane, the ChatGPT/Gemini website writer)"
+       "what": "Free Motion job-application automation (controller daemon, one browser per lane, the ChatGPT/Gemini website writer)",
+       "url": null
       },
       "boardgamefinder": {
        "group": "Board games",
        "title": "Deals",
-       "what": "Daily board game deal search (Okkazeo listings, BGG ranks, prices, deal email)"
+       "what": "Daily board game deal search (Okkazeo listings, BGG ranks, prices, deal email)",
+       "url": "https://deals.machaka.net"
       },
       "bg-taste-match": {
        "group": "Board games",
        "title": "Taste Match",
-       "what": "Board game YouTube reviewers matched to a BGG profile (downloads, Whisper captions, speaker separation, LLM rating)"
+       "what": "Board game YouTube reviewers matched to a BGG profile (downloads, Whisper captions, speaker separation, LLM rating)",
+       "url": "https://tastematch.machaka.net"
       },
       "cat-camera-jobs": {
        "group": "Cats",
        "title": "Cat cam",
-       "what": "Cat camera jobs from the Cat-Camera repo: cat-flash (flash of the day video) and cat-monitor (feeding monitor, YOLO on the GPU)"
+       "what": "Cat camera jobs from the Cat-Camera repo: cat-flash (flash of the day video) and cat-monitor (feeding monitor, YOLO on the GPU)",
+       "url": "https://catcam.machaka.net"
       },
       "portainer": {
        "group": "Platform",
        "title": "Portainer",
-       "what": "Web UI for the cluster and for Docker on the server"
+       "what": "Web UI for the cluster and for Docker on the server",
+       "url": "https://portainer.machaka.net"
       },
       "beszel": {
        "group": "Monitoring",
        "title": "Beszel",
-       "what": "Light monitoring with history and alerts per machine (hub + one agent per node)"
+       "what": "Light monitoring with history and alerts per machine (hub + one agent per node)",
+       "url": "https://beszel.machaka.net"
       },
       "uptime-kuma": {
        "group": "Monitoring",
        "title": "Uptime Kuma",
-       "what": "Checks each site every minute and emails when one is down; status page `homelab` feeds Homepage"
+       "what": "Checks each site every minute and emails when one is down; status page `homelab` feeds Homepage",
+       "url": "https://status.machaka.net"
       },
       "homepage": {
        "group": "Website and lab",
        "title": "homepage",
-       "what": "lab.machaka.net: the menu, one tile per entry in this file, grouped by system, with live numbers"
+       "what": "lab.machaka.net: the menu, one tile per entry in this file, grouped by system, with live numbers",
+       "url": "https://lab.machaka.net"
       },
       "prometheus": {
        "group": "Monitoring",
        "title": "Prometheus",
-       "what": "Collects metrics every 30 s, keeps 15 days (max 4 GB), evaluates the alert rules; with kube-state-metrics"
+       "what": "Collects metrics every 30 s, keeps 15 days (max 4 GB), evaluates the alert rules; with kube-state-metrics",
+       "url": null
       },
       "grafana": {
        "group": "Monitoring",
        "title": "Grafana",
-       "what": "Dashboards over Prometheus (Homelab folder made by dashboards/make.py, More detail from grafana.com)"
+       "what": "Dashboards over Prometheus (Homelab folder made by dashboards/make.py, More detail from grafana.com)",
+       "url": "https://grafana.machaka.net"
       },
       "alertmanager": {
        "group": "Monitoring",
        "title": "Alerts",
-       "what": "Turns Prometheus alerts into plain-word emails through Gmail SMTP"
+       "what": "Turns Prometheus alerts into plain-word emails through Gmail SMTP",
+       "url": null
       },
       "node-exporters": {
        "group": "Monitoring",
        "title": "Machine metrics",
-       "what": "Machine metrics (node-exporter, port 9110) and per-program memory outside containers (process-exporter, 9256) on every node"
+       "what": "Machine metrics (node-exporter, port 9110) and per-program memory outside containers (process-exporter, 9256) on every node",
+       "url": null
       },
       "gpu-metrics": {
        "group": "Monitoring",
        "title": "GPU (Acer)",
-       "what": "The Acer's GTX 1050 for Prometheus (nvidia_gpu_exporter) and per-process GPU use with the owning pod (gpu-procs)"
+       "what": "The Acer's GTX 1050 for Prometheus (nvidia_gpu_exporter) and per-process GPU use with the owning pod (gpu-procs)",
+       "url": null
       },
       "docker-monitoring": {
        "group": "Monitoring",
        "title": "Docker monitoring",
-       "what": "cAdvisor for the server's Docker containers (scraped by Prometheus) and the old Docker node-exporter (no longer read)"
+       "what": "cAdvisor for the server's Docker containers (scraped by Prometheus) and the old Docker node-exporter (no longer read)",
+       "url": null
       },
       "edge-proxy": {
        "group": "Platform",
        "title": "Edge proxy",
-       "what": "The way in from the internet: Cloudflare tunnel (cloudflared) to nginx, which sends names to Traefik or Docker"
+       "what": "The way in from the internet: Cloudflare tunnel (cloudflared) to nginx, which sends names to Traefik or Docker",
+       "url": null
       },
       "k3s-system": {
        "group": "Platform",
        "title": "k3s cluster",
-       "what": "The k3s cluster itself: k3s server, Traefik ingress, CoreDNS, metrics-server, local-path storage, priority classes, old-address forward"
+       "what": "The k3s cluster itself: k3s server, Traefik ingress, CoreDNS, metrics-server, local-path storage, priority classes, old-address forward",
+       "url": null
       },
       "registry": {
        "group": "Platform",
        "title": "Registry",
-       "what": "The cluster's own image registry, so images reach every node without docker save/import"
+       "what": "The cluster's own image registry, so images reach every node without docker save/import",
+       "url": null
       },
       "flux": {
        "group": "Platform",
        "title": "flux",
-       "what": "GitOps: Flux applies k8s/cluster, k8s/tools, k8s/monitoring and k8s/apps from main on GitHub (user OK 2026-11-23, Infra#7)"
+       "what": "GitOps: Flux applies k8s/cluster, k8s/tools, k8s/monitoring and k8s/apps from main on GitHub (user OK 2026-11-23, Infra#7)",
+       "url": null
       },
       "backups": {
        "group": "Platform",
        "title": "Backups",
-       "what": "Nightly copies of the app data, each machine's onto the other (user 2026-11-23: the Acer's to the server and the server's to the Acer)"
+       "what": "Nightly copies of the app data, each machine's onto the other (user 2026-11-23: the Acer's to the server and the server's to the Acer)",
+       "url": null
       },
       "nfs-exports": {
        "group": "Platform",
        "title": "NFS",
-       "what": "NFS server on the server, sharing Free Motion's data and code with the Acer"
+       "what": "NFS server on the server, sharing Free Motion's data and code with the Acer",
+       "url": null
       },
       "tailscale": {
        "group": "Platform",
        "title": "Tailscale",
-       "what": "Tailscale on the server; Free Motion's agents reach the hub at 100.111.127.103:8791 through it"
+       "what": "Tailscale on the server; Free Motion's agents reach the hub at 100.111.127.103:8791 through it",
+       "url": null
       },
       "gmail-archiver": {
        "group": "Gmail",
        "title": "Gmail archiver",
-       "what": "Every 3 minutes, archives job rejections, application confirmations and job-board notices in the user's 3 Gmail accounts (labels Auto-*)"
+       "what": "Every 3 minutes, archives job rejections, application confirmations and job-board notices in the user's 3 Gmail accounts (labels Auto-*)",
+       "url": null
       },
       "gmail-daily-review": {
        "group": "Gmail",
        "title": "Daily review",
-       "what": "Daily review email of the archiver's decisions (Email-remove daily_review.py, with ml/audit.py's model check)"
+       "what": "Daily review email of the archiver's decisions (Email-remove daily_review.py, with ml/audit.py's model check)",
+       "url": null
       },
       "gmail-open-review": {
        "group": "Gmail",
        "title": "Mail review now",
-       "what": "On demand, from a button: what is still open in the last 30 days of mail in the 3 accounts (to do, coming up, waiting on someone, missed),…"
+       "what": "On demand, from a button: what is still open in the last 30 days of mail in the 3 accounts (to do, coming up, waiting on someone, missed),…",
+       "url": "https://lab.machaka.net/mail-review/"
       },
       "job-scrapers": {
        "group": "Job search",
        "title": "Upwork scan",
-       "what": "Upwork job scan four times a day (plus two finished keyword/search test tasks)"
+       "what": "Upwork job scan four times a day (plus two finished keyword/search test tasks)",
+       "url": null
       }
      },
      "objects": {
