@@ -88,9 +88,10 @@ def home(request: Request, range: str = "24h"):
     range = range if range in answers.RANGES else "24h"
     r, ov, w = answers.read.get(range), overview.now.get(), jobruns.week.get()
     listing, mem = apps.read.get("24h"), memory.now.get()
-    rows = apps.build(listing.data, mem.data, overview.load_catalog())["rows"] if listing.data else []
+    catalog = overview.load_catalog()
+    rows = apps.build(listing.data, mem.data, catalog)["rows"] if listing.data else []
     root = request.scope.get("root_path", "").rstrip("/")
-    a = answers.build(r.data, w.data, rows, root) if r.data else None
+    a = answers.build(r.data, w.data, rows, root, catalog) if r.data else None
     rows = sorted(rows, key=lambda x: (-x["rank_value"], -(x["mem"] or 0)))
     return page(request, "status/answers.html", reading=r, a=a, d=ov.data, w=w.data, rows=rows, range=range,
                 RANGES=answers.RANGES, spark=site_machines.spark, **common(request))

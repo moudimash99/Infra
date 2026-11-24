@@ -314,3 +314,18 @@ svg.tc { display: block; user-select: none; touch-action: pan-y; }
 .steady .sdot { margin-top: 0; align-self: center; }
 .qcard:has(> .rtable) { overflow-x: auto; }
 .rtable td small { max-width: 30ch; } .rtable td:last-child { width: 104px; }
+
+/* the merged table: rank, booking, real use and the bar over time */
+.rtable.merged { table-layout: fixed; }
+.rtable.merged th:nth-child(1) { width: 26%; } .rtable.merged th:nth-child(2) { width: 150px; }
+.rtable.merged th:nth-child(3), .rtable.merged th:nth-child(4), .rtable.merged th:nth-child(5) { width: 86px; }
+.rtable.merged td { vertical-align: middle; } .rtable.merged td.app { display: flex; gap: 8px; align-items: flex-start; }
+.rtable.merged td.app .sdot { margin-top: 5px; } .rtable.merged td.app > span { min-width: 0; }
+.rtable.merged td small { max-width: none; white-space: normal; }
+.rtable tr[hidden] { display: none; }
+.tlcol { padding: 4px 0 4px 10px !important; } th.tlcol { vertical-align: bottom; }
+.rowbar .rb-track { fill: var(--bg-2); } .rowbar .rb-tick { stroke: var(--text-3); stroke-width: 1; opacity: .55; }
+.legend-states .tk { width: 1px; height: 12px; background: var(--text-3); margin-left: 6px; }
+.it[hidden] { display: none; }
+.toggle.sys { height: 32px; }
+small.sched { color: var(--text-3); } small.sched.warn-text { color: var(--warn); }

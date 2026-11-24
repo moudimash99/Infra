@@ -8,7 +8,7 @@
 {#- The questions asked while the Grafana dashboards were built, answered on one page. Each answer: a sentence,
     then the graph or the list behind it, then a link deeper. -#}
 {%- macro chart(id, cfg, h=260) -%}
-<div class="tchart" data-src="{{ id }}" data-h="{{ h }}"></div><script type="application/json" id="{{ id }}">{{ cfg | tojson }}</script>
+<div class="tchart" data-src="c-{{ id }}" data-h="{{ h }}"></div><script type="application/json" id="c-{{ id }}">{{ cfg | tojson }}</script>
 {%- endmacro -%}
 {%- macro gb(v) -%}{{ "%.1f" | format(v) }} GB{%- endmacro -%}
 
@@ -24,7 +24,8 @@
     <span class="pill {{ 'paused' if d.pc.stale else 'ok' }}">{{ dot("paused" if d.pc.stale else "ok") }}<a href="{{ R }}/pc">PC {{ "off or asleep" if d.pc.stale else "on" }}</a></span>
     {% endif %}
   </div>
-  <div class="ans-range"><button type="button" class="zoom-reset" data-zoom-reset hidden>Reset zoom</button>{{ range_switch(RANGES, range) }}</div>
+  <div class="ans-range"><label class="toggle sys"><input type="checkbox" data-sys-toggle><span>Show system apps<span data-sys-count></span></span></label>
+    <button type="button" class="zoom-reset" data-zoom-reset hidden>Reset zoom</button>{{ range_switch(RANGES, range) }}</div>
 </div>
 
 {% if a %}
@@ -70,9 +71,11 @@
     <h2 class="q">Did each job run? Is that normal for it?</h2>
     <div class="qcard">
       <ul class="items jobrows compact">
-        {% for j in (d.jobs if d else []) %}{% set f = (w.fails.get(j.name) if w and w.fails else none) %}
-        <li class="it" data-bad="{{ 1 if j.state in ('bad', 'warn') or (f and f.unusual) else 0 }}">{{ dot(j.state) }}
-          <div class="txt"><b><a href="{{ R }}/jobs#job-{{ j.name }}">{{ j.name }}</a></b><small>{{ j.text }}{% if f and f.rate %} · <span class="{{ 'warn-text' if f.unusual else '' }}">{{ f.text }}</span>{% endif %}</small></div>
+        {% for j in (d.jobs if d else []) %}{% set f = (w.fails.get(j.name) if w and w.fails else none) %}{% set sc = a.sched.get(j.name) %}
+        {% set trouble = j.state in ('bad', 'warn') or (f and f.unusual) or (sc and sc.low) %}
+        <li class="it" data-bad="{{ 1 if trouble else 0 }}"{% if sc and sc.system %} data-system{% endif %}{% if trouble %} data-trouble{% endif %}>{{ dot(j.state) }}
+          <div class="txt"><b><a href="{{ R }}/jobs#job-{{ j.name }}">{{ j.name }}</a></b><small>{{ j.text }}{% if f and f.rate %} · <span class="{{ 'warn-text' if f.unusual else '' }}">{{ f.text }}</span>{% endif %}</small>
+            {% if sc %}<small class="sched{{ ' warn-text' if sc.low }}">{{ sc.words }}{% if sc.due %} · ran {{ sc.ran }} of the {{ sc.due }} times it was due{% if sc.low %}; a run still going makes the next one skip{% endif %}{% elif not sc.paused and sc.ran %} · ran {{ sc.ran }}×{% endif %}</small>{% endif %}</div>
           {% if w and w.cells.get(j.name) %}{{ days(w.cells.get(j.name)) }}{% endif %}</li>
         {% endfor %}
       </ul>
@@ -80,43 +83,34 @@
   </section>
 </div>
 
-{# ---- 3. Who gets in ---- #}
+{# ---- 3. Who gets in, at what rank, booking what, using what ---- #}
 <section class="ans" id="gets-in">
-  <h2 class="q">Does every app get in, or wait for room? For how long?</h2>
-  <div class="qcard">
-    <p class="legend-states"><i class="st running"></i>running <i class="st waiting"></i>waiting for room <i class="st failed"></i>failed <i class="mk"></i>pushed out or killed for memory · on the left, its rank</p>
-    {% for node, tl in a.timelines.items() if tl.rows or tl.steady %}
-    <h3 class="tl-head">{{ "Waiting for a machine (not placed yet)" if not node else mname(node) }}</h3>
-    {% if tl.rows %}{{ chart("tl-" ~ (node or "none"), tl, 200) }}{% endif %}
-    {% if tl.steady %}<p class="steady">{{ dot("ok") }} <b>{{ tl.steady | length }} ran the whole time without a break:</b> {{ tl.steady | join(", ") }}</p>{% endif %}
-    {% endfor %}
+  <h2 class="q">Does every app get in, or wait for room? What rank does it have, what does it book, what does it really use?</h2>
+  <p class="legend-states"><i class="st running"></i>running <i class="st waiting"></i>waiting for room <i class="st failed"></i>failed
+    <i class="mk"></i>pushed out or killed for memory <i class="tk"></i>when a job was due · a rank in blue may push lower ranks out; the others wait</p>
+  {% for node, t in a.tables.items() if t.rows %}
+  <div class="qcard rt-card" id="room-{{ node or 'none' }}">
+    <div class="qhead"><h3>{% if node %}<a href="{{ R }}/{{ SLUG[node] }}">{{ mname(node) }}</a>{% else %}Waiting for a machine{% endif %}</h3>
+      {% if node %}<a class="head-link" href="{{ R }}/apps?m={{ node }}">Every app on it {{ icon("chevron-right") }}</a>{% endif %}</div>
+    <table class="rtable merged" data-rows="rows-{{ node or 'none' }}">
+      <thead><tr><th>App</th><th>Rank</th><th class="r">Books</th><th class="r">Uses now</th><th class="r">Peak today</th><th class="tlcol" data-axis></th></tr></thead>
+      <tbody>
+      {% for r in t.rows %}
+      <tr{% if r.system %} data-system{% endif %}{% if r.trouble %} data-trouble{% endif %} title="{{ r.what }}">
+        <td class="app">{{ dot("warn" if r.trouble else "ok") }}<span><a href="{{ r.href }}">{{ r.name }}</a><small>{{ r.what }}{% if r.sched %}{{ " · " if r.what }}{{ r.sched.words }}{% if r.sched.due %}, ran {{ r.sched.ran }} of {{ r.sched.due }}{% endif %}{% endif %}</small></span></td>
+        <td>{% if r.rank %}<span class="rank {{ 'push' if r.pushes else '' }}">{{ r.rank }}</span>{% endif %}</td>
+        <td class="r">{{ size(r.booked) if r.booked else "–" }}</td>
+        <td class="r {{ 'over' if r.booked and r.mem and r.mem > r.booked }}">{{ size(r.mem) if r.mem is not none else "–" }}</td>
+        <td class="r">{{ size(r.peak) if r.peak else "–" }}</td>
+        <td class="tlcol" data-row="{{ loop.index0 }}"></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <script type="application/json" id="rows-{{ node or 'none' }}">{{ {"x0": t.x0, "x1": t.x1, "rows": t.rows} | tojson }}</script>
   </div>
-</section>
-
-{# ---- 4. Ranks, bookings, real use ---- #}
-<section class="ans" id="ranks">
-  <h2 class="q">What rank does each app have, what does it book, and what does it really use?</h2>
-  <div class="g2 wide">
-    {% for node, name in MACHINES[:2] %}
-    <div class="qcard">
-      <div class="qhead"><h3>{{ name }}</h3><a class="head-link" href="{{ R }}/apps?m={{ node }}">All its apps {{ icon("chevron-right") }}</a></div>
-      <table class="rtable">
-        <thead><tr><th>App</th><th>Rank</th><th class="r">Books</th><th class="r">Uses now</th><th class="r">Peak today</th><th>Last 24 h</th></tr></thead>
-        <tbody>
-        {% for r in (rows or []) if r.node == node and r.live %}
-        <tr title="{{ r.what }}"><td><a href="{{ R }}/apps/{{ r.ns }}/{{ r.name }}">{{ r.name }}</a><small>{{ r.what }}</small></td>
-          <td><span class="rank {{ 'push' if r.pushes else '' }}">{{ r.rank }}</span></td>
-          <td class="r">{{ size(r.booked) if r.booked else "–" }}</td>
-          <td class="r {{ 'over' if r.booked and r.mem and r.mem > r.booked }}">{{ size(r.mem) if r.mem is not none else "–" }}</td>
-          <td class="r">{{ size(r.peak) if r.peak else "–" }}</td>
-          <td>{{ spark(r.trend) }}</td></tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% endfor %}
-  </div>
-  <p class="hint">Highest rank first. A rank in blue may push lower ranks out to start; the others wait for room. Uses now in amber: more than it booked. <a href="{{ R }}/apps#ranks">What each rank is for</a>.</p>
+  {% endfor %}
+  <p class="hint">Highest rank first. Books: the memory the scheduler counts; Uses now in amber: more than it booked. System apps (k3s, Flux, the monitoring agents, backups) are hidden unless the switch at the top shows them, or something goes wrong with one. Drag across a bar to zoom in. <a href="{{ R }}/apps#ranks">What each rank is for</a>.</p>
 </section>
 
 {# ---- 5. Heat and the GPU ---- #}

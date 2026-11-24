@@ -8,6 +8,10 @@
 // kind "lines":    {x, series, unit, yMax?}
 // kind "timeline": {x0, x1, rows: [{name, href?, note?, segs: [[t0, t1, state]]}], marks: [{t, row, text}]}
 //                  one bar per row: running (green), waiting for room (amber), failed (red); marks: pushed out
+// A table with data-rows="id": {x0, x1, rows: [{segs, marks: [{t, text}], ticks: [t]}]}; its cells [data-row=i]
+//                  get that row's bar (ticks: when a job was scheduled), [data-axis] the time axis.
+// System apps (series or rows marked system): hidden, or added up into one band, until the page's switch
+// [data-sys-toggle] shows them; a row marked [data-trouble] shows anyway. The choice is remembered in this browser.
 //
 // Hover: a crosshair and every value at that time, biggest first. Legend: click a name to see it alone (click again
 // for all; Ctrl-click to add or remove one); the arrow opens its page. Drag across a chart to zoom in: every chart on
@@ -15,6 +19,8 @@
 (function () {
   const charts = [];
   let zoom = null;                                     // [t0, t1] shared by every chart on the page
+  let showSys = false;
+  try { showSys = localStorage.getItem("homelab.system") === "1"; } catch (e) { /* private window */ }
   const NS = "http://www.w3.org/2000/svg";
   const css = getComputedStyle(document.documentElement);
   const PALETTE = [1, 2, 3, 4, 5, 7, 6, 8].map((i) => css.getPropertyValue("--s" + i).trim() || "#888")
@@ -84,6 +90,17 @@
     const pad = { l: 46, r: 14, t: 10, b: 24 };
     const hidden = new Set();
     (cfg.series || []).forEach((s, i) => { s.color = s.color || PALETTE[i % PALETTE.length]; });
+    // the series as shown: system ones added up into one band while the page hides system apps
+    function eff() {
+      const sys = (cfg.series || []).filter((s) => s.system);
+      if (showSys || !sys.length) return cfg.series || [];
+      const sum = { name: `system apps (${sys.length})`, color: "#8a94a6", system: false,
+                    values: cfg.x.map((_, i) => sys.reduce((a, s) => a + (s.values[i] || 0), 0)) };
+      const rest = cfg.series.filter((s) => !s.system);
+      const at = rest.findIndex((s) => s.name.startsWith("smaller") || s.name.startsWith("outside"));
+      rest.splice(at < 0 ? rest.length : at, 0, sum);
+      return rest;
+    }
     const svgWrap = document.createElement("div");
     svgWrap.className = "tc-plot";
     box.appendChild(svgWrap);
@@ -103,7 +120,7 @@
       if (!legend) return;
       legend.innerHTML = "";
       const last = (vals) => { for (let i = vals.length - 1; i >= 0; i--) if (vals[i] != null) return vals[i]; return null; };
-      cfg.series.forEach((s) => {
+      eff().forEach((s) => {
         const it = document.createElement("span");
         it.className = "tc-item" + (hidden.has(s.name) ? " off" : "");
         const peak = Math.max(...s.values.map((v) => v || 0));
@@ -113,9 +130,9 @@
           if (e.target.tagName === "A") return;
           if (e.ctrlKey || e.metaKey) { hidden.has(s.name) ? hidden.delete(s.name) : hidden.add(s.name); }
           else {
-            const alone = cfg.series.every((o) => o === s || hidden.has(o.name)) && !hidden.has(s.name);
+            const alone = eff().every((o) => o === s || hidden.has(o.name)) && !hidden.has(s.name);
             hidden.clear();
-            if (!alone) cfg.series.forEach((o) => { if (o !== s) hidden.add(o.name); });
+            if (!alone) eff().forEach((o) => { if (o !== s) hidden.add(o.name); });
           }
           draw();
         });
@@ -137,7 +154,7 @@
       const [t0, t1] = range();
       const svg = el("svg", { class: "tc", width: W, height: H, viewBox: `0 0 ${W} ${H}` }, svgWrap);
       const X = cfg.x, idx = X.map((t, i) => i).filter((i) => X[i] >= t0 && X[i] <= t1);
-      const shown = cfg.series.filter((s) => !hidden.has(s.name));
+      const shown = eff().filter((s) => !hidden.has(s.name));
       // stack (biggest at the bottom) or plain values
       const stacks = [];
       if (cfg.stacked) {
@@ -280,6 +297,60 @@
     return { draw };
   }
 
+  // A table whose rows each carry a bar over time (running / waiting / failed), marks and scheduled ticks.
+  function Rows(table) {
+    const cfg = JSON.parse(document.getElementById(table.dataset.rows).textContent);
+    function range() { return zoom ? [Math.max(cfg.x0, zoom[0]), Math.min(cfg.x1, zoom[1])] : [cfg.x0, cfg.x1]; }
+    function draw() {
+      const [t0, t1] = range();
+      table.querySelectorAll("[data-row]").forEach((cell) => {
+        if (cell.closest("tr").hidden) return;
+        const row = cfg.rows[+cell.dataset.row];
+        cell.innerHTML = "";
+        const W = Math.max(120, cell.clientWidth - 2), H = 20;
+        const svg = el("svg", { class: "tc rowbar", width: W, height: H, viewBox: `0 0 ${W} ${H}` }, cell);
+        const xOf = (t) => ((Math.min(Math.max(t, t0), t1) - t0) / (t1 - t0 || 1)) * W;
+        el("rect", { x: 0, y: 6, width: W, height: 8, rx: 2, class: "rb-track" }, svg);
+        (row.ticks || []).forEach((t) => { if (t >= t0 && t <= t1) el("line", { x1: xOf(t), x2: xOf(t), y1: 2, y2: 18, class: "rb-tick" }, svg); });
+        row.segs.forEach(([a0, a1, st]) => {
+          if (a1 < t0 || a0 > t1) return;
+          const sx = xOf(a0), w = Math.max(2, xOf(a1) - sx);
+          const seg = el("rect", { x: sx, y: 5, width: w, height: 10, rx: 2, fill: STATE[st] || "var(--line-2)", class: "tl-seg" }, svg);
+          seg.addEventListener("pointermove", (e) => showTip(`<div class="tt-row"><span>${
+            { running: "Running", waiting: "Waiting for room", failed: "Failed" }[st]}</span><b>${fmtDur(a1 - a0)}</b></div>` +
+            `<div class="tt-more">${fmtTime(a0)} → ${fmtTime(a1)}</div>`, e.clientX, e.clientY));
+          seg.addEventListener("pointerleave", hideTip);
+        });
+        (row.marks || []).forEach((m) => {
+          if (m.t < t0 || m.t > t1) return;
+          const mk = el("path", { d: `M${xOf(m.t) - 5},0 l5,7 l5,-7 Z`, class: "tl-mark" }, svg);
+          mk.addEventListener("pointermove", (e) => showTip(`<div class="tt-time">${fmtTime(m.t)}</div><div class="tt-more">${esc(m.text)}</div>`, e.clientX, e.clientY));
+          mk.addEventListener("pointerleave", hideTip);
+        });
+        let from = null;
+        svg.addEventListener("pointerdown", (e) => { from = e.clientX; });
+        svg.addEventListener("pointerup", (e) => {
+          if (from != null && Math.abs(e.clientX - from) > 8) {
+            const left = svg.getBoundingClientRect().left, tA = (cx) => t0 + ((cx - left) / W) * (t1 - t0);
+            setZoom([tA(Math.min(from, e.clientX)), tA(Math.max(from, e.clientX))]);
+          }
+          from = null;
+        });
+        svg.addEventListener("dblclick", () => setZoom(null));
+      });
+      table.querySelectorAll("[data-axis]").forEach((cell) => {
+        cell.innerHTML = "";
+        const W = Math.max(120, cell.clientWidth - 2);
+        const svg = el("svg", { class: "tc", width: W, height: 16, viewBox: `0 0 ${W} 16` }, cell);
+        timeTicks(t0, t1, W).forEach(([t, label]) => {
+          const x = ((t - t0) / (t1 - t0 || 1)) * W;
+          if (x > 18 && x < W - 18) el("text", { class: "tc-tick", x, y: 12, "text-anchor": "middle" }, svg).textContent = label;
+        });
+      });
+    }
+    return { draw };
+  }
+
   function setZoom(z) {
     zoom = z;
     document.querySelectorAll("[data-zoom-reset]").forEach((b) => { b.hidden = !zoom; });
@@ -287,7 +358,33 @@
     hideTip();
   }
 
-  document.querySelectorAll(".tchart[data-src]").forEach((box) => { const c = Chart(box); charts.push(c); c.draw(); });
+  // System apps: hidden rows and one added-up band, unless the switch shows them; a row in trouble always shows.
+  function applySys() {
+    let n = 0;
+    document.querySelectorAll("[data-system]").forEach((r) => {
+      const hide = !showSys && !r.hasAttribute("data-trouble");
+      r.hidden = hide;
+      if (hide) n++;
+    });
+    document.querySelectorAll("[data-sys-toggle]").forEach((b) => {
+      b.checked = showSys;
+      const label = b.closest("label") && b.closest("label").querySelector("[data-sys-count]");
+      if (label) label.textContent = showSys ? "" : ` (${n} hidden)`;
+    });
+  }
+  document.querySelectorAll("[data-sys-toggle]").forEach((b) => b.addEventListener("change", () => {
+    showSys = b.checked;
+    try { localStorage.setItem("homelab.system", showSys ? "1" : "0"); } catch (e) { /* private window */ }
+    applySys();
+    charts.forEach((c) => c.draw());
+  }));
+  applySys();
+
+  const start = (make, node) => {            // one broken chart must not stop the others
+    try { const c = make(node); charts.push(c); c.draw(); } catch (e) { console.error("chart", node, e); }
+  };
+  document.querySelectorAll(".tchart[data-src]").forEach((box) => start(Chart, box));
+  document.querySelectorAll("table[data-rows]").forEach((t) => start(Rows, t));
   document.querySelectorAll("[data-zoom-reset]").forEach((b) => b.addEventListener("click", () => setZoom(null)));
   let t = null;
   window.addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => charts.forEach((c) => c.draw()), 120); });

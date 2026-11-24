@@ -67,12 +67,14 @@ def test_kills_timeline_heat():
     d = answers.build(ans_raw(), week, rows, "")
     whats = [(k["name"], k["what"]) for k in d["kills"]]
     assert ("Server", "ran out of memory") in whats and ("bg-taste-match-fetch", "pushed out") in whats
-    acer = d["timelines"]["acer-laptop"]
-    assert "frigate" in acer["steady"]                               # ran the whole time: one line, not a row
-    srv = d["timelines"]["moudimash99"]
-    assert [r["name"] for r in srv["rows"]] == ["fm-controller"]
-    assert len(srv["rows"][0]["segs"]) == 2                          # a break in the middle
-    assert any(r["name"] == "fm-webllm" for r in d["timelines"][""]["rows"])   # waited, not placed yet
+    acer = {r["name"]: r for r in d["tables"]["acer-laptop"]["rows"]}
+    assert acer["frigate"]["rank"] == "homelab-critical" and acer["frigate"]["booked"] == 1.5 * G
+    assert acer["frigate"]["segs"] and not acer["frigate"]["trouble"]
+    srv = {r["name"]: r for r in d["tables"]["moudimash99"]["rows"]}
+    assert len(srv["fm-controller"]["segs"]) == 2                    # a break in the middle
+    assert any(r["name"] == "fm-webllm" for r in d["tables"][""]["rows"])   # waited, never placed
+    runs = acer["email-remove"]["segs"]                             # a job's bars are its runs (one a minute here)
+    assert len(runs) >= 8 and {x[2] for x in runs} <= {"running", "failed"}       # the range is the last 30 min
     assert [s["name"] for s in d["heat"]["series"]] == ["Server"] and d["gpu"]["series"][0]["name"] == "bg-taste-match-gpu"
 
 
@@ -101,6 +103,25 @@ def test_answers_page(monkeypatch):
         assert r.status_code == 200 and "Traceback" not in r.text, path
     text = client.get("/").text
     for words in ("Why is memory high, and who is using it?", "Was anything killed or pushed out?",
-                  "Did each job run?", "Does every app get in, or wait for room?",
-                  "What rank does each app have", "Is anything too hot?", "tchart.js", 'data-src="mem-moudimash99"'):
+                  "Did each job run?", "Does every app get in, or wait for room? What rank does it have",
+                  "Show system apps", "data-system", "Is anything too hot?", "tchart.js", 'data-src="c-mem-moudimash99"', 'data-rows="rows-acer-laptop"'):
         assert words in text, words
+
+
+def test_schedules_and_system_apps():
+    from app.sources import cron
+    assert cron.words("*/3 * * * *", "Europe/Paris") == "every 3 min"
+    assert cron.words("20 0,19 * * *", "Europe/Paris") == "daily at 00:20 and 19:20"
+    assert cron.words("5 */2 * * *", "local") == "every 2 hours at :05"
+    assert cron.words("0 0 1 1 *", "Europe/Paris").startswith("once a year")
+    assert len(cron.times("*/3 * * * *", "Europe/Paris", NOW - 3600, NOW)) in (20, 21)
+    raw = {**ans_raw(), "cj_info": [({"cronjob": "email-remove", "schedule": "*/3 * * * *", "timezone": "Europe/Paris"}, 1.0),
+                                     ({"cronjob": "boardgamefinder", "schedule": "30 4 * * *", "timezone": "Europe/Paris"}, 1.0)],
+           "cj_suspend": [({"cronjob": "boardgamefinder"}, 1.0)]}
+    week = jobruns.build(week_raw(), now=NOW)
+    d = answers.build(raw, week, [], "", CAT)
+    em = d["sched"]["email-remove"]
+    assert em["words"] == "every 3 min" and em["due"] in (10, 11) and em["ran"] <= em["due"]
+    assert d["sched"]["boardgamefinder"]["paused"] and d["sched"]["boardgamefinder"]["due"] == 0
+    assert answers.is_system(overview.Projects(CAT), "monitoring", "node-exporter")
+    assert not answers.is_system(overview.Projects(CAT), "apps", "frigate")
