@@ -258,11 +258,11 @@
     description: Job applications dashboard
 
 - name: lab-sites
-  what: The lab, one process serving Taste Match, Deals and Cat cam (status sites for the jobs) plus the PC report intake.
+  what: "The lab, one process serving Taste Match, Deals and Cat cam (status sites for the jobs), Machines (where each machine's memory goes, lab.machaka.net/machines) plus the PC report intake."
   kind: web-app
   system: lab
   lifecycle: production
-  depends_on: [bg-taste-match, boardgamefinder, cat-camera-jobs, cat-weight, frigate, mail-classifier]
+  depends_on: [bg-taste-match, boardgamefinder, cat-camera-jobs, cat-weight, frigate, mail-classifier, prometheus]
   runs: k8s tools/Deployment lab on acer-laptop
   manifest: Infra/k8s/tools/lab.yaml
   image: "lab, built by lab/build.sh (pull Never)"
@@ -272,6 +272,7 @@
     - https://deals.machaka.net
     - https://catcam.machaka.net
     - "https://lab.machaka.net/lab-sso (Access sign-in bridge; the rest of lab.machaka.net is Homepage)"
+    - "https://lab.machaka.net/machines (Machines: memory per machine and per pod, from Prometheus)"
     - "PC report intake: NodePort 30881 (home network, token in Secret tools/lab-intake)"
   data:
     - "hostPath /srv/apps/lab on the Acer (lab.db: job runs, log summaries, clip cache; table visitors: Taste Match visitors' BGG ratings and results, kept a day)"
@@ -280,7 +281,7 @@
   code:
     repo: C:\Users\Moudimash99\Documents\Coding\Infra\lab
     branch: main
-    deployed: "4adfe60 (tag 2026-11-24-final3, built from the committed tree; Infra/lab is a folder, not a repo of its own, so status.py does not compare it)"
+    deployed: "7c4cd66 (tag 2026-11-24-machines, built from the committed tree; Infra/lab is a folder, not a repo of its own, so status.py does not compare it)"
   deploy: "From the PC, Infra root: `sh lab/build.sh TAG` (builds on the server, imports on the Acer through the PC), set the tag in lab.yaml, apply."
   check: "Readiness/liveness GET /healthz on :8080; Prometheus scrapes :8081/metrics (pod annotations); Homepage Pipelines tiles read /api/summary/*"
   probes:
@@ -295,6 +296,11 @@
     icon: mdi-flask-outline
     href: null
     description: Taste Match, Deals and Cat cam, one process
+    extra:
+    - Machines:
+        href: https://lab.machaka.net/machines/
+        icon: mdi-memory
+        description: Where each machine's memory goes, and who is using it
 
 - name: mail-classifier
   what: "Trained mail classifier API for the Gmail archiver. Since 2026-11-11 it decides (archiver MODEL_DECIDES = True): it archives emails the rules keep when it is sure and no guard or block applies. If it does not answer within 3 s, the email stays in the inbox."

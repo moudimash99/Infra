@@ -2,6 +2,7 @@
 #   tastematch.machaka.net  the review pipeline       deals.machaka.net  BoardGameFinder's deals
 #   catcam.machaka.net      the cats: flash of the day, camera, weights
 # lab.machaka.net itself is Homepage (homepage.yaml); its tiles read /api/summary/* here, inside the cluster.
+#   lab.machaka.net/machines  where each machine's memory goes (from Prometheus), the one lab page under that name
 # Each site checks the Cloudflare Access token itself (ACCESS_TEAM, ACCESS_AUD below), so the home network can't
 # skip the login through Traefik. A name not yet in the Access application signs in through lab.machaka.net's login
 # (ACCESS_BRIDGE: Traefik sends lab.machaka.net/lab-sso here, see the Ingress), so it works before it is added.
@@ -84,7 +85,7 @@ spec:
       priorityClassName: homelab-critical
       containers:
         - name: lab
-          image: docker.io/library/lab:2026-11-24-final3
+          image: docker.io/library/lab:2026-11-24-machines
           imagePullPolicy: Never
           ports:
             - { name: http, containerPort: 8080 }
@@ -195,6 +196,10 @@ spec:
       http:
         paths:
           - path: /lab-sso
+            pathType: Prefix
+            backend:
+              service: { name: lab, port: { name: http } }
+          - path: /machines
             pathType: Prefix
             backend:
               service: { name: lab, port: { name: http } }

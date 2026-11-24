@@ -210,6 +210,10 @@ data:
           namespace: tools
           app: lab-sites
           podSelector: app=lab
+      - Machines:
+          href: https://lab.machaka.net/machines/
+          icon: mdi-memory
+          description: Where each machine's memory goes, and who is using it
     - Monitoring:
       - Beszel:
           href: https://beszel.machaka.net
