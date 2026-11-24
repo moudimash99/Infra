@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% from "_m.html" import unreadable %}
+{% from "status/_ui.html" import dot, bad %}
+{% block title %}Apps · Homelab{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ R }}/static/status.css?v={{ STATIC_V }}"><link rel="stylesheet" href="{{ R }}/static/bell.css?v={{ STATIC_V }}">{% endblock %}
+{% block header_end %}{% include "status/_bell.html" %}{% endblock %}
+
+{%- macro hours(cells) -%}
+<span class="hours" aria-label="the last 24 hours">{% for c in cells %}<span class="h {{ c.state or 'none' }}" data-tip="{{ clock(c.start) }}: {{ {'running': 'running', 'waiting': 'waiting for room', 'failed': 'a run failed', None: 'not running'}[c.state] }}"></span>{% endfor %}</span>
+{%- endmacro -%}
+
+{% block main %}
+{{ unreadable(reading, "the apps' numbers") }}
+{% if a %}
+<header class="page-head tight"><h1 class="page-title">Apps</h1>
+  <p class="page-sub">Every app and job in Kubernetes: where it runs, its rank, the memory it booked and really uses, and what stopped it. The strip is its last 24 hours, now on the right.</p></header>
+{% include "status/_filters.html" %}
+
+<div class="qgrid">
+
+  {# ---- Room on each machine ---- #}
+  <section class="qcard wide" id="room" data-card data-keep>
+    <div class="qhead"><h2>Is there room?</h2><span class="muted xs">a pod starts only where its booking fits</span></div>
+    <div class="g2">
+      {% for m in a.machines %}
+      <div class="room" data-m="{{ m.node }}">
+        <h3>{{ m.name }} <span class="muted">· {{ m.apps }} apps running · {{ size(m.alloc) }} of room for pods</span></h3>
+        <dl class="roomfacts">
+          <div><dt>Booked</dt><dd><b>{{ (100 * m.booked_share) | round | int }}%</b> {{ size(m.booked) }}<span class="meter{{ ' warn' if m.booked_share > 0.92 }}"><span style="width:{{ [100 * m.booked_share, 100] | min }}%"></span></span></dd></div>
+          <div><dt>Really used</dt><dd><b>{{ (100 * m.used_share) | round | int }}%</b> {{ size(m.used) }}<span class="meter"><span style="width:{{ [100 * m.used_share, 100] | min }}%"></span></span></dd></div>
+          <div><dt>Used at the peak today</dt><dd><b>{{ (100 * m.peak_share) | round | int }}%</b> {{ size(m.peak) }}<span class="meter"><span style="width:{{ [100 * m.peak_share, 100] | min }}%"></span></span></dd></div>
+        </dl>
+        {{ charts.lines(a.room_graphs.get(m.node, []), height=170, title=m.name ~ ": room, booked and really used, GB", x_labels=x_labels, unit=" GB") }}
+      </div>
+      {% endfor %}
+    </div>
+    {% if a.wanted %}<p class="banner warn">{{ dot("warn") }} Pods waiting to start want {{ size(a.wanted) }} more than fits.</p>{% endif %}
+    <p class="xs muted">Booked is what the pods reserved (their request); it decides who gets in. Really used is their real memory. On the Acer a pod of a higher rank may push a lower one out to start; the rest wait.</p>
+  </section>
+
+  {# ---- Every app ---- #}
+  <section class="qcard wide" id="apps" data-card>
+    <div class="qhead"><h2>Every app</h2>
+      <div class="seg sm" data-sort-for="app-list" role="group" aria-label="Sort"><button type="button" class="on" data-sort="">Problems, then rank</button><button type="button" data-sort="mem">Memory</button><button type="button" data-sort="name">Name</button></div></div>
+    <ul class="items applist" id="app-list" data-limit="60">
+      {% for r in a.rows %}
+      <li class="it" data-m="{{ r.node or '*' }}" data-p="{{ r.p or '' }}" data-bad="{{ bad(r.state) }}" data-name="{{ r.name | lower }} {{ r.ns }} {{ r.rank }} {{ r.what | lower }}"
+          data-k-mem="{{ r.mem or r.peak or 0 }}" data-k-name="{{ r.name | lower }}">
+        {{ dot(r.state) }}
+        <div class="txt"><b>{{ r.name }}</b>{% if r.what %}<span class="what">{{ r.what }}</span>{% endif %}
+          <small>{{ r.text }} · rank {{ r.rank }}{% if r.booked %} · books {{ size(r.booked) }}{% endif %}{% if r.limit %} · limit {{ size(r.limit) }}{% endif %}{% if r.peak %} · peak today {{ size(r.peak) }}{% endif %}{% if r.cpu and r.cpu >= 0.05 %} · {{ "%.1f" | format(r.cpu) }} cores{% endif %}{% if r.restarts_24h and not (r.stop and r.stop.reason in ("Unknown", "ContainerStatusUnknown")) %} · restarted {{ r.restarts_24h }}× today{% if r.stop_words %} ({{ r.stop_words }}){% endif %}{% endif %}</small></div>
+        {{ hours(r.cells) }}
+        <span class="val">{% if r.mem is not none %}{{ size(r.mem) }}<small>used now</small>{% else %}<small>{{ "not running" if not r.is_job else "between runs" }}</small>{% endif %}</span>
+        <span class="tags">{% if r.node %}<span class="tag">{{ r.machine_name }}</span>{% endif %}<span class="tag">{{ r.kind_words }}</span>{% if r.p %}<span class="tag">{{ r.p }}</span>{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="none" data-none>No app for this filter.</p>
+    <p class="xs muted legend-hours"><span class="h running"></span>running <span class="h waiting"></span>waiting for room <span class="h failed"></span>a run failed <span class="h none"></span>not running · Jobs run for minutes, so their hours are mostly empty: <a href="{{ R }}/jobs">their runs</a>.</p>
+  </section>
+
+  {# ---- Waiting and pushed out ---- #}
+  <section class="qcard" id="gets-in" data-card data-keep>
+    <div class="qhead"><h2>Who's waiting for room?</h2></div>
+    <ul class="items">
+      {% for w in (d.waiting if d else []) %}
+      <li class="it" data-m="{{ w.m or '*' }}" data-p="{{ w.p or '' }}" data-bad="{{ bad(w.state) }}">{{ dot(w.state) }}
+        <div class="txt"><b>{{ w.name }}</b><small>waiting {{ dur(w.age) }} for room{% if w.need %}: it books {{ size(w.need) }}{% endif %}{% if w.rank %} · rank {{ w.rank }}{% endif %}</small></div></li>
+      {% endfor %}
+      {% for e in (d.pushed if d else []) %}
+      <li class="it" data-m="{{ e.m or '*' }}" data-p="{{ e.p or '' }}" data-bad="0">{{ dot("info") }}
+        <div class="txt"><b>{{ e.name }}</b><small>pushed out at {{ clock(e.at) }} to make room for {{ e.by }}; it starts again when there's room</small></div></li>
+      {% endfor %}
+      {% if d and not d.waiting and not d.pushed %}<li class="it" data-m="*" data-p="*" data-bad="0">{{ dot("ok") }}<div class="txt"><b>Nobody is waiting</b><small>and nobody was pushed out in the last hour</small></div></li>{% endif %}
+    </ul>
+  </section>
+
+  {# ---- Restarts ---- #}
+  <section class="qcard" id="restarts" data-card data-keep>
+    <div class="qhead"><h2>What restarted today?</h2></div>
+    <ul class="items">
+      {% for b in a.reboots %}
+      <li class="it" data-m="{{ b.node }}" data-p="*" data-bad="0">{{ dot("info") }}
+        <div class="txt"><b>The {{ b.name }} restarted{% if b.at %} around {{ clock(b.at) }}{% endif %}</b><small>{{ b.apps | length }} app{{ "s" if b.apps | length != 1 }} restarted with it: {{ b.apps | unique | join(", ") }}</small></div></li>
+      {% endfor %}
+      {% for r in a.restarted %}
+      <li class="it" data-m="{{ r.node or '*' }}" data-p="{{ r.p or '' }}" data-bad="{{ 1 if r.stop and r.stop.reason in ('OOMKilled', 'Error') else 0 }}">{{ dot("warn" if r.stop and r.stop.reason in ("OOMKilled", "Error") else "info") }}
+        <div class="txt"><b>{{ r.name }}</b><small>{{ r.stop_words or "restarted" }}{% if r.stop and r.stop.at %} at {{ clock(r.stop.at) }}{% endif %}{% if r.restarts_24h %} · {{ r.restarts_24h }}× today{% endif %}{% if r.limit and r.stop and r.stop.reason == "OOMKilled" %} · its limit is {{ size(r.limit) }}{% endif %}</small></div></li>
+      {% endfor %}
+      {% if not a.reboots and not a.restarted %}<li class="it" data-m="*" data-p="*" data-bad="0">{{ dot("ok") }}<div class="txt"><b>Nothing restarted</b><small>in the last 24 hours</small></div></li>{% endif %}
+    </ul>
+    {% if a.restarts_graph %}<h3>Restarts over time</h3>{{ charts.lines(a.restarts_graph, height=160, title="Restarts", x_labels=x_labels) }}{% endif %}
+  </section>
+
+  {# ---- The ranks ---- #}
+  <section class="qcard wide" id="ranks" data-card data-keep>
+    <div class="qhead"><h2>The ranks</h2><span class="muted xs">highest first</span></div>
+    <ul class="items ranks">
+      {% for k in a.ladder %}
+      <li class="it" data-m="*" data-p="*" data-bad="0">
+        <span class="rk {{ 'push' if k.pushes else 'wait' }}" aria-hidden="true"></span>
+        <div class="txt"><b>{{ k.name }}</b>{% if k.default %} <span class="tag">the default</span>{% endif %}<small>{{ k.what }}</small></div>
+        <span class="val">{{ k.apps }} app{{ "s" if k.apps != 1 }}<small>{{ "may push lower ranks out" if k.pushes else "waits for room" }}</small></span>
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="xs muted">Two separate rules. <b>Getting in:</b> a pod starts only where its booking fits; a rank that may push others out stops pods of a strictly lower rank on that machine to make room, the others wait. <b>Running out of real memory:</b> ranks don't count; the kernel kills the biggest containers first, and a container above its own limit is killed whatever its rank.</p>
+  </section>
+
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="{{ R }}/static/status.js?v={{ STATIC_V }}" defer></script>{% endblock %}

@@ -759,5 +759,126 @@ data:
       "pc_task:\\job-scrapers upwork round": {
        "service": "job-scrapers"
       }
-     }
+     },
+     "notes": {
+      "alertmanager": "Emails Prometheus's alerts",
+      "backup-acer": "Nightly backup of the Acer",
+      "backup-server": "Nightly backup of the server",
+      "beszel": "Simple per-machine monitor (beszel.machaka.net)",
+      "beszel-agent": "Beszel's collector on the server",
+      "beszel-agent-worker": "Beszel's collector on the Acer",
+      "bg-taste-match-fetch": "Downloads the reviewers' videos' audio, every 2 hours",
+      "bg-taste-match-gpu": "Whisper captions on the GPU, hourly, with a heat guard",
+      "bg-taste-match-llm": "Rates the reviewers with AI, hourly at night",
+      "bg-taste-match-shell": "Idle helper for running bg-taste-match stages by hand",
+      "boardgamefinder": "Nightly board game deals",
+      "boardgamefinder-fetch": "Loads Okkazeo pages through the day",
+      "boardxplorer": "Board game explorer site",
+      "cat-flash": "The cat's flash-of-the-day video, 00:20 and 19:20",
+      "cat-monitor": "Nightly GPU cat detection",
+      "cat-weight": "Cat weight site",
+      "coredns": "k3s: name lookups inside the cluster",
+      "email-remove": "Gmail archiver, every 3 minutes",
+      "fm-browser-acer": "Free Motion job-application automation (controller daemon, one browser per lane, the ChatGPT/Gemini website writer)",
+      "fm-browser-acer-0": "Free Motion browser, lane 1",
+      "fm-browser-acer-1": "Free Motion browser, lane 2",
+      "fm-controller": "Free Motion's brain: daemon, scan, score loops, hub agent",
+      "fm-webllm": "Free Motion's ChatGPT/Gemini website writer, started on demand",
+      "fm-webllm-waker": "Starts and stops fm-webllm",
+      "freemotion-hub": "Free Motion's dashboard",
+      "frigate": "Cat camera recorder: records and detects",
+      "gpu-procs": "Which program is on the GPU",
+      "grafana": "Grafana's dashboards",
+      "homepage": "The lab.machaka.net menu",
+      "kube-state-metrics": "Numbers about pods, jobs and restarts for Prometheus",
+      "kustomize-controller": "Flux: applies k8s/ from main every 10 min",
+      "lab": "Taste Match, Deals and Cat cam sites, the homelab tool, and the login bridge",
+      "llm-gateway": "fm-llm: one door to the AI models for every project",
+      "local-path-provisioner": "k3s: makes the disk folders pods keep data in",
+      "mail-classifier": "Trained model that decides what the Gmail archiver archives",
+      "mail-classifier-waker": "Starts and stops the mail classifier",
+      "mail-open-review": "On demand, from a button: what is still open in the last 30 days of mail in the 3 accounts (to do, coming up, waiting on someone, missed),…",
+      "mail-review-button": "On demand, from a button: what is still open in the last 30 days of mail in the 3 accounts (to do, coming up, waiting on someone, missed),…",
+      "metrics-server": "k3s: live CPU and memory for kubectl top",
+      "node-exporter": "Machine CPU, memory, disks and temperatures",
+      "nvidia-gpu-exporter": "The GTX 1050's load, memory and heat",
+      "portainer": "Web page for Docker and Kubernetes",
+      "process-exporter": "Memory per program outside containers",
+      "prometheus": "Collects every metric every 30 s, keeps 15 days",
+      "registry": "Local image store (not used yet)",
+      "source-controller": "Flux: pulls the Infra repo from GitHub",
+      "spirit-island": "Spirit Island site",
+      "svclb-traefik": "k3s: passes ports 80/443 on each machine to Traefik",
+      "svclb-traefik-*": "The k3s cluster itself: k3s server, Traefik ingress, CoreDNS, metrics-server, local-path storage, priority classes, old-address forward",
+      "traefik": "Web front door: sends each site's traffic to its pod",
+      "unmatched": "Unmatched matcher site",
+      "unmatched-restart": "Restarts the Unmatched site on Mondays",
+      "uptime-kuma": "Up/down checks of the sites",
+      "website": "Your personal website"
+     },
+     "ranks": [
+      {
+       "name": "system-node-critical",
+       "value": 2000001000,
+       "pushes": true,
+       "default": false,
+       "what": "k3s's own plumbing."
+      },
+      {
+       "name": "system-cluster-critical",
+       "value": 2000000000,
+       "pushes": true,
+       "default": false,
+       "what": "Cluster essentials: names, the web front door, GitOps."
+      },
+      {
+       "name": "homelab-critical",
+       "value": 1000000,
+       "pushes": true,
+       "default": false,
+       "what": "Keep running: camera recordings, websites, the lab sites, monitoring."
+      },
+      {
+       "name": "homelab-normal",
+       "value": 100000,
+       "pushes": true,
+       "default": true,
+       "what": "Services with no tag."
+      },
+      {
+       "name": "batch-high",
+       "value": 30000,
+       "pushes": false,
+       "default": false,
+       "what": "Free Motion's browsers and website helper, hourly or daily jobs whose results are expected (rating, cat monitor, the archiver)."
+      },
+      {
+       "name": "batch-make-room",
+       "value": 25000,
+       "pushes": true,
+       "default": false,
+       "what": "Short daily jobs that may stop lower pods (the mail classifier) to start: cat flash, BoardGameFinder."
+      },
+      {
+       "name": "steps-aside",
+       "value": 22000,
+       "pushes": false,
+       "default": false,
+       "what": "Services that give their room to batch-make-room jobs and come back after: the mail classifier."
+      },
+      {
+       "name": "batch-mid",
+       "value": 20000,
+       "pushes": false,
+       "default": false,
+       "what": "Long jobs that resume where they stopped (Whisper, speakers)."
+      },
+      {
+       "name": "batch-low",
+       "value": 10000,
+       "pushes": false,
+       "default": false,
+       "what": "Jobs that retry on their own, idle helpers (downloads, shell)."
+      }
+     ]
     }

@@ -5,6 +5,8 @@
   /server   one machine (also /acer): right now, where its memory goes, what uses it, CPU, pressure, temperatures,
             disks, network, the GPU (Acer), Docker (server), with graphs over 24 h or 7 d
   /pc       the PC: on or asleep, its scheduled tasks and their last 7 days, what its jobs reported
+  /apps     every app and job in Kubernetes: room on each machine, rank, booking and real memory, restarts and why,
+            its last 24 hours; who waits for room; the ranks
   /memory   (old address) sends you to the machine's page
 
 The bell in the header lists the alerts firing now: the Prometheus alert rules (k8s/monitoring/alert-rules.yml),
@@ -18,11 +20,11 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import site_machines
-from .sources import hosts, jobruns, memory, overview, prom
+from .sources import apps, hosts, jobruns, memory, overview, prom
 from .config import TZ
 from .web import SITES, STATIC, day_labels, page
 
-NAV = [("/", "Now", "gauge"), ("/jobs", "Jobs", "calendar"), ("/server", "Machines", "cpu")]
+NAV = [("/", "Now", "gauge"), ("/jobs", "Jobs", "calendar"), ("/server", "Machines", "cpu"), ("/apps", "Apps", "package")]
 MACHINES = [("moudimash99", "Server"), ("acer-laptop", "Acer"), ("pc", "PC")]
 RANGES = {"24h": 24, "7d": 168}
 
@@ -35,7 +37,8 @@ STATE_WORDS = {"bad": "Needs a look", "warn": "Watch", "ok": "Fine", "running": 
 # Where an alert sends you: by the start of its rule's name (alert-rules.yml); a machine's alerts go to its page.
 ALERT_PAGES = [(("Job", "BoardGameFinder", "CatMonitor", "Backups", "BgTasteMatch"), "/jobs"),
                (("GPU",), "/acer#gpu"),
-               (("Pod", "Container", "Deployment", "DaemonSet"), "/#gets-in")]
+               (("PodPending",), "/apps#gets-in"),
+               (("Pod", "Container", "Deployment", "DaemonSet"), "/apps")]
 NODE_PAGES = {"NodeHot": "#temps", "NodeVeryHot": "#temps", "NodeDisk": "#disks", "NodeFilesystem": "#disks",
               "NodeMemory": "#memory", "NodeOOM": "#memory", "NodeCPU": "#cpu", "NodeLoad": "#struggling"}
 
@@ -140,6 +143,16 @@ def acer_page(request: Request, range: str = "24h"):
 def pc_page(request: Request):
     r, w = overview.now.get(), jobruns.week.get()
     return page(request, "status/pc.html", active="/server", reading=r, d=r.data, w=w.data, **common(request))
+
+
+@app.get("/apps", response_class=HTMLResponse)
+def apps_page(request: Request, range: str = "24h"):
+    range = range if range in apps.RANGES else "24h"
+    r, mem, ov = apps.read.get(range), memory.now.get(), overview.now.get()
+    a = apps.build(r.data, mem.data, overview.load_catalog(), range_key=range) if r.data else None
+    return page(request, "status/apps.html", reading=r, a=a, d=ov.data, range=range, RANGES=apps.RANGES,
+                groups=a["groups"] if a else [], with_search=True, x_labels=axis(apps.RANGES[range][0]),
+                **{**common(request), "MACHINES": MACHINES[:2]})
 
 
 @app.get("/memory")

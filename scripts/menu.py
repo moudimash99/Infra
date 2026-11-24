@@ -2,9 +2,11 @@
 """The Homepage menu (lab.machaka.net), made from services.yaml: one tile per entry, grouped by its system.
 
 Writes k8s/tools/homepage-menu.yaml: ConfigMap tools/homepage-menu with Homepage's services.yaml and settings.yaml
-(the rest of Homepage's config stays in k8s/tools/homepage.yaml), and catalog.json for the lab's overview page
+(the rest of Homepage's config stays in k8s/tools/homepage.yaml), and catalog.json for the homelab tool
 (lab.machaka.net/machines): which menu group (project) each service and each of its Kubernetes objects, Docker
-containers and PC tasks belongs to, so the page can filter by project. After a change to services.yaml:
+containers and PC tasks belongs to, so the pages can filter by project; what each app is; and the ranks
+(k8s/cluster/priority.yaml), so the Apps page can say who may push whom out. After a change to services.yaml or
+priority.yaml:
   python scripts/menu.py            (--check also asks the cluster that every tile's pods exist)
   kubectl apply -f k8s/tools/homepage-menu.yaml && kubectl -n tools rollout restart deploy/homepage
 
@@ -127,12 +129,99 @@ def build(services):
     return menu, {**SETTINGS, "layout": layout}
 
 
+# k3s's own ranks (not in priority.yaml): (name, value, may push lower ranks out, what it is for).
+SYSTEM_RANKS = [("system-node-critical", 2000001000, True, "k3s's own plumbing."),
+                ("system-cluster-critical", 2000000000, True, "Cluster essentials: names, the web front door, GitOps.")]
+
+# What an app is, for apps whose services.yaml entry covers several pods or that have none (k3s's parts, monitoring
+# agents). The rest come from the first sentence of the `what` of the entry whose k8s probe names the app. (Grafana's
+# make.py keeps the same list for its "Ranks and memory" dashboard.)
+APP_NOTES = {
+    "local-path-provisioner": "k3s: makes the disk folders pods keep data in",
+    "metrics-server": "k3s: live CPU and memory for kubectl top",
+    "svclb-traefik": "k3s: passes ports 80/443 on each machine to Traefik",
+    "coredns": "k3s: name lookups inside the cluster",
+    "traefik": "Web front door: sends each site's traffic to its pod",
+    "source-controller": "Flux: pulls the Infra repo from GitHub",
+    "kustomize-controller": "Flux: applies k8s/ from main every 10 min",
+    "frigate": "Cat camera recorder: records and detects",
+    "lab": "Taste Match, Deals and Cat cam sites, the homelab tool, and the login bridge",
+    "homepage": "The lab.machaka.net menu",
+    "prometheus": "Collects every metric every 30 s, keeps 15 days",
+    "grafana": "Grafana's dashboards",
+    "alertmanager": "Emails Prometheus's alerts",
+    "kube-state-metrics": "Numbers about pods, jobs and restarts for Prometheus",
+    "beszel": "Simple per-machine monitor (beszel.machaka.net)",
+    "beszel-agent": "Beszel's collector on the server",
+    "beszel-agent-worker": "Beszel's collector on the Acer",
+    "node-exporter": "Machine CPU, memory, disks and temperatures",
+    "process-exporter": "Memory per program outside containers",
+    "nvidia-gpu-exporter": "The GTX 1050's load, memory and heat",
+    "gpu-procs": "Which program is on the GPU",
+    "fm-controller": "Free Motion's brain: daemon, scan, score loops, hub agent",
+    "fm-browser-acer-0": "Free Motion browser, lane 1",
+    "fm-browser-acer-1": "Free Motion browser, lane 2",
+    "fm-webllm": "Free Motion's ChatGPT/Gemini website writer, started on demand",
+    "fm-webllm-waker": "Starts and stops fm-webllm",
+    "freemotion-hub": "Free Motion's dashboard",
+    "llm-gateway": "fm-llm: one door to the AI models for every project",
+    "mail-classifier": "Trained model that decides what the Gmail archiver archives",
+    "mail-classifier-waker": "Starts and stops the mail classifier",
+    "email-remove": "Gmail archiver, every 3 minutes",
+    "bg-taste-match-gpu": "Whisper captions on the GPU, hourly, with a heat guard",
+    "bg-taste-match-llm": "Rates the reviewers with AI, hourly at night",
+    "bg-taste-match-fetch": "Downloads the reviewers' videos' audio, every 2 hours",
+    "bg-taste-match-shell": "Idle helper for running bg-taste-match stages by hand",
+    "backup-acer": "Nightly backup of the Acer",
+    "backup-server": "Nightly backup of the server",
+    "unmatched-restart": "Restarts the Unmatched site on Mondays",
+    "cat-flash": "The cat's flash-of-the-day video, 00:20 and 19:20",
+    "cat-monitor": "Nightly GPU cat detection",
+    "boardgamefinder": "Nightly board game deals",
+    "boardgamefinder-fetch": "Loads Okkazeo pages through the day",
+    "cat-weight": "Cat weight site",
+    "unmatched": "Unmatched matcher site",
+    "boardxplorer": "Board game explorer site",
+    "website": "Your personal website",
+    "spirit-island": "Spirit Island site",
+    "registry": "Local image store (not used yet)",
+    "portainer": "Web page for Docker and Kubernetes",
+    "uptime-kuma": "Up/down checks of the sites",
+}
+
+
+def ranks():
+    """The ranks, highest first: [{name, value, pushes (may push lower ranks out to start), default, what}], from
+    k8s/cluster/priority.yaml plus k3s's own two."""
+    with open(os.path.join(INFRA, "k8s", "cluster", "priority.yaml"), encoding="utf-8") as f:
+        docs = [d for d in yaml.safe_load_all(f) if d and d.get("kind") == "PriorityClass"]
+    out = [{"name": n, "value": v, "pushes": p, "default": False, "what": w} for n, v, p, w in SYSTEM_RANKS]
+    out += [{"name": d["metadata"]["name"], "value": int(d["value"]),
+             "pushes": d.get("preemptionPolicy", "PreemptLowerPriority") != "Never",
+             "default": bool(d.get("globalDefault")), "what": str(d.get("description", "")).strip()} for d in docs]
+    return sorted(out, key=lambda r: -r["value"])
+
+
+def notes(services):
+    """{app: what it is}: APP_NOTES, else the first sentence of the entry whose k8s probe names the app."""
+    out = {}
+    for svc in services:
+        what = first_sentence(svc.get("what") or "", 140)
+        for probe in svc.get("probes") or []:
+            if "k8s" in probe and what:
+                out.setdefault(str(probe["k8s"]).split("/")[-1], what)
+    out.update(APP_NOTES)
+    return dict(sorted(out.items()))
+
+
 def catalog(services):
     """{"groups": [menu headings in order], "services": {name: {group, title, what}}, "objects": {probe: {service,
-    max_age_h}}}, probes as services.yaml writes them: "apps/CronJob/cat-flash", "docker:cadvisor", "pc_task:\\lab-report".
-    max_age_h is the probe's own limit (a job is late past it, the same rule as status.py)."""
+    max_age_h}}, "notes": {app: what it is}, "ranks": [...]}, probes as services.yaml writes them:
+    "apps/CronJob/cat-flash", "docker:cadvisor", "pc_task:\\lab-report". max_age_h is the probe's own limit (a job is
+    late past it, the same rule as status.py)."""
     group_of = {system: heading for heading, systems, _ in GROUPS for system in systems}
-    out = {"groups": [heading for heading, _, _ in GROUPS], "services": {}, "objects": {}}
+    out = {"groups": [heading for heading, _, _ in GROUPS], "services": {}, "objects": {}, "notes": notes(services),
+           "ranks": ranks()}
     for svc in services:
         group = group_of.get(svc.get("system"), "Other")
         out["services"][svc["name"]] = {"group": group, "title": (svc.get("menu") or {}).get("title") or svc["name"],

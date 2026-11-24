@@ -45,7 +45,7 @@
 
 <div class="range-bar">
   <h2>Runs over time</h2>
-  <div class="seg sm">{% for key in RANGES %}<a href="?range={{ key }}" class="{{ 'on' if key == range }}" data-keep-filters>{{ "Last 24 hours" if key == "24h" else "Last 7 days" }}</a>{% endfor %}</div>
+  <span class="muted xs">{{ "the last 24 hours" if range == "24h" else "the last 7 days" }}; switch at the top</span>
 </div>
 <div class="qgrid">
   <section class="qcard">

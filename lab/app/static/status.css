@@ -170,3 +170,24 @@
 .s8.mark, .s8.wash, .s8.dot { fill: var(--s8); } .s8.line { stroke: var(--s8); } .key.s8 { background: var(--s8); }
 .all-links { margin: 8px 0 0; font-size: var(--fs-sm); color: var(--text-3); } .all-links a { font-weight: 600; }
 .mt-head a { color: inherit; }
+
+/* the Apps page: room per machine, the apps' 24-hour strips, the ranks */
+.room[hidden] { display: none; }
+.room h3 { font-size: var(--fs-base); color: var(--text); margin: 2px 0 8px; } .room h3 .muted { font-weight: 500; font-size: var(--fs-sm); }
+.roomfacts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0 0 6px; font-size: var(--fs-sm); }
+.roomfacts dt { font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .05em; color: var(--text-3); }
+.roomfacts dd { margin: 2px 0 0; color: var(--text-2); } .roomfacts dd b { font-size: 1.1rem; color: var(--text); margin-right: 4px; }
+.roomfacts .meter { display: block; height: 5px; margin-top: 5px; } .meter.warn > span { background: var(--warn); }
+.banner.warn { background: var(--warn-soft); color: var(--warn); }
+.applist .it { align-items: center; } .applist .it .sdot { margin-top: 0; }
+.applist .what { display: block; font-size: var(--fs-xs); color: var(--text-3); margin-top: 1px; }
+.hours { display: inline-flex; gap: 2px; flex: none; }
+.h { width: 6px; height: 16px; border-radius: 2px; background: var(--bg-2); display: inline-block; }
+.h.running { background: var(--ok); opacity: .7; } .h.waiting { background: var(--warn); } .h.failed { background: var(--bad); }
+.legend-hours .h { height: 10px; vertical-align: -1px; margin: 0 3px 0 8px; } .legend-hours .h:first-child { margin-left: 0; }
+.applist .it .tags { width: 190px; max-width: none; flex: none; justify-content: flex-start; }
+.rk { width: 10px; height: 10px; border-radius: 3px; flex: none; margin-top: 5px; }
+.rk.push { background: var(--accent); } .rk.wait { background: var(--line-2); }
+@media (max-width: 899px) { .applist .it .tags { display: none; } }
+@media (max-width: 639px) { .applist .it { flex-wrap: wrap; } .applist .it .txt { flex-basis: calc(100% - 20px); }
+  .applist .hours { margin-left: 19px; } .roomfacts { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

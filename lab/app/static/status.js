@@ -69,6 +69,7 @@
       card.hidden = state.only && bad === 0 && !card.hasAttribute("data-keep");
       if (card.id === "wrong") total = bad;
     });
+    document.querySelectorAll(".room[data-m]").forEach((el) => { el.hidden = !!state.m && el.dataset.m !== state.m; });
     const cards = [...document.querySelectorAll("[data-card]")];
     let calm = document.getElementById("all-calm");
     if (state.only && cards.length && cards.every((c) => c.hidden)) {
@@ -115,6 +116,28 @@
   if (ctl("p")) ctl("p").addEventListener("change", (e) => { state.p = e.target.value; apply(); });
   if (ctl("q")) ctl("q").addEventListener("input", (e) => { state.q = e.target.value.trim(); apply(); });
   if (ctl("only")) ctl("only").addEventListener("change", (e) => { state.only = e.target.checked; apply(); });
+  // Sort buttons: data-sort-for names a list; each item carries data-k-<key> ("" = the page's own order).
+  document.querySelectorAll("[data-sort-for]").forEach((seg) => {
+    const list = document.getElementById(seg.dataset.sortFor);
+    if (!list) return;
+    [...list.children].forEach((it, i) => { it.dataset.i = i; });
+    seg.addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-sort]");
+      if (!b) return;
+      seg.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+      const key = b.dataset.sort;
+      const val = (it) => (key ? it.dataset["k" + key[0].toUpperCase() + key.slice(1)] : it.dataset.i);
+      const items = [...list.children];
+      items.sort((x, y) => {
+        if (!key) return x.dataset.i - y.dataset.i;
+        const a = val(x), c = val(y);
+        const na = parseFloat(a), nc = parseFloat(c);
+        return isNaN(na) || isNaN(nc) ? String(a).localeCompare(String(c)) : nc - na;   // numbers biggest first
+      });
+      items.forEach((it) => list.appendChild(it));
+      apply();
+    });
+  });
   document.querySelectorAll("[data-tabs]").forEach((tabs) => tabs.addEventListener("click", (e) => {
     const b = e.target.closest("button[data-tab]");
     if (!b) return;
