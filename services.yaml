@@ -185,7 +185,7 @@
     ping: http://unmatched.apps.svc
 
 - name: frigate
-  what: Frigate NVR for the living-room camera (recordings, detection on the Intel GPU).
+  what: Frigate NVR for the living-room camera (recordings; detection on the Intel GPU with the cats' own model, Simba/Nala).
   kind: web-app
   system: cats
   lifecycle: production
@@ -211,6 +211,8 @@
     - "frigate.yaml's comment says the NVIDIA driver is blacklisted on the Acer; the README says driver 580 runs compute-only since 2026-11-10."
   notes:
     - "Docker fallback on the server: container `frigate` (ghcr.io/blakeblackshear/frigate:stable, ~/frigate), Exited (143) 2 weeks ago, restart unless-stopped. Never start it while the pod runs."
+    - "Since 2026-11-25 the detector runs the cat model v19 (YOLO11s, labels Simba and Nala; Cat-Camera#10): /srv/apps/frigate/config/model/cat_v19_640.onnx + labels_cat.txt, model_type yolo-generic, 640x640, ~60 ms on the HD 630 (was the stock ssdlite_mobilenet_v2, label cat, ~10 ms). yolo-generic drops every score under 0.4 in its own code. Rollback: config.yml.bak-2026-11-25-before-v19 in the config folder. Events before that day are label cat."
+    - "Restart it with `kubectl -n apps delete pod -l app=frigate`, not `rollout restart`: Flux undoes the restart stamp and restarts it a second time (seen 2026-11-25)."
     - "~/frigate/storage (old recordings) is still on the server; frigate-rsyncd.service there is transient and not running. Whether the Acer's /var/lib/frigate/copy-done exists was not checked (no SSH to the Acer)."
   menu:
     title: Frigate
@@ -640,6 +642,7 @@
     - "2026-11-24: the lab (catcam page job cards, the summary's monitor line) still asks for CronJob cat-monitor, which no longer exists; it shows as not found / no run. To tidy in the lab's code."
   notes:
     - "The server's ~/Cat-Camera clone is on main (its commit '19' of 2026-02-07 merged on 2026-11-22); its data folders cat/, benchmark_results/ and output/ (~9 GB) are gitignored."
+    - "2026-11-25: cat-flash uses the cat model v19 (CATCAM_MODEL=/app/code/model/cat_v19.pt, copied next to the code); the image still holds v17. Next: take the moments from Frigate's Simba/Nala events instead of its own model (needs a full day of named events to test)."
     - "cat-flash rank batch-make-room since 2026-11-20: it may stop the mail classifier for its ~4 minutes. The 2026-11-20 19:20 run started at 20:13 when the classifier restarted and finished at 20:14."
     - "cat-flash last good run 2026-11-11 19:24; runs of 2026-11-19 00:20, 19:20 and 2026-11-20 00:20 failed with DeadlineExceeded (1 h)."
     - "cat-monitor last good run 2026-11-10 04:27; 11-11 and 11-12 hit the 3 h limit, then it was suspended. Removed 2026-11-24 (user): cat detection moves into the live Frigate with the Simba/Nala model (Cat-Camera#7, #10); its CronJob and the CatMonitorMissed alert are gone, its reports stay in /srv/apps/cat-monitor."

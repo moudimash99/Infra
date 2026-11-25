@@ -40,6 +40,8 @@ spec:
                 - { name: FRIGATE_RECORDINGS, value: /recordings }
                 - { name: FRIGATE_URL, value: "http://192.168.1.93:5000" }
                 - { name: YOLO_CONFIG_DIR, value: /tmp }
+                # the cat model v19 (Simba/Nala, Cat-Camera#10), copied next to the code on 2026-11-25; the image still holds v17
+                - { name: CATCAM_MODEL, value: /app/code/model/cat_v19.pt }
                 - { name: OMP_NUM_THREADS, value: "3" }    # leave a thread for Frigate
               volumeMounts:
                 - { name: data, mountPath: /data }
