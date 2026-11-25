@@ -51,7 +51,7 @@
 
 <section class="section">
   {% set ev = events.data or [] %}
-  {{ section_head("Frigate's cat detections", count=ev | length if events.ok else None, sub="Frigate's general detector misses many visits and now and then takes a cushion for a cat; the flash uses the cats' own model instead. The last 14 days.") }}
+  {{ section_head("Frigate's cat detections", count=ev | length if events.ok else None, sub="Since 25 Nov Frigate runs the cats' own model (v19) and names the cat; earlier detections came from its general detector (no name). The last 14 days.") }}
   {{ unreadable(events, "Frigate's detections") }}
   {% if ev %}
   <div class="tiles">
@@ -59,7 +59,7 @@
     <a class="tile" href="{{ R }}/media/event/{{ e.id }}/clip.mp4">
       <div class="media wide cover"><img src="{{ R }}/media/event/{{ e.id }}/{{ 'snapshot' if e.snapshot else 'thumbnail' }}.jpg" alt="" loading="lazy"><span class="play">{{ icon("play") }}</span>
         {% if e.length %}<span class="on-img b r badge dark">{{ e.length | span }}</span>{% endif %}</div>
-      <div class="body"><div class="title">{{ e.start | ago }}</div><div class="meta">{{ e.where }}</div></div>
+      <div class="body"><div class="title">{{ e.start | ago }}</div><div class="meta">{% if e.name %}{{ e.name }} · {% endif %}{{ e.where }}</div></div>
     </a>
     {% endfor %}
   </div>

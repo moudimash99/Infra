@@ -114,9 +114,10 @@ def cats_words(cats):
 
 @source("cats.events", ttl=120)
 def events(days=14):
-    """Frigate's cat events, newest first."""
+    """Frigate's cat events, newest first: label "cat" (the stock detector, until 2026-11-25) and "Simba"/"Nala"
+    (the cats' own model v19 since then; "name" is the cat)."""
     after = int(time.time() - days * 86400)
-    r = _http.get(f"{FRIGATE}/api/events", params={"camera": FRIGATE_CAMERA, "label": "cat", "after": after,
+    r = _http.get(f"{FRIGATE}/api/events", params={"camera": FRIGATE_CAMERA, "labels": "cat,Simba,Nala", "after": after,
                                                     "limit": 2000})
     r.raise_for_status()
     out = []
@@ -127,7 +128,8 @@ def events(days=14):
                     "where": "At the feeder" if "feeder_zone" in zones else "In the room",
                     "length": max(0, (e.get("end_time") or e["start_time"]) - e["start_time"]),
                     "score": data.get("top_score") or data.get("score"), "clip": e.get("has_clip"),
-                    "snapshot": e.get("has_snapshot"), "sub_label": e.get("sub_label")})
+                    "snapshot": e.get("has_snapshot"), "sub_label": e.get("sub_label"),
+                    "name": e["label"] if e.get("label") in ("Simba", "Nala") else None})
     return sorted(out, key=lambda e: e["start"], reverse=True)
 
 
