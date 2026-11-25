@@ -21,7 +21,8 @@
     <div class="grid c2">
       {% for c in f.cats %}
       <div class="kpi"><div class="label"><span class="catpair">{{ catpair([c]) }}</span>{{ c }}</div>
-        <div class="value">{{ f.per_cat[c] }}<small>moment{{ "s" if f.per_cat[c] != 1 }}</small></div></div>
+        <div class="value">{{ f.per_cat[c] }}<small>moment{{ "s" if f.per_cat[c] != 1 }}</small></div>
+        {% set fed = (f.feeding or {}).get(c) %}{% if fed %}<div class="label">{{ icon("utensils") }}{{ "%.1f" | format(fed.seconds / 60) }} min at the bowl · {{ fed.visits | length }} visit{{ "s" if fed.visits | length != 1 }}</div>{% endif %}</div>
       {% endfor %}
     </div>
     {% endif %}

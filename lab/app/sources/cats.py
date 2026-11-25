@@ -5,7 +5,8 @@ visits, so the site also offers frames and short clips from the recordings at an
 middle of each monitor run's window: the owner can see what the monitor's model was looking at.
 
 The flash of the day is CATS_DIR/flash/<day>.mp4 with its poster (.jpg) and its moments (.json), built by the
-cat-flash CronJob (Cat-Camera/daily_flash.py): at 19:20 the day so far, at 00:20 the whole of yesterday.
+cat-flash CronJob (Cat-Camera/daily_flash.py): at 19:20 the day so far, at 00:20 the whole of yesterday. Since
+2026-11-25 the .json also has "feeding": per cat, seconds at the bowl and the visits (found by the feeder's tag).
 """
 import datetime as dt
 import glob

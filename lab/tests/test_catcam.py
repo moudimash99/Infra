@@ -10,12 +10,13 @@ from app.config import TZ
 from app.sources import Reading, cats
 
 
-def _write_flash(folder, day, items, partial=False, video=True):
+def _write_flash(folder, day, items, partial=False, video=True, feeding=None):
     folder.mkdir(exist_ok=True)
-    (folder / f"{day}.json").write_text(json.dumps({"day": day, "partial": partial, "title_seconds": 1.8,
-                                                    "clip_seconds": 4.0, "built": time.time() - 600,
-                                                    "moments": len(items), "seconds": 1.8 + 4 * len(items),
-                                                    "items": items}))
+    meta = {"day": day, "partial": partial, "title_seconds": 1.8, "clip_seconds": 4.0, "built": time.time() - 600,
+            "moments": len(items), "seconds": 1.8 + 4 * len(items), "items": items}
+    if feeding:
+        meta["feeding"] = feeding
+    (folder / f"{day}.json").write_text(json.dumps(meta))
     if video:
         (folder / f"{day}.mp4").write_bytes(b"\0")
         (folder / f"{day}.jpg").write_bytes(b"\0")
@@ -29,7 +30,8 @@ def flash_dir(tmp_path, monkeypatch):
     t0 = dt.datetime(today.year, today.month, today.day, 7, 5, tzinfo=TZ).timestamp()
     _write_flash(folder, today.isoformat(), [
         {"start": t0, "end": t0 + 90, "at": t0 + 10, "cats": ["Simba", "Nala"], "what": "moving"},
-        {"start": t0 + 600, "end": t0 + 610, "cats": ["Simba"], "what": "eating"}], partial=True)
+        {"start": t0 + 600, "end": t0 + 610, "cats": ["Simba"], "what": "eating"}], partial=True,
+        feeding={"Simba": {"seconds": 150, "visits": [[t0 + 600, t0 + 750]]}, "Nala": {"seconds": 0, "visits": []}})
     _write_flash(folder, (today - dt.timedelta(days=1)).isoformat(), [{"start": t0 - 86400, "cats": ["Nala"]}])
     _write_flash(folder, (today - dt.timedelta(days=2)).isoformat(), [], video=False)      # no video: not listed
     return folder, today
@@ -114,7 +116,8 @@ def test_pages(offline, flash_dir):
     _, today = flash_dir
     pages = {"/": ["Simba and Nala", "Today so far", "Right now", "data-live", "5.99"],
              "/flashes": ["Flash of the day", "Today so far", "Yesterday"],
-             f"/flashes/{today.isoformat()}": ["Moments", "07:05", 'data-seek="1.8"', "Nala and Simba"],
+             f"/flashes/{today.isoformat()}": ["Moments", "07:05", 'data-seek="1.8"', "Nala and Simba",
+                                               "2.5 min at the bowl · 1 visit"],
              "/camera": ["Look back", "Hour by hour", "At the feeder", "An hour ago"],
              "/weight": ["Add a weigh-in", "Weigh-ins", "+0.64 kg"],
              "/status": ["Feeding monitor", "Paused", "Every day at 00:20 and 19:20", "in view all along", "Online"]}
