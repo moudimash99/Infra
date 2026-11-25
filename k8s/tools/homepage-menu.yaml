@@ -422,7 +422,7 @@ data:
       "frigate": {
        "group": "Cats",
        "title": "Frigate",
-       "what": "Frigate NVR for the living-room camera (recordings, detection on the Intel GPU)",
+       "what": "Frigate NVR for the living-room camera (recordings; detection on the Intel GPU with the cats' own model, Simba/Nala)",
        "url": null
       },
       "freemotion-hub": {
