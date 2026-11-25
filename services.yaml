@@ -632,7 +632,7 @@
     repo: C:\Users\Moudimash99\Documents\GitHub\Cat-Camera (github.com/moudimash99/Cat-Camera)
     branch: main
     version_check: "none (the image holds only Python, PyTorch and the model; compare the Acer's /srv/apps/cat-monitor/code with the PC's files)"
-    deployed: "main 0ab79e4 (2026-11-25): daily_flash.py on the Acer's /srv/apps/cat-monitor/code matches the PC's (md5 checked), copied by hand; the model version kept as daily_flash.py.bak-2026-11-25-model. automated_feeder_monitor.py and feeding_pipeline.py there are from 05a2324 and no longer run (cat-monitor removed)."
+    deployed: "main 6f8700d (2026-11-25): daily_flash.py on the Acer's /srv/apps/cat-monitor/code matches the PC's (md5 checked), copied by hand; the model version kept as daily_flash.py.bak-2026-11-25-model. automated_feeder_monitor.py and feeding_pipeline.py there are from 05a2324 and no longer run (cat-monitor removed)."
   deploy: "Scripts: copy to /srv/apps/cat-monitor/code on the Acer (no script found). Image: build Dockerfile.monitor on the server, import on the Acer, set the tag, apply."
   check: >-
     cat-flash: good run within 38 h (longest gap 19 h x 2).
@@ -642,7 +642,7 @@
     - "2026-11-24: the lab (catcam page job cards, the summary's monitor line) still asks for CronJob cat-monitor, which no longer exists; it shows as not found / no run. To tidy in the lab's code."
   notes:
     - "The server's ~/Cat-Camera clone is on main (its commit '19' of 2026-02-07 merged on 2026-11-22); its data folders cat/, benchmark_results/ and output/ (~9 GB) are gitignored."
-    - "Since 2026-11-25 cat-flash runs no model: it takes the cats from Frigate's Simba/Nala sightings (Cat-Camera 0ab79e4, copied to the Acer; the model version kept as daily_flash.py.bak-2026-11-25-model). Frigate saves every cat sighting for it, not only feeder ones (config changed the same day). Its 1Gi request still fits the old model run: lower it once a run's real peak is measured."
+    - "Since 2026-11-25 cat-flash runs no model: it takes the cats from Frigate's Simba/Nala sightings (Cat-Camera 0ab79e4, copied to the Acer; the model version kept as daily_flash.py.bak-2026-11-25-model). Frigate saves every cat sighting for it, not only feeder ones (config changed the same day). It also measures feeding time per cat (Cat-Camera 6f8700d): the feeder's ArUco tag found in the recordings, since the camera turns; the lab's flash page shows minutes at the bowl and visits. Its 1Gi request still fits the old model run: lower it once a run's real peak is measured."
     - "cat-flash rank batch-make-room since 2026-11-20: it may stop the mail classifier for its ~4 minutes. The 2026-11-20 19:20 run started at 20:13 when the classifier restarted and finished at 20:14."
     - "cat-flash last good run 2026-11-11 19:24; runs of 2026-11-19 00:20, 19:20 and 2026-11-20 00:20 failed with DeadlineExceeded (1 h)."
     - "cat-monitor last good run 2026-11-10 04:27; 11-11 and 11-12 hit the 3 h limit, then it was suspended. Removed 2026-11-24 (user): cat detection moves into the live Frigate with the Simba/Nala model (Cat-Camera#7, #10); its CronJob and the CatMonitorMissed alert are gone, its reports stay in /srv/apps/cat-monitor."
