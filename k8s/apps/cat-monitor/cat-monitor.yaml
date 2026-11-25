@@ -1,9 +1,9 @@
 # The nightly feeding monitor (CronJob cat-monitor) was removed on 2026-11-24 (user): cat detection moves into the live
 # Frigate with the Simba/Nala model (Cat-Camera#7, #10). Its reports stay in /srv/apps/cat-monitor.
-# Flash of the day (catcam.machaka.net): the cats' model looks at a few hundred frames of the day's recordings and
-# daily_flash.py stitches the moments with Simba or Nala into a short captioned video in /srv/apps/cat-monitor/flash.
-# 19:20 builds today so far, 00:20 the whole of yesterday. CPU only (a few hundred frames), so it doesn't wait for or
-# heat the GPU. Code from the same hostPath as the monitor (copied from the Cat-Camera repo).
+# Flash of the day (catcam.machaka.net): daily_flash.py takes the day's Simba/Nala sightings from Frigate (its detector
+# runs the cats' model since 2026-11-25) and stitches those moments from the recordings into a short captioned video
+# in /srv/apps/cat-monitor/flash. No model of its own since 2026-11-25. 19:20 builds today so far, 00:20 the whole of
+# yesterday. CPU only. Code from the hostPath /srv/apps/cat-monitor/code (copied from the Cat-Camera repo).
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -40,8 +40,6 @@ spec:
                 - { name: FRIGATE_RECORDINGS, value: /recordings }
                 - { name: FRIGATE_URL, value: "http://192.168.1.93:5000" }
                 - { name: YOLO_CONFIG_DIR, value: /tmp }
-                # the cat model v19 (Simba/Nala, Cat-Camera#10), copied next to the code on 2026-11-25; the image still holds v17
-                - { name: CATCAM_MODEL, value: /app/code/model/cat_v19.pt }
                 - { name: OMP_NUM_THREADS, value: "3" }    # leave a thread for Frigate
               volumeMounts:
                 - { name: data, mountPath: /data }
