@@ -34,7 +34,7 @@ spec:
       terminationGracePeriodSeconds: 60
       containers:
         - name: controller
-          image: docker.io/library/fm:2026-11-10a
+          image: docker.io/library/fm:2026-11-26a   # Node Playwright's Chromium 1248 for the live check (Infra 6de552c)
           imagePullPolicy: Never
           args: ["controller"]
           env:
