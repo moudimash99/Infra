@@ -13,6 +13,7 @@ Details are in collapsed rows. Each machine keeps its own colour everywhere (ser
   pc     "PC jobs"                       the Windows PC's scheduled jobs, from its reports to the lab
   scheduling "Who gets in"           each app on a machine: running, waiting for room, failed; booked vs used memory
   ranks  "Ranks and memory"           every app: rank, what the rank may do, what it is, booked, real memory over 24 h
+  fm     "Free Motion"                is it applying? sent vs a usual day, failures, live check, pool, its alerts
 """
 import json
 import os
@@ -797,9 +798,74 @@ ranks = dashboard("ranks", "Ranks and memory", time="now-24h", refresh="5m",
               [text_map("What it is", NOTES)], w=24, h=5, no_value="None")]),
 ])
 
+# ---------------------------------------------------------------------------------------------------------------
+# fm: Free Motion (made 2026-11-26, after its live check failed unseen for 14 days). From fm-metrics, which reads its
+# files; its alerts are the group free-motion in alert-rules.yml. Tiles answer "is it applying, and is anything
+# off?"; the charts show the same numbers over time, each against the line its alert uses.
+FM_SENT_24H = 'sum without (outcome) (fm_submissions_24h{outcome="submitted"})'
+FM_FAIL = 'fm_submissions_24h{outcome=~"errored|validation-failed|captcha|blocked-waf"}'
+FM_FIN = 'fm_submissions_24h{outcome=~"submitted|already-applied|errored|validation-failed|captcha|blocked-waf"}'
+FM_FAIL_SHARE = f"sum({FM_FAIL}) / sum({FM_FIN})"
+fm = dashboard("free-motion", "Free Motion", time="now-7d", refresh="5m",
+               desc="Is Free Motion applying, and is anything off? From fm-metrics (its files on the server).", panels=[
+    stat("Free Motion alerts", [('count(ALERTS{alertstate="firing", alertname=~"FreeMotion.*"}) or vector(0)', "")],
+         w=6, h=4, text="value", thr=steps(GREEN, 1, RED), mappings=[{"type": "value", "options": {"0": {"text": "None"}}}],
+         desc="Its alerts firing now (they also email you and show in the lab's bell). Listed below."),
+    stat("Sent today", [("fm_submitted_today", "")], w=6, h=4, text="value", color_mode="value", decimals=0,
+         desc="Applications sent since midnight (Paris)."),
+    stat("Sent in 24 h vs a usual day", [(f"{FM_SENT_24H} / fm_baseline_submitted_daily", "")], w=6, h=4,
+         unit="percentunit", decimals=0, text="value", thr=steps(RED, 0.3, ORANGE, 0.6, GREEN),
+         desc="The last 24 h against the median of the last 14 normal days (the 11-12..26 outage left out). "
+              "Under 30% for 6 h, with auto-apply on and a driver free, is the alert FreeMotionFewApplications."),
+    stat("Tries failing, 24 h", [(FM_FAIL_SHARE, "")], w=6, h=4, unit="percentunit", decimals=0, text="value",
+         thr=steps(GREEN, 0.3, ORANGE, 0.4, RED),
+         desc="Errored, failed validation, captcha or firewall, of the finished tries. Usually about 20%."),
+    stat("Live check crashes, 24 h", [("fm_live_check_crashes_24h", "")], w=6, h=4, text="value", decimals=0,
+         thr=steps(GREEN, 1, ORANGE, 21, RED), mappings=[{"type": "value", "options": {"0": {"text": "None"}}}],
+         desc="Postings whose 'still open?' check failed before a page loaded. 2,820 on 2026-11-26 before the fix."),
+    stat("Jobs in the last list", [("fm_pool_list", "")], w=6, h=4, text="value", decimals=0,
+         thr=steps(RED, 20, GREEN), desc="The last pool build (a round, or the 06:00 scan). Rounds take up to 100."),
+    stat("Drivers free to apply", [("fm_drivers_allowed", "free"), ("fm_drivers", "in all")], w=6, h=4, decimals=0,
+         color_mode="value", text="value_and_name",
+         desc="Not off and not paused by their rule (codex kept for your work, weekly limits...)."),
+    stat("Dashboard agent's last report", [("time() - fm_hub_agent_last_report_timestamp_seconds", "")], w=6, h=4,
+         unit="s", decimals=0, text="value", color_mode="value", thr=steps(GREEN, 27000, RED),
+         desc="It recycles and reports every 6 h; over 7.5 h means it hung (FreeMotionHubAgentSilent)."),
+    table("Free Motion alerts firing", [target('ALERTS{alertstate="firing", alertname=~"FreeMotion.*"}', instant=True,
+                                               fmt="table")],
+          [{"id": "organize", "options": {"indexByName": {"alertname": 0, "severity": 1},
+                                          "renameByName": {"alertname": "Alert", "severity": "Severity"},
+                                          "excludeByName": {"Time": True, "Value": True, "__name__": True,
+                                                            "alertstate": True, "cluster": True, "job": True,
+                                                            "instance": True, "namespace": True, "pod": True,
+                                                            "app": True}}}],
+          [field("Severity", [{"id": "custom.cellOptions", "value": {"type": "color-text"}},
+                              {"id": "mappings", "value": [{"type": "value", "options": {
+                                  "critical": {"color": RED, "index": 0}, "warning": {"color": ORANGE, "index": 1}}}]}])],
+          w=24, h=4, no_value="Nothing firing"),
+    series("Applications per hour", [(f'sum by (outcome) (increase(fm_submissions_total{{outcome=~"submitted|already-applied|errored|validation-failed|captcha|blocked-waf"}}[1h]))', "{{outcome}}")],
+           w=12, h=8, stack=True, desc="Finished tries each hour by outcome."),
+    series("Sent in 24 h, against a usual day", [(FM_SENT_24H, "sent in the last 24 h"),
+                                                  ("fm_baseline_submitted_daily", "usual day (median of 14)"),
+                                                  ("0.3 * fm_baseline_submitted_daily", "alert line (30%)")],
+           w=12, h=8, desc="The alert fires when the first line stays under the third for 6 h."),
+    series("Jobs per list: kept, skipped, taken", [("fm_pool_kept", "kept after the rules"),
+                                                    ("fm_pool_live_skipped", "skipped as dead or unclear"),
+                                                    ("fm_pool_list", "in the list")],
+           w=12, h=8, desc="Each pool build. A list under 20 while hundreds are kept and skipped, for 2 h, is "
+                           "FreeMotionPoolStarved (the 2026-11-26 outage: 2,816 skipped, 0 taken)."),
+    series("Live checks in 24 h", [("fm_live_checks_24h", "{{result}}"), ("fm_live_check_crashes_24h", "crashed")],
+           w=12, h=8, desc="Results of the 'still open?' check. Crashed: failed before a page loaded."),
+    series("Share of tries failing, 24 h", [(FM_FAIL_SHARE, "failing"), ("fm_baseline_failed_share", "usual"),
+                                             ("0.4", "alert line (40%, and twice the usual)")],
+           w=12, h=8, unit="percentunit", max_=1),
+    series("Daemon jobs failing, 24 h", [("fm_daemon_job_failures_24h", "{{job}}")], w=12, h=8,
+           desc="Runs that ended with an error; 3 in 24 h is FreeMotionJobFailing."),
+])
+
 if __name__ == "__main__":
     for name, d in (("home", home), ("usage", usage), ("jobs", jobs), ("pc", pc), ("scheduling", scheduling),
-                    ("ranks", ranks)):
+                    ("ranks", ranks), ("fm", fm)):
         with open(os.path.join(HERE, f"{name}.json"), "w", encoding="utf-8") as f:
             json.dump(d, f, indent=1)
         print(f"{name}.json: {len(d['panels'])} panels")

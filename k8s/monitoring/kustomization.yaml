@@ -11,8 +11,11 @@ resources:
   - process-exporter.yaml
   - gpu-exporter.yaml
   - gpu-procs.yaml
+  - fm-metrics.yaml
   - grafana.yaml
 configMapGenerator:
+  - name: fm-metrics                     # Free Motion's numbers, read from its files (fm-metrics.yaml)
+    files: [fm-metrics.py]
   - name: prometheus-config
     files: [prometheus.yml, alert-rules.yml]
   - name: grafana-datasources
@@ -46,3 +49,5 @@ configMapGenerator:
     files: [dashboards/scheduling.json]
   - name: dashboard-ranks                # Ranks and memory: every app's rank, booking and real memory over 24 h
     files: [dashboards/ranks.json]
+  - name: dashboard-fm                   # Free Motion: is it applying? its alerts, sent vs a usual day, live check
+    files: [dashboards/fm.json]

@@ -79,6 +79,7 @@ spec:
               - configMap: { name: dashboard-pc }
               - configMap: { name: dashboard-scheduling }
               - configMap: { name: dashboard-ranks }
+              - configMap: { name: dashboard-fm }
         - name: dashboards-more
           projected:
             sources:

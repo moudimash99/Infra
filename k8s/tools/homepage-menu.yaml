@@ -161,6 +161,24 @@ data:
           namespace: apps
           app: free-motion
           podSelector: app in (fm-controller,fm-browser)
+      - Free Motion numbers:
+          href: https://grafana.machaka.net/d/free-motion
+          description: Sent vs a usual day, failures, the live check
+          icon: mdi-chart-timeline-variant
+          namespace: monitoring
+          app: fm-metrics
+          podSelector: app=fm-metrics
+          widget:
+            type: prometheusmetric
+            url: http://prometheus.monitoring.svc
+            refreshInterval: 300000
+            metrics:
+            - label: Sent today
+              query: fm_submitted_today
+            - label: Last list
+              query: fm_pool_list
+            - label: Alerts
+              query: count(ALERTS{alertstate="firing", alertname=~"FreeMotion.*"}) or vector(0)
       - Upwork scan:
           description: Four times a day on the PC
           icon: mdi-briefcase-search-outline
@@ -533,6 +551,12 @@ data:
        "what": "The Acer's GTX 1050 for Prometheus (nvidia_gpu_exporter) and per-process GPU use with the owning pod (gpu-procs)",
        "url": null
       },
+      "fm-metrics": {
+       "group": "Job search",
+       "title": "Free Motion numbers",
+       "what": "Free Motion's numbers for Prometheus (applications by outcome, the live check, each pool build, daemon jobs, the dashboard agent, Gmail…",
+       "url": "https://grafana.machaka.net/d/free-motion"
+      },
       "docker-monitoring": {
        "group": "Monitoring",
        "title": "Docker monitoring",
@@ -731,6 +755,9 @@ data:
       "monitoring/DaemonSet/gpu-procs": {
        "service": "gpu-metrics"
       },
+      "monitoring/Deployment/fm-metrics": {
+       "service": "fm-metrics"
+      },
       "docker:cadvisor": {
        "service": "docker-monitoring"
       },
@@ -815,6 +842,7 @@ data:
       "fm-browser-acer-0": "Free Motion browser, lane 1",
       "fm-browser-acer-1": "Free Motion browser, lane 2",
       "fm-controller": "Free Motion's brain: daemon, scan, score loops, hub agent",
+      "fm-metrics": "Free Motion's numbers for Prometheus (applications by outcome, the live check, each pool build, daemon jobs, the dashboard agent, Gmail…",
       "fm-webllm": "Free Motion's ChatGPT/Gemini website writer, started on demand",
       "fm-webllm-waker": "Starts and stops fm-webllm",
       "freemotion-hub": "Free Motion's dashboard",

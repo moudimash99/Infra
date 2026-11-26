@@ -1,0 +1,1236 @@
+{
+ "uid": "free-motion",
+ "title": "Free Motion",
+ "description": "Is Free Motion applying, and is anything off? From fm-metrics (its files on the server).",
+ "tags": [
+  "homelab"
+ ],
+ "timezone": "browser",
+ "editable": true,
+ "graphTooltip": 1,
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "5m",
+ "time": {
+  "from": "now-7d",
+  "to": "now"
+ },
+ "fiscalYearStartMonth": 0,
+ "liveNow": false,
+ "links": [
+  {
+   "title": "Homelab",
+   "type": "dashboards",
+   "tags": [
+    "homelab"
+   ],
+   "asDropdown": false,
+   "includeVars": false,
+   "keepTime": false,
+   "targetBlank": false
+  }
+ ],
+ "templating": {
+  "list": []
+ },
+ "annotations": {
+  "list": []
+ },
+ "panels": [
+  {
+   "type": "stat",
+   "title": "Free Motion alerts",
+   "description": "Its alerts firing now (they also email you and show in the lab's bell). Listed below.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "count(ALERTS{alertstate=\"firing\", alertname=~\"FreeMotion.*\"}) or vector(0)",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#0ca30c",
+        "value": null
+       },
+       {
+        "color": "#d03b3b",
+        "value": 1
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [
+      {
+       "type": "value",
+       "options": {
+        "0": {
+         "text": "None"
+        }
+       }
+      }
+     ]
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "orientation": "auto",
+    "textMode": "value",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 14,
+     "valueSize": 30
+    }
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 6,
+    "h": 4
+   },
+   "id": 1
+  },
+  {
+   "type": "stat",
+   "title": "Sent today",
+   "description": "Applications sent since midnight (Paris).",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "fm_submitted_today",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#2a78d6",
+        "value": null
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "orientation": "auto",
+    "textMode": "value",
+    "colorMode": "value",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 14,
+     "valueSize": 30
+    }
+   },
+   "gridPos": {
+    "x": 6,
+    "y": 0,
+    "w": 6,
+    "h": 4
+   },
+   "id": 2
+  },
+  {
+   "type": "stat",
+   "title": "Sent in 24 h vs a usual day",
+   "description": "The last 24 h against the median of the last 14 normal days (the 11-12..26 outage left out). Under 30% for 6 h, with auto-apply on and a driver free, is the alert FreeMotionFewApplications.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum without (outcome) (fm_submissions_24h{outcome=\"submitted\"}) / fm_baseline_submitted_daily",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#d03b3b",
+        "value": null
+       },
+       {
+        "color": "#fab219",
+        "value": 0.3
+       },
+       {
+        "color": "#0ca30c",
+        "value": 0.6
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "orientation": "auto",
+    "textMode": "value",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 14,
+     "valueSize": 30
+    }
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 0,
+    "w": 6,
+    "h": 4
+   },
+   "id": 3
+  },
+  {
+   "type": "stat",
+   "title": "Tries failing, 24 h",
+   "description": "Errored, failed validation, captcha or firewall, of the finished tries. Usually about 20%.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(fm_submissions_24h{outcome=~\"errored|validation-failed|captcha|blocked-waf\"}) / sum(fm_submissions_24h{outcome=~\"submitted|already-applied|errored|validation-failed|captcha|blocked-waf\"})",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#0ca30c",
+        "value": null
+       },
+       {
+        "color": "#fab219",
+        "value": 0.3
+       },
+       {
+        "color": "#d03b3b",
+        "value": 0.4
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "orientation": "auto",
+    "textMode": "value",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 14,
+     "valueSize": 30
+    }
+   },
+   "gridPos": {
+    "x": 18,
+    "y": 0,
+    "w": 6,
+    "h": 4
+   },
+   "id": 4
+  },
+  {
+   "type": "stat",
+   "title": "Live check crashes, 24 h",
+   "description": "Postings whose 'still open?' check failed before a page loaded. 2,820 on 2026-11-26 before the fix.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "fm_live_check_crashes_24h",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#0ca30c",
+        "value": null
+       },
+       {
+        "color": "#fab219",
+        "value": 1
+       },
+       {
+        "color": "#d03b3b",
+        "value": 21
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [
+      {
+       "type": "value",
+       "options": {
+        "0": {
+         "text": "None"
+        }
+       }
+      }
+     ],
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "orientation": "auto",
+    "textMode": "value",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 14,
+     "valueSize": 30
+    }
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 4,
+    "w": 6,
+    "h": 4
+   },
+   "id": 5
+  },
+  {
+   "type": "stat",
+   "title": "Jobs in the last list",
+   "description": "The last pool build (a round, or the 06:00 scan). Rounds take up to 100.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "fm_pool_list",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#d03b3b",
+        "value": null
+       },
+       {
+        "color": "#0ca30c",
+        "value": 20
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "orientation": "auto",
+    "textMode": "value",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 14,
+     "valueSize": 30
+    }
+   },
+   "gridPos": {
+    "x": 6,
+    "y": 4,
+    "w": 6,
+    "h": 4
+   },
+   "id": 6
+  },
+  {
+   "type": "stat",
+   "title": "Drivers free to apply",
+   "description": "Not off and not paused by their rule (codex kept for your work, weekly limits...).",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "fm_drivers_allowed",
+     "legendFormat": "free",
+     "range": false,
+     "instant": true
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "fm_drivers",
+     "legendFormat": "in all",
+     "range": false,
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#2a78d6",
+        "value": null
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "orientation": "auto",
+    "textMode": "value_and_name",
+    "colorMode": "value",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 14,
+     "valueSize": 30
+    }
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 4,
+    "w": 6,
+    "h": 4
+   },
+   "id": 7
+  },
+  {
+   "type": "stat",
+   "title": "Dashboard agent's last report",
+   "description": "It recycles and reports every 6 h; over 7.5 h means it hung (FreeMotionHubAgentSilent).",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "time() - fm_hub_agent_last_report_timestamp_seconds",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#0ca30c",
+        "value": null
+       },
+       {
+        "color": "#d03b3b",
+        "value": 27000
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "orientation": "auto",
+    "textMode": "value",
+    "colorMode": "value",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 14,
+     "valueSize": 30
+    }
+   },
+   "gridPos": {
+    "x": 18,
+    "y": 4,
+    "w": 6,
+    "h": 4
+   },
+   "id": 8
+  },
+  {
+   "type": "table",
+   "title": "Free Motion alerts firing",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "ALERTS{alertstate=\"firing\", alertname=~\"FreeMotion.*\"}",
+     "legendFormat": "__auto",
+     "range": false,
+     "instant": true,
+     "format": "table"
+    }
+   ],
+   "transformations": [
+    {
+     "id": "organize",
+     "options": {
+      "indexByName": {
+       "alertname": 0,
+       "severity": 1
+      },
+      "renameByName": {
+       "alertname": "Alert",
+       "severity": "Severity"
+      },
+      "excludeByName": {
+       "Time": true,
+       "Value": true,
+       "__name__": true,
+       "alertstate": true,
+       "cluster": true,
+       "job": true,
+       "instance": true,
+       "namespace": true,
+       "pod": true,
+       "app": true
+      }
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": false
+     },
+     "noValue": "Nothing firing"
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Severity"
+      },
+      "properties": [
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "color-text"
+        }
+       },
+       {
+        "id": "mappings",
+        "value": [
+         {
+          "type": "value",
+          "options": {
+           "critical": {
+            "color": "#d03b3b",
+            "index": 0
+           },
+           "warning": {
+            "color": "#fab219",
+            "index": 1
+           }
+          }
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm",
+    "footer": {
+     "show": false
+    },
+    "sortBy": []
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 8,
+    "w": 24,
+    "h": 4
+   },
+   "id": 9
+  },
+  {
+   "type": "timeseries",
+   "title": "Applications per hour",
+   "description": "Finished tries each hour by outcome.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (outcome) (increase(fm_submissions_total{outcome=~\"submitted|already-applied|errored|validation-failed|captcha|blocked-waf\"}[1h]))",
+     "legendFormat": "{{outcome}}",
+     "range": true,
+     "instant": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 70,
+      "showPoints": "never",
+      "pointSize": 6,
+      "drawStyle": "line",
+      "spanNulls": false,
+      "stacking": {
+       "mode": "normal",
+       "group": "A"
+      },
+      "axisSoftMin": 0,
+      "gradientMode": "none",
+      "lineInterpolation": "smooth"
+     },
+     "color": {
+      "mode": "palette-classic"
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 12,
+    "w": 12,
+    "h": 8
+   },
+   "id": 10
+  },
+  {
+   "type": "timeseries",
+   "title": "Sent in 24 h, against a usual day",
+   "description": "The alert fires when the first line stays under the third for 6 h.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum without (outcome) (fm_submissions_24h{outcome=\"submitted\"})",
+     "legendFormat": "sent in the last 24 h",
+     "range": true,
+     "instant": false
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "fm_baseline_submitted_daily",
+     "legendFormat": "usual day (median of 14)",
+     "range": true,
+     "instant": false
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "0.3 * fm_baseline_submitted_daily",
+     "legendFormat": "alert line (30%)",
+     "range": true,
+     "instant": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "pointSize": 6,
+      "drawStyle": "line",
+      "spanNulls": false,
+      "stacking": {
+       "mode": "none",
+       "group": "A"
+      },
+      "axisSoftMin": 0,
+      "gradientMode": "none",
+      "lineInterpolation": "smooth"
+     },
+     "color": {
+      "mode": "palette-classic"
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 12,
+    "w": 12,
+    "h": 8
+   },
+   "id": 11
+  },
+  {
+   "type": "timeseries",
+   "title": "Jobs per list: kept, skipped, taken",
+   "description": "Each pool build. A list under 20 while hundreds are kept and skipped, for 2 h, is FreeMotionPoolStarved (the 2026-11-26 outage: 2,816 skipped, 0 taken).",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "fm_pool_kept",
+     "legendFormat": "kept after the rules",
+     "range": true,
+     "instant": false
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "fm_pool_live_skipped",
+     "legendFormat": "skipped as dead or unclear",
+     "range": true,
+     "instant": false
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "fm_pool_list",
+     "legendFormat": "in the list",
+     "range": true,
+     "instant": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "pointSize": 6,
+      "drawStyle": "line",
+      "spanNulls": false,
+      "stacking": {
+       "mode": "none",
+       "group": "A"
+      },
+      "axisSoftMin": 0,
+      "gradientMode": "none",
+      "lineInterpolation": "smooth"
+     },
+     "color": {
+      "mode": "palette-classic"
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 20,
+    "w": 12,
+    "h": 8
+   },
+   "id": 12
+  },
+  {
+   "type": "timeseries",
+   "title": "Live checks in 24 h",
+   "description": "Results of the 'still open?' check. Crashed: failed before a page loaded.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "fm_live_checks_24h",
+     "legendFormat": "{{result}}",
+     "range": true,
+     "instant": false
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "fm_live_check_crashes_24h",
+     "legendFormat": "crashed",
+     "range": true,
+     "instant": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "pointSize": 6,
+      "drawStyle": "line",
+      "spanNulls": false,
+      "stacking": {
+       "mode": "none",
+       "group": "A"
+      },
+      "axisSoftMin": 0,
+      "gradientMode": "none",
+      "lineInterpolation": "smooth"
+     },
+     "color": {
+      "mode": "palette-classic"
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 20,
+    "w": 12,
+    "h": 8
+   },
+   "id": 13
+  },
+  {
+   "type": "timeseries",
+   "title": "Share of tries failing, 24 h",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(fm_submissions_24h{outcome=~\"errored|validation-failed|captcha|blocked-waf\"}) / sum(fm_submissions_24h{outcome=~\"submitted|already-applied|errored|validation-failed|captcha|blocked-waf\"})",
+     "legendFormat": "failing",
+     "range": true,
+     "instant": false
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "fm_baseline_failed_share",
+     "legendFormat": "usual",
+     "range": true,
+     "instant": false
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "0.4",
+     "legendFormat": "alert line (40%, and twice the usual)",
+     "range": true,
+     "instant": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "pointSize": 6,
+      "drawStyle": "line",
+      "spanNulls": false,
+      "stacking": {
+       "mode": "none",
+       "group": "A"
+      },
+      "axisSoftMin": 0,
+      "gradientMode": "none",
+      "lineInterpolation": "smooth"
+     },
+     "color": {
+      "mode": "palette-classic"
+     },
+     "min": 0,
+     "max": 1
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 28,
+    "w": 12,
+    "h": 8
+   },
+   "id": 14
+  },
+  {
+   "type": "timeseries",
+   "title": "Daemon jobs failing, 24 h",
+   "description": "Runs that ended with an error; 3 in 24 h is FreeMotionJobFailing.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "fm_daemon_job_failures_24h",
+     "legendFormat": "{{job}}",
+     "range": true,
+     "instant": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "pointSize": 6,
+      "drawStyle": "line",
+      "spanNulls": false,
+      "stacking": {
+       "mode": "none",
+       "group": "A"
+      },
+      "axisSoftMin": 0,
+      "gradientMode": "none",
+      "lineInterpolation": "smooth"
+     },
+     "color": {
+      "mode": "palette-classic"
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 28,
+    "w": 12,
+    "h": 8
+   },
+   "id": 15
+  }
+ ]
+}

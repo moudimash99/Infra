@@ -631,121 +631,129 @@
             "text": "The cat's flash-of-the-day video, 00:20 and 19:20",
             "index": 22
            },
-           "cat-monitor": {
-            "text": "Nightly GPU cat detection",
-            "index": 23
-           },
            "portainer": {
             "text": "Web page for Docker and Kubernetes",
-            "index": 24
+            "index": 23
            },
            "beszel": {
             "text": "Simple per-machine monitor (beszel.machaka.net)",
-            "index": 25
+            "index": 24
            },
            "beszel-agent": {
             "text": "Beszel's collector on the server",
-            "index": 26
+            "index": 25
            },
            "beszel-agent-worker": {
             "text": "Beszel's collector on the Acer",
-            "index": 27
+            "index": 26
            },
            "uptime-kuma": {
             "text": "Up/down checks of the sites",
-            "index": 28
+            "index": 27
            },
            "homepage": {
             "text": "The lab.machaka.net menu",
-            "index": 29
+            "index": 28
            },
            "prometheus": {
             "text": "Collects every metric every 30 s, keeps 15 days",
-            "index": 30
+            "index": 29
            },
            "kube-state-metrics": {
             "text": "Numbers about pods, jobs and restarts for Prometheus",
-            "index": 31
+            "index": 30
            },
            "grafana": {
             "text": "These dashboards",
-            "index": 32
+            "index": 31
            },
            "alertmanager": {
             "text": "Emails Prometheus's alerts",
-            "index": 33
+            "index": 32
            },
            "node-exporter": {
             "text": "Machine CPU, memory, disks and temperatures",
-            "index": 34
+            "index": 33
            },
            "process-exporter": {
             "text": "Memory per program outside containers",
-            "index": 35
+            "index": 34
            },
            "nvidia-gpu-exporter": {
             "text": "The GTX 1050's load, memory and heat",
-            "index": 36
+            "index": 35
            },
            "gpu-procs": {
             "text": "Which program is on the GPU",
-            "index": 37
+            "index": 36
            },
            "coredns": {
             "text": "k3s: name lookups inside the cluster",
-            "index": 38
+            "index": 37
            },
            "traefik": {
             "text": "Web front door: sends each site's traffic to its pod",
-            "index": 39
+            "index": 38
            },
            "metrics-server": {
             "text": "k3s: live CPU and memory for kubectl top",
-            "index": 40
+            "index": 39
            },
            "local-path-provisioner": {
             "text": "k3s: makes the disk folders pods keep data in",
-            "index": 41
+            "index": 40
            },
            "svclb-traefik-*": {
             "text": "The k3s cluster itself: k3s server, Traefik ingress, CoreDNS, metrics-server, local-path storage, priority classes, old-address forward",
-            "index": 42
+            "index": 41
            },
            "registry": {
             "text": "Local image store (not used yet)",
-            "index": 43
+            "index": 42
            },
            "source-controller": {
             "text": "Flux: pulls the Infra repo from GitHub",
-            "index": 44
+            "index": 43
            },
            "kustomize-controller": {
             "text": "Flux: applies k8s/ from main every 10 min",
-            "index": 45
+            "index": 44
            },
            "backup-server": {
             "text": "Nightly backup of the server",
-            "index": 46
+            "index": 45
            },
            "backup-acer": {
             "text": "Nightly backup of the Acer",
-            "index": 47
+            "index": 46
            },
            "email-remove": {
             "text": "Gmail archiver, every 3 minutes",
+            "index": 47
+           },
+           "mail-open-review": {
+            "text": "On demand, from a button: what is still open in the last 30 days of mail in the 3 accounts (to do, coming up, waiting on someone, missed), job search only or everything, emailed (Email-remove open_review.py)",
             "index": 48
+           },
+           "mail-review-button": {
+            "text": "On demand, from a button: what is still open in the last 30 days of mail in the 3 accounts (to do, coming up, waiting on someone, missed), job search only or everything, emailed (Email-remove open_review.py)",
+            "index": 49
            },
            "svclb-traefik": {
             "text": "k3s: passes ports 80/443 on each machine to Traefik",
-            "index": 49
+            "index": 50
            },
            "fm-browser-acer-0": {
             "text": "Free Motion browser, lane 1",
-            "index": 50
+            "index": 51
            },
            "fm-browser-acer-1": {
             "text": "Free Motion browser, lane 2",
-            "index": 51
+            "index": 52
+           },
+           "cat-monitor": {
+            "text": "Nightly GPU cat detection",
+            "index": 53
            }
           }
          }
@@ -1713,121 +1721,129 @@
             "text": "The cat's flash-of-the-day video, 00:20 and 19:20",
             "index": 22
            },
-           "cat-monitor": {
-            "text": "Nightly GPU cat detection",
-            "index": 23
-           },
            "portainer": {
             "text": "Web page for Docker and Kubernetes",
-            "index": 24
+            "index": 23
            },
            "beszel": {
             "text": "Simple per-machine monitor (beszel.machaka.net)",
-            "index": 25
+            "index": 24
            },
            "beszel-agent": {
             "text": "Beszel's collector on the server",
-            "index": 26
+            "index": 25
            },
            "beszel-agent-worker": {
             "text": "Beszel's collector on the Acer",
-            "index": 27
+            "index": 26
            },
            "uptime-kuma": {
             "text": "Up/down checks of the sites",
-            "index": 28
+            "index": 27
            },
            "homepage": {
             "text": "The lab.machaka.net menu",
-            "index": 29
+            "index": 28
            },
            "prometheus": {
             "text": "Collects every metric every 30 s, keeps 15 days",
-            "index": 30
+            "index": 29
            },
            "kube-state-metrics": {
             "text": "Numbers about pods, jobs and restarts for Prometheus",
-            "index": 31
+            "index": 30
            },
            "grafana": {
             "text": "These dashboards",
-            "index": 32
+            "index": 31
            },
            "alertmanager": {
             "text": "Emails Prometheus's alerts",
-            "index": 33
+            "index": 32
            },
            "node-exporter": {
             "text": "Machine CPU, memory, disks and temperatures",
-            "index": 34
+            "index": 33
            },
            "process-exporter": {
             "text": "Memory per program outside containers",
-            "index": 35
+            "index": 34
            },
            "nvidia-gpu-exporter": {
             "text": "The GTX 1050's load, memory and heat",
-            "index": 36
+            "index": 35
            },
            "gpu-procs": {
             "text": "Which program is on the GPU",
-            "index": 37
+            "index": 36
            },
            "coredns": {
             "text": "k3s: name lookups inside the cluster",
-            "index": 38
+            "index": 37
            },
            "traefik": {
             "text": "Web front door: sends each site's traffic to its pod",
-            "index": 39
+            "index": 38
            },
            "metrics-server": {
             "text": "k3s: live CPU and memory for kubectl top",
-            "index": 40
+            "index": 39
            },
            "local-path-provisioner": {
             "text": "k3s: makes the disk folders pods keep data in",
-            "index": 41
+            "index": 40
            },
            "svclb-traefik-*": {
             "text": "The k3s cluster itself: k3s server, Traefik ingress, CoreDNS, metrics-server, local-path storage, priority classes, old-address forward",
-            "index": 42
+            "index": 41
            },
            "registry": {
             "text": "Local image store (not used yet)",
-            "index": 43
+            "index": 42
            },
            "source-controller": {
             "text": "Flux: pulls the Infra repo from GitHub",
-            "index": 44
+            "index": 43
            },
            "kustomize-controller": {
             "text": "Flux: applies k8s/ from main every 10 min",
-            "index": 45
+            "index": 44
            },
            "backup-server": {
             "text": "Nightly backup of the server",
-            "index": 46
+            "index": 45
            },
            "backup-acer": {
             "text": "Nightly backup of the Acer",
-            "index": 47
+            "index": 46
            },
            "email-remove": {
             "text": "Gmail archiver, every 3 minutes",
+            "index": 47
+           },
+           "mail-open-review": {
+            "text": "On demand, from a button: what is still open in the last 30 days of mail in the 3 accounts (to do, coming up, waiting on someone, missed), job search only or everything, emailed (Email-remove open_review.py)",
             "index": 48
+           },
+           "mail-review-button": {
+            "text": "On demand, from a button: what is still open in the last 30 days of mail in the 3 accounts (to do, coming up, waiting on someone, missed), job search only or everything, emailed (Email-remove open_review.py)",
+            "index": 49
            },
            "svclb-traefik": {
             "text": "k3s: passes ports 80/443 on each machine to Traefik",
-            "index": 49
+            "index": 50
            },
            "fm-browser-acer-0": {
             "text": "Free Motion browser, lane 1",
-            "index": 50
+            "index": 51
            },
            "fm-browser-acer-1": {
             "text": "Free Motion browser, lane 2",
-            "index": 51
+            "index": 52
+           },
+           "cat-monitor": {
+            "text": "Nightly GPU cat detection",
+            "index": 53
            }
           }
          }
@@ -2404,121 +2420,129 @@
             "text": "The cat's flash-of-the-day video, 00:20 and 19:20",
             "index": 22
            },
-           "cat-monitor": {
-            "text": "Nightly GPU cat detection",
-            "index": 23
-           },
            "portainer": {
             "text": "Web page for Docker and Kubernetes",
-            "index": 24
+            "index": 23
            },
            "beszel": {
             "text": "Simple per-machine monitor (beszel.machaka.net)",
-            "index": 25
+            "index": 24
            },
            "beszel-agent": {
             "text": "Beszel's collector on the server",
-            "index": 26
+            "index": 25
            },
            "beszel-agent-worker": {
             "text": "Beszel's collector on the Acer",
-            "index": 27
+            "index": 26
            },
            "uptime-kuma": {
             "text": "Up/down checks of the sites",
-            "index": 28
+            "index": 27
            },
            "homepage": {
             "text": "The lab.machaka.net menu",
-            "index": 29
+            "index": 28
            },
            "prometheus": {
             "text": "Collects every metric every 30 s, keeps 15 days",
-            "index": 30
+            "index": 29
            },
            "kube-state-metrics": {
             "text": "Numbers about pods, jobs and restarts for Prometheus",
-            "index": 31
+            "index": 30
            },
            "grafana": {
             "text": "These dashboards",
-            "index": 32
+            "index": 31
            },
            "alertmanager": {
             "text": "Emails Prometheus's alerts",
-            "index": 33
+            "index": 32
            },
            "node-exporter": {
             "text": "Machine CPU, memory, disks and temperatures",
-            "index": 34
+            "index": 33
            },
            "process-exporter": {
             "text": "Memory per program outside containers",
-            "index": 35
+            "index": 34
            },
            "nvidia-gpu-exporter": {
             "text": "The GTX 1050's load, memory and heat",
-            "index": 36
+            "index": 35
            },
            "gpu-procs": {
             "text": "Which program is on the GPU",
-            "index": 37
+            "index": 36
            },
            "coredns": {
             "text": "k3s: name lookups inside the cluster",
-            "index": 38
+            "index": 37
            },
            "traefik": {
             "text": "Web front door: sends each site's traffic to its pod",
-            "index": 39
+            "index": 38
            },
            "metrics-server": {
             "text": "k3s: live CPU and memory for kubectl top",
-            "index": 40
+            "index": 39
            },
            "local-path-provisioner": {
             "text": "k3s: makes the disk folders pods keep data in",
-            "index": 41
+            "index": 40
            },
            "svclb-traefik-*": {
             "text": "The k3s cluster itself: k3s server, Traefik ingress, CoreDNS, metrics-server, local-path storage, priority classes, old-address forward",
-            "index": 42
+            "index": 41
            },
            "registry": {
             "text": "Local image store (not used yet)",
-            "index": 43
+            "index": 42
            },
            "source-controller": {
             "text": "Flux: pulls the Infra repo from GitHub",
-            "index": 44
+            "index": 43
            },
            "kustomize-controller": {
             "text": "Flux: applies k8s/ from main every 10 min",
-            "index": 45
+            "index": 44
            },
            "backup-server": {
             "text": "Nightly backup of the server",
-            "index": 46
+            "index": 45
            },
            "backup-acer": {
             "text": "Nightly backup of the Acer",
-            "index": 47
+            "index": 46
            },
            "email-remove": {
             "text": "Gmail archiver, every 3 minutes",
+            "index": 47
+           },
+           "mail-open-review": {
+            "text": "On demand, from a button: what is still open in the last 30 days of mail in the 3 accounts (to do, coming up, waiting on someone, missed), job search only or everything, emailed (Email-remove open_review.py)",
             "index": 48
+           },
+           "mail-review-button": {
+            "text": "On demand, from a button: what is still open in the last 30 days of mail in the 3 accounts (to do, coming up, waiting on someone, missed), job search only or everything, emailed (Email-remove open_review.py)",
+            "index": 49
            },
            "svclb-traefik": {
             "text": "k3s: passes ports 80/443 on each machine to Traefik",
-            "index": 49
+            "index": 50
            },
            "fm-browser-acer-0": {
             "text": "Free Motion browser, lane 1",
-            "index": 50
+            "index": 51
            },
            "fm-browser-acer-1": {
             "text": "Free Motion browser, lane 2",
-            "index": 51
+            "index": 52
+           },
+           "cat-monitor": {
+            "text": "Nightly GPU cat detection",
+            "index": 53
            }
           }
          }

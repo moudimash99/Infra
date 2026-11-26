@@ -1002,6 +1002,47 @@
           suffix: °C
           maximumFractionDigits: 0
 
+- name: fm-metrics
+  what: "Free Motion's numbers for Prometheus (applications by outcome, the live check, each pool build, daemon jobs, the dashboard agent, Gmail OVERQUOTA), read from its files; the alerts and the Grafana page Free Motion use them."
+  kind: monitoring
+  system: free-motion
+  lifecycle: production
+  depends_on: [free-motion]
+  runs: "k8s monitoring/Deployment fm-metrics on moudimash99"
+  manifest: Infra/k8s/monitoring/fm-metrics.yaml (script fm-metrics.py through the kustomization's configMapGenerator)
+  image: "python 3.13-slim pinned by digest, standard library only"
+  schedule: null
+  url: "pod :9838 /metrics (scraped through pod annotations); dashboard https://grafana.machaka.net/d/free-motion"
+  data:
+    - "read-only single files from /srv/apps/freemotion/fm-data: data/posting-liveness.json, data/freemotion-submissions.tsv, data/burn-settings.json, tmp/fm/night/full-night.log; folders tmp/fm/burn, tmp/fm/scheduled, tmp/fm/hub. Never data/ or all of fm-data: .env and data/freemotion-credentials are world-readable there."
+  code: { repo: Infra, branch: main }
+  deploy: "Flux (k8s/monitoring from main), or now: kubectl apply -k k8s/monitoring/ --server-side. Rules: the group free-motion in alert-rules.yml; dashboard: dashboards/make.py (fm)."
+  check: "Ready (GET /metrics :9838); every fm_source_ok is 1 (alert FreeMotionMetricsBroken); alerts FreeMotionMetricsMissing and TargetDown."
+  probes:
+    - {k8s: monitoring/Deployment/fm-metrics}
+  drift: []
+  notes:
+    - "Made 2026-11-26 after the live check failed unseen for 14 days. Alerts are fixed limits (Prometheus keeps 15 days, so a learned baseline would have learned the outage) plus baselines fm-metrics computes from the files' history (the last 14 normal days, 11-12..26 left out). Backtested on the files: crash rule 2,820 of 3,008 checks on the pre-fix cache, 0 of 315 after; starved-pool rule fires on every broken round of 11-26 and on 2026-10-30 afternoon (0 of 636 kept), quiet on the healthy 19:10 round and the PC's other 88 rounds; the hub-agent rule finds 11-12 (24 h), 11-13..20 (7.5 days) and 11-21..23; OVERQUOTA 11-21..25."
+    - "Its file mounts follow the inode: replacing one of those files by rename (tmp + mv) leaves it reading the old copy until a restart (alert FreeMotionMetricsStale for the live-check cache)."
+    - "Booking 64Mi, limit 160Mi (measured ~45 MiB per read, 33 MiB Python heap); rank homelab-critical like the other monitoring pods. Its readings are cached 60 s."
+  menu:
+    title: Free Motion numbers
+    icon: mdi-chart-timeline-variant
+    href: https://grafana.machaka.net/d/free-motion
+    description: Sent vs a usual day, failures, the live check
+    pods: monitoring/app=fm-metrics
+    widget:
+      type: prometheusmetric
+      url: http://prometheus.monitoring.svc
+      refreshInterval: 300000
+      metrics:
+      - label: Sent today
+        query: fm_submitted_today
+      - label: Last list
+        query: fm_pool_list
+      - label: Alerts
+        query: count(ALERTS{alertstate="firing", alertname=~"FreeMotion.*"}) or vector(0)
+
 - name: docker-monitoring
   what: cAdvisor for the server's Docker containers (scraped by Prometheus) and the old Docker node-exporter (no longer read).
   kind: monitoring

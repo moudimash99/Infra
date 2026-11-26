@@ -299,6 +299,112 @@ groups:
           summary: "Frigate: storage {{ $labels.storage }} under 10% free"
           description: "Recordings are kept 14 days; less free space means Frigate will cut them shorter."
 
+  # Free Motion, from fm-metrics (fm-metrics.yaml reads its files). Made 2026-11-26 after the live check failed unseen
+  # for 14 days: fixed limits that work from the first scrape (Prometheus keeps 15 days, so a learned baseline would
+  # have learned the outage), and baselines computed by fm-metrics from the files' own history, the outage left out.
+  # Each was checked against past files: it fires on the incidents named and stays quiet on 2026-11-26 19:10.
+  # Not alerted on purpose: the scan's HTTP 429s (parked), "daily quota used up" and model 503s (every day).
+  - name: free-motion
+    rules:
+      - alert: FreeMotionLiveCheckCrashing
+        expr: |
+          fm_live_check_crashes_24h > 20
+          and fm_live_check_crashes_24h > 0.2 * scalar(sum(fm_live_checks_24h))
+        for: 30m
+        labels: { severity: critical }
+        annotations:
+          summary: "Free Motion: the live check crashes ({{ $value }} postings in 24 h)"
+          description: "The check that a posting is still open fails before any page loads, so those postings are skipped as uncertain and never applied to (2026-11-12..26: Chromium missing from the image, 2,633 skipped in one day). Reasons: grep 'check failed' /fm/fm-data/tmp/fm/night/dead.txt in fm-controller. Clears 24 h after the fix, or at once if the failed entries are removed from data/posting-liveness.json."
+      - alert: FreeMotionPoolStarved
+        expr: |
+          fm_pool_list < 20 and fm_pool_live_skipped > 200 and fm_pool_kept > 500
+          and (time() - fm_pool_build_timestamp_seconds) < 6 * 3600
+          and on () fm_auto_apply_enabled == 1
+        for: 2h
+        labels: { severity: critical }
+        annotations:
+          summary: "Free Motion: rounds get almost no jobs ({{ $value }} in the last list)"
+          description: "Hundreds of jobs pass the rules, but nearly all are skipped as dead or unclear, for 2 hours of rounds. Seen 2026-11-26 (0-6 jobs of 2,800 kept: the live check broken) and 2026-10-30 afternoon (0 of 636). Why each was skipped: /fm/fm-data/tmp/fm/night/dead.txt; the summary: the last 'live check:' lines of tmp/fm/night/full-night.log."
+      - alert: FreeMotionFewApplications
+        expr: |
+          sum without (outcome) (fm_submissions_24h{outcome="submitted"}) < 0.3 * fm_baseline_submitted_daily
+          and fm_baseline_days >= 7
+          and on () fm_auto_apply_enabled == 1 and on () fm_drivers_allowed > 0
+        for: 6h
+        labels: { severity: warning }
+        annotations:
+          summary: "Free Motion: few applications sent ({{ $value }} in 24 h)"
+          description: "Under 30% of the usual day (the median of the last 14 normal days) while auto-apply is on and a driver may apply. Look at the rounds (tmp/fm/scheduled/night-<today>.log) and the alerts above it. Days like this before: 2026-10-27/28, 2026-11-03/04, 2026-11-13..20."
+      - alert: FreeMotionFailuresHigh
+        expr: |
+          (
+            sum(fm_submissions_24h{outcome=~"errored|validation-failed|captcha|blocked-waf"})
+            / sum(fm_submissions_24h{outcome=~"submitted|already-applied|errored|validation-failed|captcha|blocked-waf"})
+          ) > 0.4
+          and on () (
+            sum(fm_submissions_24h{outcome=~"errored|validation-failed|captcha|blocked-waf"})
+            / sum(fm_submissions_24h{outcome=~"submitted|already-applied|errored|validation-failed|captcha|blocked-waf"})
+          ) > 2 * scalar(fm_baseline_failed_share)
+          and on () sum(fm_submissions_24h{outcome=~"submitted|already-applied|errored|validation-failed|captcha|blocked-waf"}) >= 20
+        for: 2h
+        labels: { severity: warning }
+        annotations:
+          summary: "Free Motion: {{ $value | humanizePercentage }} of applications fail"
+          description: "Over 40% of the last 24 h's finished tries ended errored, failed validation, at a captcha or a firewall, and over twice the usual share (about 20%). Seen 2026-10-28 (85%) and 2026-11-03 (81%). Which: the outcome column of data/freemotion-submissions.tsv."
+      - alert: FreeMotionNoPoolBuild
+        expr: time() - fm_pool_build_timestamp_seconds > 26 * 3600 and on () fm_auto_apply_enabled == 1
+        labels: { severity: warning }
+        annotations:
+          summary: "Free Motion: no list of jobs built in over a day"
+          description: "Neither the 06:00 scan nor any round made a pool: the daemon, the scan or the rounds stopped. kubectl -n apps logs deploy/fm-controller, and tmp/fm/scheduled/daemon-<today>.log."
+      - alert: FreeMotionHubAgentSilent
+        expr: time() - fm_hub_agent_last_report_timestamp_seconds > 7.5 * 3600
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Free Motion: the dashboard's agent sent nothing for {{ $value | humanizeDuration }}"
+          description: "It recycles every 6 h and reports each time. Silent longer means it hung, so the dashboard shows old numbers (2026-11-21 13:30 to 11-23 14:53; also silent 11-13..20). Fix: SIGTERM it in fm-controller (ps | grep hub-agent); the daemon starts a new one. Watchdog: fm-agent#5."
+      - alert: FreeMotionGmailOverQuota
+        expr: fm_gmail_overquota_today > 0
+        labels: { severity: warning }
+        annotations:
+          summary: "Free Motion: Gmail refuses mail reads ({{ $value }} OVERQUOTA today)"
+          description: "Gmail's daily IMAP limit is used up: reply checks and the agents' verification emails fail until it resets. Seen 2026-11-21..25. Which job: grep OVERQUOTA tmp/fm/scheduled/*-<today>.log."
+      - alert: FreeMotionScoreLoopHeapAbort
+        expr: increase(fm_score_loop_heap_aborts[1h]) > 0
+        labels: { severity: warning, kind: event }
+        annotations:
+          summary: "Free Motion: a score loop ran out of memory"
+          description: "Its keeper restarts it in 5 minutes. Often means the scan history grew; see tmp/fm/scheduled/loops.err and the memory notes in services.yaml (fm-pool#7)."
+      - alert: FreeMotionJobFailing
+        expr: fm_daemon_job_failures_24h >= 3
+        labels: { severity: warning }
+        annotations:
+          summary: "Free Motion: {{ $labels.job }} failed {{ $value }} times in 24 h"
+          description: "The daemon's {{ $labels.job }} job keeps ending with an error (none did from 2026-11-01 to 11-26). Its log: tmp/fm/scheduled/{{ $labels.job }}-<today>.log, or night-<today>.log for rounds."
+      - alert: FreeMotionMetricsBroken
+        expr: fm_source_ok == 0
+        for: 30m
+        labels: { severity: warning }
+        annotations:
+          summary: "Free Motion's numbers: can't read {{ $labels.source }}"
+          description: "fm-metrics fails on one of its files (moved, renamed or a new format), so the Free Motion alerts from it can't fire. kubectl -n monitoring logs deploy/fm-metrics."
+      - alert: FreeMotionMetricsMissing
+        expr: absent(fm_source_ok)
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "Free Motion's numbers: not reporting"
+          description: "fm-metrics is not running or not scraped, so none of the Free Motion alerts can fire. kubectl -n monitoring get pods -l app=fm-metrics."
+      - alert: FreeMotionMetricsStale
+        expr: |
+          time() - fm_source_mtime_seconds{source="liveness"} > 26 * 3600
+          and on () (time() - fm_pool_build_timestamp_seconds) < 6 * 3600
+        labels: { severity: warning }
+        annotations:
+          summary: "Free Motion's numbers: the live-check cache looks frozen"
+          description: "Rounds build lists, but data/posting-liveness.json hasn't changed in a day. Either the live check stopped writing it, or the file was replaced by a rename and fm-metrics still reads the old one (its file mounts follow the inode): kubectl -n monitoring rollout restart deploy/fm-metrics."
+
   - name: monitoring
     rules:
       - alert: AlertEmailsFailing

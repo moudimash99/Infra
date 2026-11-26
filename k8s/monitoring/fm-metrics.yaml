@@ -1,0 +1,77 @@
+# fm-metrics (2026-11-26): Free Motion's numbers for Prometheus, read from its files on the server. The script is
+# fm-metrics.py (kustomization's configMapGenerator, so a change restarts the pod); the rules are the group
+# free-motion in alert-rules.yml; the dashboard is "Free Motion" (dashboards/make.py).
+#
+# Mounts ONLY what it reads, read-only: fm-data also holds .env and data/freemotion-credentials (all files there are
+# world-readable), so never mount data/ or the whole fm-data here. A single-file mount follows the file's inode:
+# a tool that replaces one of these files by rename (write tmp + mv) leaves this pod reading the old copy until it
+# restarts. Free Motion writes them in place (writeFileSync, appends, tee -a); the rule FreeMotionMetricsStale
+# catches a stale mount (the live-check cache not changing while rounds build pools).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fm-metrics
+  namespace: monitoring
+  labels: { app: fm-metrics }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: fm-metrics }
+  template:
+    metadata:
+      labels: { app: fm-metrics, app.kubernetes.io/name: fm-metrics }
+      annotations: { prometheus.io/scrape: "true", prometheus.io/port: "9838", prometheus.io/path: /metrics }
+    spec:
+      nodeSelector: { kubernetes.io/hostname: moudimash99 }   # fm-data is a hostPath on the server
+      priorityClassName: homelab-critical
+      automountServiceAccountToken: false
+      containers:
+        - name: fm-metrics
+          image: docker.io/library/python@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90   # 3.13-slim
+          command: ["python", "-I", "/app/fm-metrics.py"]
+          env:
+            - { name: FM_ROOT, value: /fm-data }
+            - { name: PORT, value: "9838" }
+          ports:
+            - { name: metrics, containerPort: 9838 }
+          readinessProbe:
+            httpGet: { path: /metrics, port: 9838 }
+            periodSeconds: 60
+            timeoutSeconds: 10
+          volumeMounts:
+            - { name: script, mountPath: /app, readOnly: true }
+            - { name: liveness, mountPath: /fm-data/data/posting-liveness.json, readOnly: true }
+            - { name: submissions, mountPath: /fm-data/data/freemotion-submissions.tsv, readOnly: true }
+            - { name: burn-settings, mountPath: /fm-data/data/burn-settings.json, readOnly: true }
+            - { name: burn-state, mountPath: /fm-data/tmp/fm/burn, readOnly: true }
+            - { name: night-log, mountPath: /fm-data/tmp/fm/night/full-night.log, readOnly: true }
+            - { name: scheduled, mountPath: /fm-data/tmp/fm/scheduled, readOnly: true }
+            - { name: hub, mountPath: /fm-data/tmp/fm/hub, readOnly: true }
+          securityContext:
+            runAsUser: 65534
+            runAsGroup: 65534
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+            seccompProfile: { type: RuntimeDefault }
+          resources:
+            requests: { cpu: 10m, memory: 64Mi }   # measured 2026-11-26: ~45 MiB per read (33 MiB Python heap)
+            limits: { memory: 160Mi }
+      volumes:
+        - name: script
+          configMap: { name: fm-metrics }
+        - name: liveness
+          hostPath: { path: /srv/apps/freemotion/fm-data/data/posting-liveness.json, type: File }
+        - name: submissions
+          hostPath: { path: /srv/apps/freemotion/fm-data/data/freemotion-submissions.tsv, type: File }
+        - name: burn-settings
+          hostPath: { path: /srv/apps/freemotion/fm-data/data/burn-settings.json, type: File }
+        - name: burn-state
+          hostPath: { path: /srv/apps/freemotion/fm-data/tmp/fm/burn, type: Directory }
+        - name: night-log
+          hostPath: { path: /srv/apps/freemotion/fm-data/tmp/fm/night/full-night.log, type: File }
+        - name: scheduled
+          hostPath: { path: /srv/apps/freemotion/fm-data/tmp/fm/scheduled, type: Directory }
+        - name: hub
+          hostPath: { path: /srv/apps/freemotion/fm-data/tmp/fm/hub, type: Directory }
