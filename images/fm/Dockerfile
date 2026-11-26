@@ -53,11 +53,15 @@ RUN python3 -m pip install --no-cache-dir --break-system-packages "uv==0.6.14" \
  && ln -sf /opt/py/bin/python /usr/local/bin/python
 
 # Node: the driver CLIs and the browser server, pinned; Chromium for Playwright, and Firefox's libraries for Camoufox.
+# Each Playwright installs its own Chromium build, so both are named by path: /opt/py/bin comes first on PATH, and a
+# bare `playwright install` got only the Python 1.62 build (1234), while the Node 1.64 code (the live check in
+# fm-pool make-pool.mjs) needs 1248. Without it every browser live check failed on the server from 2026-11-12.
 RUN npm install -g "@openai/codex@${CODEX_VERSION}" "@github/copilot@${COPILOT_VERSION}" "@anthropic-ai/claude-code@${CLAUDE_VERSION}" \
       "@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}" "playwright@${PLAYWRIGHT_VERSION}" \
  && npm cache clean --force \
- && playwright install --with-deps chromium \
- && playwright install-deps firefox \
+ && /usr/local/bin/playwright install --with-deps chromium \
+ && /opt/py/bin/playwright install chromium \
+ && /usr/local/bin/playwright install-deps firefox \
  && rm -rf /var/lib/apt/lists/* /tmp/*
 
 COPY --chmod=0755 entrypoint.sh camoufox-config.mjs /usr/local/lib/fm/
