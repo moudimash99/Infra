@@ -221,9 +221,11 @@ def scan_time(lines, end):
 
 def pool(out, now):
     found = []
-    r = last_pool(tail("tmp/fm/night/full-night.log", 4 << 20), round_time)
-    if r:
-        found.append(r)
+    for size in (4 << 20, 32 << 20):              # a long round can push its run header out of the first window
+        r = last_pool(tail("tmp/fm/night/full-night.log", size), round_time)
+        if r:
+            found.append(r)
+            break
     for d in (paris_date(now), paris_date(now - DAY)):
         f = f"tmp/fm/scheduled/scan-{d}.log"
         if os.path.exists(path(f)):
@@ -302,7 +304,21 @@ def hub(out, now):
                 help_="When the hub agent last sent its records to the dashboard (it recycles every 6 h)")
 
 
+SINGLE_FILES = ["data/posting-liveness.json", "data/freemotion-submissions.tsv", "data/burn-settings.json",
+                "tmp/fm/night/full-night.log"]   # mounted one by one (fm-metrics.yaml): each mount follows an inode
+
+
+def replaced():
+    """A file replaced on the host by a rename (git merge of an fm-data snapshot: three of these are tracked) leaves
+    this mount on the old, unlinked inode, whose link count is 0. Restarting the container binds the current file."""
+    return [f for f in SINGLE_FILES if os.path.exists(path(f)) and os.stat(path(f)).st_nlink == 0]
+
+
 def metrics():
+    gone = replaced()
+    if gone:
+        print(f"replaced on the host, restarting to read the new copies: {', '.join(gone)}", file=sys.stderr, flush=True)
+        os._exit(3)
     now = time.time()
     out = Out()
     source(out, "liveness", "data/posting-liveness.json", lambda o: liveness(o, now))

@@ -301,7 +301,9 @@ database, not in this repo:
 
   Change a threshold in `alert-rules.yml`, check it with
   `kubectl -n monitoring exec -i deploy/prometheus -- sh -c 'cat > /tmp/r.yml && promtool check rules /tmp/r.yml' < k8s/monitoring/alert-rules.yml`,
-  then `kubectl apply -k k8s/monitoring/ --server-side`.
+  then commit and push: Flux applies `k8s/monitoring` (to apply now, annotate `gitrepository/infra` as in
+  "Kubernetes" above). A hand `kubectl apply -k k8s/monitoring/ --server-side` now conflicts with Flux over the
+  Prometheus config volume (seen 2026-11-26).
 
 ### Monitoring (namespace `monitoring`)
 
