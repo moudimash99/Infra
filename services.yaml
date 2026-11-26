@@ -435,7 +435,7 @@
     - Infra/k8s/apps/fm-controller/fm-controller.yaml (+ move/ scripts)
     - Infra/k8s/apps/fm-browser/fm-browser.yaml (headless Service + NetworkPolicy, controller only)
     - Infra/k8s/apps/fm-webllm/fm-webllm.yaml (Service fm-webllm :8933 -> the waker; Service fm-webllm-backend -> the helper; the waker's ConfigMap, ServiceAccount/Role (scale fm-webllm only); NetworkPolicies, controller and bg-taste-match)
-  image: "fm, built on the server from Infra/images/fm, ~8 GB (pull Never): the controller on 2026-11-26a (server only), the browsers and fm-webllm on 2026-11-10a"
+  image: "fm, built on the server from Infra/images/fm, ~9 GB (pull Never), on both nodes; the controller, the browsers, fm-webllm and llm-gateway all on one tag since 2026-11-26 (2026-11-26a, Infra 6de552c)"
   schedule: "fm-orchestrator `scheduled.mjs daemon` inside the controller (Task Scheduler's stand-in); rounds, burn, replies, scan, weekly, loops"
   url: "none of its own (dashboard = freemotion-hub); browsers at <pod>.fm-browser.apps.svc:8931/mcp, writer at fm-webllm.apps.svc:8933 (the waker, which starts the helper)"
   data:
@@ -460,8 +460,7 @@
     - {k8s: apps/StatefulSet/fm-browser-acer}
     - {k8s: apps/Deployment/fm-webllm-waker}
     - {k8s: apps/Deployment/fm-webllm, on_demand: true}
-  drift:
-    - "The browsers' and fm-webllm's image (2026-11-10a) predates three images/fm commits (b161c73 shared browser context, b10d975 dbus env, 6de552c Node Playwright's Chromium); fm-browser.yaml spells the browser args out until they move to a newer image. Only the controller runs 2026-11-26a."
+  drift: []
   notes:
     - "Live check broken 2026-11-12 17:37 .. 2026-11-26 (fixed by image 2026-11-26a, Infra 6de552c): the image had only Python Playwright 1.62's Chromium (1234), the Node 1.64 live check in fm-pool make-pool.mjs needs 1248, so every posting checked by browser (HelloWork, Free-Work, engagement-jeunes, France Travail pages...) came back 'uncertain' and was skipped unless in Toulouse: 2,633 skipped on 11-26, 6 jobs left for that round. On the PC before the move the same check worked (11-10: HelloWork 117 open, Free-Work 117, engagement-jeunes 86). The check uses no AI: an ATS API where there is one, else one headless Chromium page."
     - "Memory fix (fm-pool#7) live since 2026-11-21 ~11:18: score loops run with --max-old-space-size=384 under a bash keeper (each end logged in fm-data/tmp/fm/scheduled/loop-<name>.err; a heap abort restarts in 5 min), the hub agent with a 384 MB cap. Before it, the loops reached 0.7 and 1.2 GB RSS (11:15). Check after each 06:00 scan: controller restarts, the .err files for 'heap limit'. Since 2026-11-24 02:49 the three loops run as ONE process (fm-pool f1a6c33 `score-loop.mjs ... --and ...`, fm-orchestrator 53b7892), heap cap 768 MB, keeper errors in tmp/fm/scheduled/loops.err; each loop keeps its own pid/log/status files (`--stop --name x` stops all three). Before: 255 + 454 + 241 = 950 MB RSS (02:45); after: ~360 MB, 535-560 MB for a minute while a loop reads the scan history (02:50-03:04)."

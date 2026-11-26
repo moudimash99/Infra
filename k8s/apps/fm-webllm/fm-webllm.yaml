@@ -59,7 +59,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: webllm
-          image: docker.io/library/fm:2026-11-10a
+          image: docker.io/library/fm:2026-11-26a
           imagePullPolicy: Never
           args: [python, /fm/ws/fm-llm/lib/web-llm-serve.py, --port, "8933"]
           env:
@@ -323,7 +323,7 @@ spec:
       securityContext: { runAsUser: 1000, runAsGroup: 1000 }
       containers:
         - name: waker
-          image: docker.io/library/fm:2026-11-10a   # the helper's own image (it has Python); same tag as fm-webllm
+          image: docker.io/library/fm:2026-11-26a   # the helper's own image (it has Python); same tag as fm-webllm
           imagePullPolicy: Never
           command: [python, -u, /waker/waker.py]
           env:

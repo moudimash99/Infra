@@ -45,17 +45,12 @@ spec:
       securityContext: { runAsUser: 1000, runAsGroup: 1000, fsGroup: 1000 }
       containers:
         - name: browser
-          image: docker.io/library/fm:2026-11-10a
+          image: docker.io/library/fm:2026-11-26a
           imagePullPolicy: Never
-          # The image's "browser" role, spelled out here until the next image build carries --shared-browser-context:
-          # one browser per lane, reused by every driver session (one per job) instead of a second one failing on the profile.
-          args:
-            - bash
-            - -c
-            - >-
-              node /usr/local/lib/fm/camoufox-config.mjs --in /fm/fm-data/config/playwright-mcp-camoufox.json --out /tmp/camoufox.json &&
-              exec playwright-mcp --config /tmp/camoufox.json --port 8931 --host 0.0.0.0 --allowed-hosts "${FM_ALLOWED_HOSTS:-*}"
-              --user-data-dir /profile --shared-browser-context
+          # The image's "browser" role (images/fm/entrypoint.sh): Camoufox's config for this machine, then playwright-mcp
+          # with --shared-browser-context, one browser per lane reused by every driver session (one per job). Before image
+          # 2026-11-26a (the first build that carries that flag) these steps were spelled out here as a bash -c.
+          args: ["browser"]
           env:
             - name: POD_NAME
               valueFrom: { fieldRef: { fieldPath: metadata.name } }

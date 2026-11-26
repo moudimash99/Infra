@@ -27,7 +27,7 @@ spec:
       securityContext: { runAsUser: 1000, runAsGroup: 1000 }
       containers:
         - name: gateway
-          image: docker.io/library/fm:2026-11-10a
+          image: docker.io/library/fm:2026-11-26a
           imagePullPolicy: Never
           args: ["node", "/fm/ws/fm-llm/gateway/server.mjs"]
           env:
