@@ -21,9 +21,6 @@ spec:
   timeZone: Europe/Paris
   # A run that can't start within the hour is skipped, so resuming the job never starts a run in the daytime.
   startingDeadlineSeconds: 3600
-  # Paused on purpose from 2026-11-22 for 3 days (the user's call), to let Okkazeo's block lapse. A PC scheduled task
-  # resumes both jobs on 2026-11-25 15:00 (fetch starts at once, first nightly run 11-26 04:30) and emails a report.
-  suspend: true
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -74,7 +71,6 @@ spec:
   # Started late (a reboot, the resume) it still ends at 04:00 and spreads what is left over the time left, never
   # faster than one load per 20 s. Later than 16:00 the day is skipped.
   startingDeadlineSeconds: 21600
-  suspend: true   # paused with the nightly job, see above
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
