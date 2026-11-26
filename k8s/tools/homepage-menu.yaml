@@ -660,10 +660,12 @@ data:
        "service": "free-motion"
       },
       "apps/CronJob/boardgamefinder": {
-       "service": "boardgamefinder"
+       "service": "boardgamefinder",
+       "max_age_h": 26
       },
       "apps/CronJob/boardgamefinder-fetch": {
-       "service": "boardgamefinder"
+       "service": "boardgamefinder",
+       "max_age_h": 26
       },
       "apps/CronJob/bg-taste-match-fetch": {
        "service": "bg-taste-match",
