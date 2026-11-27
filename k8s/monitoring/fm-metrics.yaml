@@ -51,6 +51,11 @@ spec:
             - { name: agent-inbox, mountPath: /fm-data/data/agent-inbox.md, readOnly: true }
             - { name: scheduled, mountPath: /fm-data/tmp/fm/scheduled, readOnly: true }
             - { name: hub, mountPath: /fm-data/tmp/fm/hub, readOnly: true }
+            # The rounds' end-step logs, once fm-orchestrator closing.mjs writes them to tmp/fm/night/closing/ (deploy
+            # that first: a hostPath of type Directory that doesn't exist keeps this pod from starting). Never mount
+            # tmp/fm/night itself: it holds 40,000 agent job files, transcripts that name freemotion-credentials.
+            # fm-metrics.py's end-step reader (CLOSING_DIR) turns on by itself when the folder is there.
+            # - { name: closing, mountPath: /fm-data/tmp/fm/night/closing, readOnly: true }
           securityContext:
             runAsUser: 65534
             runAsGroup: 65534
@@ -83,3 +88,5 @@ spec:
           hostPath: { path: /srv/apps/freemotion/fm-data/tmp/fm/scheduled, type: Directory }
         - name: hub
           hostPath: { path: /srv/apps/freemotion/fm-data/tmp/fm/hub, type: Directory }
+        # - name: closing
+        #   hostPath: { path: /srv/apps/freemotion/fm-data/tmp/fm/night/closing, type: Directory }

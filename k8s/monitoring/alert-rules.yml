@@ -417,6 +417,37 @@ groups:
         annotations:
           summary: "Free Motion: {{ $labels.who }} is signed out"
           description: "agy: run.sh found its Google sign-in gone; run `agy` once by hand in fm-controller to sign in (it is skipped, re-checked hourly, until then). A website writer (chatgpt, gemini): the open agent-inbox item says the command; close the item once signed in. Items older than 7 days stop alerting. Not seen by Free Motion at all: a signed-out Claude account, codex or copilot (they look like failures)."
+      # Added 2026-11-27 (architecture review of that day, finding 11, recommendation 4): quiet failures that lasted
+      # days before anyone saw them. Backtested on the files from 11-01; where each would have fired is in its text.
+      - alert: FreeMotionProgressEmailsLost
+        expr: |
+          fm_progress_emails_lost_in_a_row >= 3
+          and on () (time() - fm_progress_email_last_try_timestamp_seconds) < 24 * 3600
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Free Motion: the round progress emails are not going out ({{ $value }} lost in a row)"
+          description: "night-mail.py tries each email 3 times, a minute apart, then drops it without a word, so the rounds' STARTED/RUNNING/DONE and stuck emails stop. From 2026-11-13 12:50 to 11-20 all 479 were lost on 'Temporary failure in name resolution' (the controller could not resolve smtp.gmail.com) and nobody saw it. Why: grep 'not sent' tmp/fm/scheduled/night-<today>.log. Quiet a day after the last try (no rounds, no emails)."
+      # Inert until fm-metrics reads tmp/fm/night/closing/ (fm-metrics.py CLOSING_DIR): no numbers, no alert.
+      - alert: FreeMotionEndStepFailing
+        expr: fm_end_step_failed_in_a_row >= 3
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Free Motion: the end-of-round step {{ $labels.step }} failed in the last {{ $value }} rounds"
+          description: "closing.sh runs each step '|| true', so a failure is only a line in its log (tmp/fm/night/closing/closing-<run>-<time>.log). sent-check: the inbox against our records (check-sent.py); replies: employers' answers into the tracker (inbox-replies.py); follow-ups: the Gmail drafts (followups.mjs); lessons: the round's failures filed in data/lessons-learned.md (lessons.mjs). Judged by each step's own last line; a closing with OVERQUOTA is left to FreeMotionGmailOverQuota for the mail steps. Would have fired 2026-11-16 (sent-check, replies, follow-ups: DNS, 7 rounds) and for lessons most days since 11-10 ('claude failed (job , , not filed)': failed jobs without a number; also the Gemini website off and agy's 5-hour limit)."
+      - alert: FreeMotionInboxPilingUp
+        expr: |
+          sum(fm_inbox_open_items{kind!="notice"}) >= 20
+          or (
+            sum(fm_inbox_open_items{kind!="notice"})
+            and on () (time() - min(fm_inbox_oldest_open_timestamp_seconds{kind!="notice"})) > 14 * 86400
+          )
+        for: 1h
+        labels: { severity: warning }
+        annotations:
+          summary: 'Free Motion: {{ $value }} items wait in the agent inbox, the oldest for {{ with query `time() - min(fm_inbox_oldest_open_timestamp_seconds{kind!="notice"})` }}{{ . | first | value | humanizeDuration }}{{ end }}'
+          description: 'data/agent-inbox.md holds what needs a person: failed jobs, sign-outs, recruiters who want to talk ({{ with query `sum(fm_inbox_open_items{kind="recruiter"}) or vector(0)` }}{{ . | first | value }}{{ end }} open now). Nothing closes an item but ticking it ([x]) on the dashboard or in the file. While it was read (October) at most 9 were open and none older than 10 days; nothing was ticked from 11-01 to 11-27, and it reached 20 on 11-06 and 88 on 11-27, the oldest from 10-27. Notices (tracker updated, weekly lessons report) are not counted. Fires at 20 open or one older than 14 days.'
       - alert: FreeMotionMetricsBroken
         expr: fm_source_ok == 0
         for: 30m

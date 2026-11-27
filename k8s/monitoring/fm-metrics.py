@@ -9,12 +9,19 @@
   tmp/fm/night/out/                 run.sh's out marks (one epoch  -> writers that can write now, drivers that
                                     number per driver or writer)      can apply now
   tmp/fm/scheduled/                 the daemon's daily logs        -> jobs that ended badly, Gmail OVERQUOTA,
-                                                                      the 06:00 scan's pool summary, heap aborts
+                                                                      the 06:00 scan's pool summary, heap aborts;
+                                                                      the round progress emails lost (night-*.log)
   tmp/fm/hub/agent.log              the hub agent                  -> its last report (it recycles every 6 h)
-  data/agent-inbox.md               the agent inbox                -> open "web-llm: <site> is signed out" items
+  data/agent-inbox.md               the agent inbox                -> open items by kind and the oldest's age;
+                                                                      open "web-llm: <site> is signed out" items
+  tmp/fm/night/closing/             the rounds' end steps          -> steps that failed in a row (OFF: not written
+                                    (not there yet, not mounted)      there or mounted yet, see CLOSING_DIR)
 
 The writer and driver checks were added 2026-11-27, when applying started to pause on a job while no CV or letter
 writer can write (fm-agent run.sh, the user's rule), so a writer outage stops applying instead of sending generic CVs.
+The progress emails, the inbox and the end steps were added the same day (architecture review 2026-11-27, finding 11,
+recommendation 4): each failed for days and nobody saw it (emails 11-13..20, inbox unread since 11-01, lessons review
+failing in most rounds since 11-10).
 
 Made after the live check failed unseen for 14 days (2026-11-12..26: the image had no Chromium for Node's
 Playwright, so every browser-checked posting was "uncertain" and skipped). Labels stay few: outcome, result, job,
@@ -335,18 +342,172 @@ def night(out, now):
 
 
 INBOX_SIGNED_OUT = re.compile(r"^- \[ \] (\d{4}-\d\d-\d\d \d\d:\d\d) .*?web-llm: ([\w-]+) is signed out")
+# An item as the dashboard reads it (fm-agent hub-records.mjs alerts()): "[ ]" and "[!]" are open, the date is optional.
+INBOX_ITEM = re.compile(r"^- \[([ xX!])\] (?:(\d{4}-\d\d-\d\d)(?: (\d\d:\d\d))?\s*[—-]+\s*)?(.*)$")
+# A fixed list of kinds, never the item's text (it names companies). The first that matches wins; the words are the
+# dashboard's (hub-records.mjs KINDS): its "info" lines are the notices, its warnings and sign-outs the failures.
+INBOX_KINDS = (
+    ("recruiter", re.compile(r"Recruiter wrote|wants to talk", re.I)),          # scheduled.mjs, from the reply check
+    ("notice", re.compile(r"tracker change\(s\) (?:applied|made) from employers' replies|Weekly lessons report ready"
+                          r"|When no round runs: ", re.I)),
+    ("failure", re.compile(r"signed out|sign(?:ed)? in again|failed|not sent|could not|refused|broke|error|CAPTCHA"
+                           r"|no fit score|^posting text", re.I)),
+)
 
 
 def inbox(out, now):
-    """Open agent-inbox items "web-llm: <site> is signed out" (fm-core lib/llm-hooks.mjs adds one per site)."""
-    opened = {}
+    """data/agent-inbox.md: open items by kind and when the oldest of each was added; and the open items
+    "web-llm: <site> is signed out" (fm-core lib/llm-hooks.mjs adds one per site). Nothing closes an item but a person
+    or a session ticking it, so the count only grows while nobody reads the file (101 open on 2026-11-27, none ticked
+    since 11-01)."""
+    opened, count, oldest = {}, {k: 0 for k, _ in INBOX_KINDS + (("other", None),)}, {}
     for line in open(path("data/agent-inbox.md"), encoding="utf-8", errors="replace"):
         m = INBOX_SIGNED_OUT.match(line)
         if m:
             opened[m.group(2)] = max(opened.get(m.group(2), 0), from_paris(m.group(1)))
+        m = INBOX_ITEM.match(line.rstrip("\r\n"))
+        if not m or m.group(1) not in " !":
+            continue
+        t = from_paris(f"{m.group(2)} {m.group(3) or '00:00'}") if m.group(2) else None
+        if t is not None and t > now:
+            continue                                # added after `now` (a backtest)
+        kind = next((k for k, rx in INBOX_KINDS if rx.search(m.group(4))), "other")
+        count[kind] += 1
+        if t is not None:
+            oldest[kind] = min(oldest.get(kind, t), t)
     for site, t in sorted(opened.items()):
         out.add("fm_inbox_signed_out_opened_timestamp_seconds", t, {"who": site},
                 help_="When the open agent-inbox item 'web-llm: <site> is signed out' was added")
+    for kind, n in count.items():
+        out.add("fm_inbox_open_items", n, {"kind": kind},
+                help_="Open agent-inbox items by kind (recruiter, failure, notice, other)")
+    for kind, t in sorted(oldest.items()):
+        out.add("fm_inbox_oldest_open_timestamp_seconds", t, {"kind": kind},
+                help_="When the oldest open agent-inbox item of this kind was added")
+
+
+# The steps after a round (fm-orchestrator closing.sh, started by run.sh through closing.mjs, detached): each runs
+# "|| true", so a failure leaves only its own lines in closing-<run>-<HHMMSS>.log (CLOSING_DIR). A step is judged by
+# the line it prints when it worked, never by error wording: a changed sentence then reads as a failure, not as quiet.
+END_STEPS = {
+    "sent-check": re.compile(r"^!! = our record disagrees with the inbox: \d+"),     # check-sent.py's last line
+    "replies": re.compile(r"^Nothing to apply: "),       # inbox-replies.py --apply all, run only if the check exited 0
+    "follow-ups": re.compile(r"( -> \d+ picked$|^\d+ follow-up draft\(s\) in Gmail's Drafts folder)"),  # followups.mjs
+    "lessons": re.compile(r"^lessons: run \S+(: \d+ failed job| has no failures)"),  # lessons.mjs review
+}
+MAIL_STEPS = {"sent-check", "replies", "follow-ups"}   # a closing whose log shows OVERQUOTA: FreeMotionGmailOverQuota's
+FOLLOWUPS_RAN = re.compile(r"^(\d+ follow-up\(s\) sent since the last check|followups: )")   # absent: NO_FOLLOWUPS=1
+CLOSING_LOG = re.compile(r"^closing-.*?(\d{4}-\d\d-\d\d).*\.log$")
+# OFF until this folder exists and is mounted. The logs are written to tmp/fm/night itself today, beside the agents'
+# job files (40,000 entries, transcripts that name freemotion-credentials), which fm-metrics must not mount. It turns
+# on by itself once closing.mjs writes them here (fm-orchestrator, one line) and fm-metrics.yaml mounts the folder.
+CLOSING_DIR = "tmp/fm/night/closing"
+CLOSING_QUIET_S = 3 * 3600   # a closing took 66 min (median) to 107 min (most), 11-01..27: silent 3 h is not running
+CLOSING_DAYS = 8
+
+
+def judge_closing(file):
+    """{step: "ok" | "failed" | None (not judged)} for one closing log, and whether it reached "CLOSED"."""
+    ok, closed, quota, followups = set(), False, False, False
+    for line in open(file, encoding="utf-8", errors="replace"):
+        line = line.rstrip("\r\n")
+        closed = closed or line.startswith("CLOSED ")
+        quota = quota or "OVERQUOTA" in line
+        followups = followups or bool(FOLLOWUPS_RAN.match(line))
+        for step, rx in END_STEPS.items():
+            if step not in ok and rx.search(line):
+                ok.add(step)
+    res = {}
+    for step in END_STEPS:
+        if step in ok:
+            res[step] = "ok"
+        elif (quota and step in MAIL_STEPS) or (step == "follow-ups" and closed and not followups):
+            res[step] = None
+        else:
+            res[step] = "failed"                    # also every step a killed or hung closing never got to
+    return res, closed
+
+
+def end_steps(out, now):
+    """How many of the last closings in a row each step failed in, newest first, and when it last worked. A closing is
+    judged once it printed "CLOSED" or has been silent CLOSING_QUIET_S; closings overlap (rounds 40 min apart, a
+    closing about an hour), so they are taken in the order they ended (file mtime). Names carry the run's date (a
+    round after midnight keeps the day before), so only the last CLOSING_DAYS by name are looked at."""
+    since = paris_date(now - CLOSING_DAYS * DAY)
+    logs = []
+    with os.scandir(path(CLOSING_DIR)) as it:      # 40,000 entries on 2026-11-27: only names are read
+        for e in it:
+            m = CLOSING_LOG.match(e.name)
+            if m and m.group(1) >= since:
+                t = e.stat().st_mtime
+                if t <= now:
+                    logs.append((t, e.name))
+    streak, last_ok, settled, last = {s: 0 for s in END_STEPS}, {}, set(), None
+    for t, name in sorted(logs, reverse=True):
+        res, closed = judge_closing(path(f"{CLOSING_DIR}/{name}"))
+        if not closed and now - t < CLOSING_QUIET_S:
+            continue                                # still running
+        last = last or t
+        for step, r in res.items():
+            if step in settled or r is None:
+                continue
+            if r == "ok":
+                last_ok[step] = t
+                settled.add(step)
+            else:
+                streak[step] += 1
+        if len(settled) == len(END_STEPS):
+            break
+    if last:
+        out.add("fm_end_steps_last_closing_timestamp_seconds", last,
+                help_="When the last judged closing (a round's end steps) ended")
+    for step in END_STEPS:
+        out.add("fm_end_step_failed_in_a_row", streak[step], {"step": step},
+                help_="Closings in a row, newest first, in which this end-of-round step failed or never ran")
+        if step in last_ok:
+            out.add("fm_end_step_last_ok_timestamp_seconds", last_ok[step], {"step": step},
+                    help_="When this end-of-round step last worked (the closing's end)")
+
+
+# The progress emails (fm-orchestrator night-mail.py beside each round; its output goes to the night task's log):
+# send() tries 3 times, a minute apart, then gives up without a word, so a lost email is "attempt 3" with no "sent:".
+MAIL_SENT = re.compile(r"^sent: ")
+MAIL_LOST = re.compile(r"^not sent \(.*\); attempt 3$")
+NIGHT_STAMP = re.compile(r"^(?:##### )?(\d{4}-\d\d-\d\d \d\d:\d\d) ")
+MAIL_DAYS = 7
+
+
+def progress_mail(out, now):
+    """The round progress emails of the last MAIL_DAYS: lost in a row (newest first), the last sent, the last try.
+    Their lines carry no time: each takes the time of the stamped line before it."""
+    events = []
+    for back in range(MAIL_DAYS, -1, -1):
+        d = paris_date(now - back * DAY)
+        f = path(f"tmp/fm/scheduled/night-{d}.log")
+        if not os.path.exists(f):
+            continue
+        t = from_paris(f"{d} 00:00")
+        for line in open(f, encoding="utf-8", errors="replace"):
+            line = line.rstrip("\r\n")
+            m = NIGHT_STAMP.match(line)
+            if m:
+                t = from_paris(m.group(1))
+            elif t <= now and MAIL_SENT.match(line):
+                events.append((t, True))
+            elif t <= now and MAIL_LOST.match(line):
+                events.append((t, False))
+    lost = 0
+    for t, sent in reversed(events):
+        if sent:
+            out.add("fm_progress_email_last_sent_timestamp_seconds", t,
+                    help_="When the last round progress email went out (to the minute)")
+            break
+        lost += 1
+    out.add("fm_progress_emails_lost_in_a_row", lost,
+            help_="Round progress emails given up on after 3 tries, in a row, newest first")
+    if events:
+        out.add("fm_progress_email_last_try_timestamp_seconds", events[-1][0],
+                help_="When a round progress email was last sent or given up on")
 
 
 ENDED = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d) ([\w.-]+): ended \(exit (-?\d+)\)")
@@ -437,6 +598,9 @@ def metrics():
     source(out, "night", "tmp/fm/night/full-night.log", lambda o: night(o, now))
     source(out, "inbox", "data/agent-inbox.md", lambda o: inbox(o, now))
     source(out, "daemon", "tmp/fm/scheduled", lambda o: daemon(o, now))
+    if os.path.isdir(path(CLOSING_DIR)):           # not mounted yet: no numbers, and no "broken" either
+        source(out, "end-steps", CLOSING_DIR, lambda o: end_steps(o, now))
+    source(out, "progress-mail", "tmp/fm/scheduled", lambda o: progress_mail(o, now))
     source(out, "hub", "tmp/fm/hub/agent.log", lambda o: hub(o, now))
     out.add("fm_metrics_scrape_seconds", time.time() - now, help_="How long reading the files took")
     return "\n".join(out.lines) + "\n"
