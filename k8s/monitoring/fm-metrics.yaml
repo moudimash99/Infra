@@ -4,7 +4,7 @@
 #
 # Mounts ONLY what it reads, read-only: fm-data also holds .env and data/freemotion-credentials (all files there are
 # world-readable), so never mount data/ or the whole fm-data here. A single-file mount follows the file's inode:
-# replacing one of these files by rename (write tmp + mv, or a git merge of an fm-data snapshot: three of the four
+# replacing one of these files by rename (write tmp + mv, or a git merge of an fm-data snapshot: four of the five
 # are tracked) leaves this pod on the old copy. fm-metrics.py checks for that (link count 0) on every read and exits,
 # so the kubelet restarts it on the current files; FreeMotionMetricsStale is the backstop for the live-check cache.
 # Deploy: push to main and let Flux apply (or annotate gitrepository/infra to apply now). A hand
@@ -47,6 +47,8 @@ spec:
             - { name: burn-settings, mountPath: /fm-data/data/burn-settings.json, readOnly: true }
             - { name: burn-state, mountPath: /fm-data/tmp/fm/burn, readOnly: true }
             - { name: night-log, mountPath: /fm-data/tmp/fm/night/full-night.log, readOnly: true }
+            - { name: night-out, mountPath: /fm-data/tmp/fm/night/out, readOnly: true }   # one epoch number per file
+            - { name: agent-inbox, mountPath: /fm-data/data/agent-inbox.md, readOnly: true }
             - { name: scheduled, mountPath: /fm-data/tmp/fm/scheduled, readOnly: true }
             - { name: hub, mountPath: /fm-data/tmp/fm/hub, readOnly: true }
           securityContext:
@@ -73,6 +75,10 @@ spec:
           hostPath: { path: /srv/apps/freemotion/fm-data/tmp/fm/burn, type: Directory }
         - name: night-log
           hostPath: { path: /srv/apps/freemotion/fm-data/tmp/fm/night/full-night.log, type: File }
+        - name: night-out
+          hostPath: { path: /srv/apps/freemotion/fm-data/tmp/fm/night/out, type: Directory }
+        - name: agent-inbox
+          hostPath: { path: /srv/apps/freemotion/fm-data/data/agent-inbox.md, type: File }
         - name: scheduled
           hostPath: { path: /srv/apps/freemotion/fm-data/tmp/fm/scheduled, type: Directory }
         - name: hub

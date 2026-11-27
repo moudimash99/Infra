@@ -3,10 +3,18 @@
   data/posting-liveness.json        the live check's results       -> crashes of the check, results in 24 h
   data/freemotion-submissions.tsv   one row per application try    -> outcomes, 24 h and a 14-day baseline
   data/burn-settings.json, tmp/fm/burn/state.json   auto-apply on? which drivers may apply now
-  tmp/fm/night/full-night.log       each round's pool summary      -> kept, live-checked, skipped, list size
+  tmp/fm/night/full-night.log       each round's pool summary      -> kept, live-checked, skipped, list size;
+                                                                      applying paused for want of a writer;
+                                                                      "note: agy is signed out"
+  tmp/fm/night/out/                 run.sh's out marks (one epoch  -> writers that can write now, drivers that
+                                    number per driver or writer)      can apply now
   tmp/fm/scheduled/                 the daemon's daily logs        -> jobs that ended badly, Gmail OVERQUOTA,
                                                                       the 06:00 scan's pool summary, heap aborts
   tmp/fm/hub/agent.log              the hub agent                  -> its last report (it recycles every 6 h)
+  data/agent-inbox.md               the agent inbox                -> open "web-llm: <site> is signed out" items
+
+The writer and driver checks were added 2026-11-27, when applying started to pause on a job while no CV or letter
+writer can write (fm-agent run.sh, the user's rule), so a writer outage stops applying instead of sending generic CVs.
 
 Made after the live check failed unseen for 14 days (2026-11-12..26: the image had no Chromium for Node's
 Playwright, so every browser-checked posting was "uncertain" and skipped). Labels stay few: outcome, result, job,
@@ -151,18 +159,68 @@ def submissions(out, now):
     out.add("fm_submitted_today", days.get(today, {}).get("submitted", 0), help_="Applications sent today (Paris)")
 
 
+def secs(u):
+    u = float(u or 0)
+    return u / 1000 if u > 1e12 else u
+
+
+def out_marks():
+    """run.sh's and fm-llm's out marks: tmp/fm/night/out/<name> holds the epoch second it comes back."""
+    marks = {}
+    d = path("tmp/fm/night/out")
+    for name in os.listdir(d):
+        try:
+            marks[name] = secs(open(os.path.join(d, name), encoding="utf-8").read().strip())
+        except (OSError, ValueError):
+            continue
+    return marks
+
+
 def burn(out, now):
     s = json.load(open(path("data/burn-settings.json"), encoding="utf-8"))
     st = json.load(open(path("tmp/fm/burn/state.json"), encoding="utf-8"))
     drivers, off, paused = s.get("drivers", []), set(s.get("off", [])), st.get("paused", {}) or {}
 
     def held(d):
-        u = paused.get(d) or 0
-        return (u / 1000 if u > 1e12 else u) > now
+        return secs(paused.get(d)) > now
     allowed = [d for d in drivers if d not in off and not held(d)]
     out.add("fm_auto_apply_enabled", 1 if s.get("enabled") else 0, help_="1 while auto-apply (burn.mjs) is on")
     out.add("fm_drivers", len(drivers), help_="Drivers in the order")
     out.add("fm_drivers_allowed", len(allowed), help_="Drivers that may apply now (not off, not paused by a rule)")
+
+
+# The CV and letter writers, in fm-llm/lib/doc-writers.mjs WRITER_ORDER. WEB_LLM_OFF is not set on the controller
+# since 2026-11-27 (both websites on); if it comes back, prepare-docs also leaves those websites out.
+WRITER_ORDER = ["chatgpt-web", "gemini-web", "codex", "agy", "sonnet1", "copilot"]
+
+
+def writers(out, now):
+    """Who can work now, from the out marks: writers as prepare-docs counts them (writersFree), drivers as run.sh
+    does (an out mark is a limit or a sign-out) plus auto-apply's own off list and pauses."""
+    marks = out_marks()
+    try:
+        st = json.load(open(path("tmp/fm/burn/state.json"), encoding="utf-8"))
+    except (OSError, ValueError):
+        st = {}
+    s = json.load(open(path("data/burn-settings.json"), encoding="utf-8"))
+    paused, why = st.get("paused", {}) or {}, st.get("why", {}) or {}
+    for name in sorted(marks):
+        out.add("fm_out_until_timestamp_seconds", marks[name], {"name": name},
+                help_="When a driver or writer marked out (limit, sign-out, errors) is back")
+
+    def writer_out(n):
+        # doc-writers.mjs isOut: auto-apply's hold "for CVs and letters" shares the file but only stops applying.
+        u = marks.get(n, 0)
+        if u <= now:
+            return False
+        return not (secs(paused.get(n)) == u and "for CVs and letters" in str(why.get(n, "")))
+    free = [n for n in WRITER_ORDER if not writer_out(n)]
+    out.add("fm_writers", len(WRITER_ORDER), help_="CV and letter writers in the chain")
+    out.add("fm_writers_free", len(free), help_="CV and letter writers not marked out now")
+    usable = [d for d in s.get("drivers", []) if d not in set(s.get("off", []))
+              and marks.get(d, 0) <= now and secs(paused.get(d)) <= now]
+    out.add("fm_drivers_usable", len(usable),
+            help_="Drivers that can apply now: not off, not paused by auto-apply, not out at a limit or signed out")
 
 
 POOL = {"kept": re.compile(r"^\s*kept: (\d+) after"),
@@ -241,6 +299,56 @@ def pool(out, now):
         out.add(f"fm_pool_{k}", v, help_=f"The last pool build: {k.replace('_', ' ')}")
 
 
+PAUSE = re.compile(r"^(note: no CV or letter writer available at job \d+; applying paused"
+                   r"|docs for job \d+: waiting, no CV or letter writer)")
+# Anything that shows a lane moved on: documents made, a job's outcome line, the agent's steps ("05:16:51  Read") and
+# narration (indented » → ✗), a stop, a new round or run. A paused lane prints only its pause lines, again at each
+# try (1 to 60 minutes apart). With several lanes, one lane still working counts as not paused: all lanes share the
+# same writers, so a real outage pauses them all within minutes.
+PROGRESS = re.compile(r"^(job \d+\b|docs for job \d+: (?!waiting)|\d\d:\d\d:\d\d  |\s+[»→✗] "
+                      r"|note: stop file found|===== round|##### full night run)")
+SIGNED_OUT = re.compile(r"^note: ([\w-]+) is signed out")
+PAUSE_FRESH_S = 75 * 60      # the longest wait between two tries is 60 min (prepare-docs writersWait) + 30 s
+
+
+def night(out, now):
+    """From the rounds' log: is applying paused for want of a writer, and when was a driver last found signed out."""
+    lines = tail("tmp/fm/night/full-night.log", 4 << 20)   # about a day of rounds (2.8 MB from 02:25 to 19:00 on 11-27)
+    last_pause = last_progress = -1
+    signed = {}
+    for i, line in enumerate(lines):
+        if PAUSE.match(line):
+            last_pause = i
+        elif PROGRESS.match(line):
+            last_progress = i
+        m = SIGNED_OUT.match(line)
+        if m:
+            signed[m.group(1)] = i
+    fresh = now - os.stat(path("tmp/fm/night/full-night.log")).st_mtime < PAUSE_FRESH_S
+    out.add("fm_applying_paused_for_writer", 1 if last_pause > last_progress and fresh else 0,
+            help_="1 while the rounds wait on a job because no CV or letter writer can write (the log's newest step)")
+    for who, i in sorted(signed.items()):
+        t = round_time(lines, i)
+        if t:
+            out.add("fm_signed_out_note_timestamp_seconds", t, {"who": who},
+                    help_="Start of the last round in which run.sh found this driver signed out")
+
+
+INBOX_SIGNED_OUT = re.compile(r"^- \[ \] (\d{4}-\d\d-\d\d \d\d:\d\d) .*?web-llm: ([\w-]+) is signed out")
+
+
+def inbox(out, now):
+    """Open agent-inbox items "web-llm: <site> is signed out" (fm-core lib/llm-hooks.mjs adds one per site)."""
+    opened = {}
+    for line in open(path("data/agent-inbox.md"), encoding="utf-8", errors="replace"):
+        m = INBOX_SIGNED_OUT.match(line)
+        if m:
+            opened[m.group(2)] = max(opened.get(m.group(2), 0), from_paris(m.group(1)))
+    for site, t in sorted(opened.items()):
+        out.add("fm_inbox_signed_out_opened_timestamp_seconds", t, {"who": site},
+                help_="When the open agent-inbox item 'web-llm: <site> is signed out' was added")
+
+
 ENDED = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d) ([\w.-]+): ended \(exit (-?\d+)\)")
 NIGHT_END = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d) full-night\.sh ended \(exit (-?\d+)\)")
 DONE = re.compile(r"FM: DONE · (\d+) sent of (\d+) jobs")
@@ -305,7 +413,7 @@ def hub(out, now):
 
 
 SINGLE_FILES = ["data/posting-liveness.json", "data/freemotion-submissions.tsv", "data/burn-settings.json",
-                "tmp/fm/night/full-night.log"]   # mounted one by one (fm-metrics.yaml): each mount follows an inode
+                "tmp/fm/night/full-night.log", "data/agent-inbox.md"]   # mounted one by one (fm-metrics.yaml): each follows an inode
 
 
 def replaced():
@@ -324,7 +432,10 @@ def metrics():
     source(out, "liveness", "data/posting-liveness.json", lambda o: liveness(o, now))
     source(out, "submissions", "data/freemotion-submissions.tsv", lambda o: submissions(o, now))
     source(out, "burn", "tmp/fm/burn/state.json", lambda o: burn(o, now))
+    source(out, "writers", "tmp/fm/night/out", lambda o: writers(o, now))
     source(out, "pool", "tmp/fm/night/full-night.log", lambda o: pool(o, now))
+    source(out, "night", "tmp/fm/night/full-night.log", lambda o: night(o, now))
+    source(out, "inbox", "data/agent-inbox.md", lambda o: inbox(o, now))
     source(out, "daemon", "tmp/fm/scheduled", lambda o: daemon(o, now))
     source(out, "hub", "tmp/fm/hub/agent.log", lambda o: hub(o, now))
     out.add("fm_metrics_scrape_seconds", time.time() - now, help_="How long reading the files took")

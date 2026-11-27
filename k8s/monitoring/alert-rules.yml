@@ -382,6 +382,41 @@ groups:
         annotations:
           summary: "Free Motion: {{ $labels.job }} failed {{ $value }} times in 24 h"
           description: "The daemon's {{ $labels.job }} job keeps ending with an error (none did from 2026-11-01 to 11-26). Its log: tmp/fm/scheduled/{{ $labels.job }}-<today>.log, or night-<today>.log for rounds."
+      # Added 2026-11-27: applying now pauses on a job while no CV or letter writer can write (the user's rule), so a
+      # writer outage is a silent stop; and FewApplications stays quiet while no driver may apply.
+      - alert: FreeMotionWaitingForWriter
+        expr: |
+          fm_applying_paused_for_writer == 1
+          or (fm_writers_free == 0 and on () fm_auto_apply_enabled == 1)
+        for: 30m
+        labels: { severity: critical }
+        annotations:
+          summary: "Free Motion: applying is paused, no CV or letter writer can write"
+          description: "A job waits for a writer instead of going out with the generic CV (the user, 2026-11-27), so nothing is sent until one is back. Short pauses of a few minutes while ChatGPT is busy are normal (2026-11-27 02:25 and 05:31) and don't reach 30 minutes. Who is out and until when: ls tmp/fm/night/out (each file holds the epoch second it is back; Grafana: fm_out_until_timestamp_seconds); why: grep 'no writer answered' tmp/fm/night/full-night.log. A signed-out website writer also opens an agent-inbox item."
+      - alert: FreeMotionNoDriver
+        expr: fm_drivers_usable == 0 and on () fm_auto_apply_enabled == 1
+        for: 2h
+        labels: { severity: warning }
+        annotations:
+          summary: "Free Motion: no driver can apply"
+          description: "Every driver is off, paused by auto-apply's rules, or out at a limit or a sign-out for 2 hours, so rounds don't start (and FreeMotionFewApplications stays quiet while none may apply). Why each one: node freemotion-night/burn.mjs status in fm-controller, and ls tmp/fm/night/out."
+      - alert: FreeMotionDaemonStalled
+        expr: |
+          time() - fm_daemon_job_last_end_timestamp_seconds{job="burn"} > 40 * 60
+          or (absent(fm_daemon_job_last_end_timestamp_seconds{job="burn"}) and on () fm_source_ok{source="daemon"} == 1)
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "Free Motion: the daemon has stopped running its jobs"
+          description: "The burn tick runs every 10 minutes, whether auto-apply is on or off, and logs 'burn: ended'. None for 40 minutes means scheduled.mjs daemon hung or died while the pod still looks Running (the controller has no liveness probe). tmp/fm/scheduled/daemon-<today>.log; kubectl -n apps logs deploy/fm-controller."
+      - alert: FreeMotionSignedOut
+        expr: |
+          time() - fm_signed_out_note_timestamp_seconds < 6 * 3600
+          or time() - fm_inbox_signed_out_opened_timestamp_seconds < 7 * 86400
+        labels: { severity: warning }
+        annotations:
+          summary: "Free Motion: {{ $labels.who }} is signed out"
+          description: "agy: run.sh found its Google sign-in gone; run `agy` once by hand in fm-controller to sign in (it is skipped, re-checked hourly, until then). A website writer (chatgpt, gemini): the open agent-inbox item says the command; close the item once signed in. Items older than 7 days stop alerting. Not seen by Free Motion at all: a signed-out Claude account, codex or copilot (they look like failures)."
       - alert: FreeMotionMetricsBroken
         expr: fm_source_ok == 0
         for: 30m
