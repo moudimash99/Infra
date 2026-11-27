@@ -464,7 +464,7 @@ data:
       "llm-gateway": {
        "group": "Job search",
        "title": "LLM gateway",
-       "what": "fm-llm's ask service, the one way the home's projects call a model (gemma, Gemini, Claude)",
+       "what": "fm-llm's ask service, the one way the home's projects call a model (gemma, Gemini, Claude on the Max login, and the Anthropic API credit:…",
        "url": null
       },
       "spirit-island": {
