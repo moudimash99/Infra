@@ -51,11 +51,11 @@ spec:
             # holds the signed-in ChatGPT browser and the Gemini cookies (Gemini on by the user, 2026-11-11 23:10).
             # Both were OFF from 2026-11-11 21:57 to 2026-11-27 (WEB_LLM_OFF=1): Gemini's step hung there, and ChatGPT
             # went off with it although nothing was wrong with it (the user: it should not have been).
-            # ChatGPT ON since 2026-11-27 (user): a test ask answered in 92 s, the helper's start included.
-            # Gemini stays OFF: signed in (web-llm.py check), but its ask still gets no answer in 290 s (2026-11-27,
-            # as on 11-20/21). Turn it on by dropping WEB_LLM_OFF once a Gemini ask answers; apply between rounds.
+            # ChatGPT ON since 2026-11-27 ~01:10 (user): a test ask answered in 92 s, the helper's start included.
+            # Gemini ON again since 2026-11-27 (user), after fm-llm#4 was fixed (fm-llm f999392: every Google cookie
+            # sent, stale cookies re-read from the profile): a test ask answered in 16 s. WEB_LLM_OFF=gemini turns it
+            # off again; apply between rounds.
             - { name: WEB_LLM_URL, value: "http://fm-webllm.apps.svc.cluster.local:8933" }
-            - { name: WEB_LLM_OFF, value: "gemini" }
           securityContext: { allowPrivilegeEscalation: false, privileged: false }
           volumeMounts:
             - { name: ws, mountPath: /fm/ws }
