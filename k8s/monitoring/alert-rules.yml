@@ -447,7 +447,7 @@ groups:
         labels: { severity: warning }
         annotations:
           summary: 'Free Motion: {{ $value }} items wait in the agent inbox, the oldest for {{ with query `time() - min(fm_inbox_oldest_open_timestamp_seconds{kind!="notice"})` }}{{ . | first | value | humanizeDuration }}{{ end }}'
-          description: 'data/agent-inbox.md holds what needs a person: failed jobs, sign-outs, recruiters who want to talk ({{ with query `sum(fm_inbox_open_items{kind="recruiter"}) or vector(0)` }}{{ . | first | value }}{{ end }} open now). Nothing closes an item but ticking it ([x]) on the dashboard or in the file. While it was read (October) at most 9 were open and none older than 10 days; nothing was ticked from 11-01 to 11-27, and it reached 20 on 11-06 and 88 on 11-27, the oldest from 10-27. Notices (tracker updated, weekly lessons report) are not counted. Fires at 20 open or one older than 14 days.'
+          description: 'data/agent-inbox.md holds what needs a person: failed jobs, sign-outs, recruiters who want to talk ({{ with query `sum(fm_inbox_open_items{kind="recruiter"}) or vector(0)` }}{{ . | first | value }}{{ end }} open now). Nothing closes an item but ticking it ([x]) on the dashboard or in the file. At the October snapshots, while it was read, at most 9 were open and none older than 10 days; nothing was ticked from 11-01 to 11-27, and it reached 20 on 11-06 and 88 on 11-27, the oldest from 10-27. Notices (tracker updated, weekly lessons report) are not counted. Fires at 20 open or one older than 14 days.'
       - alert: FreeMotionMetricsBroken
         expr: fm_source_ok == 0
         for: 30m
