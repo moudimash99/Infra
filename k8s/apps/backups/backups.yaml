@@ -9,10 +9,19 @@
 # (moudimash99), never in a repo or anywhere public. The driver logins and the k3s snapshot + token go only to
 # /srv/backups/server-only/<day> on the server (not exported, not copied to the Acer): NFS trusts the uid a client
 # claims, and every pod on the Acer can reach the export. A copy of those off the server needs encryption first.
+# Free Motion's records (the never-apply-twice ledger, the tracker and the other record files in fm-data's data/ and
+# config/, ~5 MB packed) are copied every night since this change (architecture review 2026-11-27, recommendation 1).
+# Before it they left the server's disk only in fm-data's git snapshots, which are made by hand. backup-acer
+# checks that night's copy on the Acer's own disk and writes a stamp node-exporter reads (alert
+# FreeMotionRecordsNotCopied). Never copied: fm-data's .env (not even mounted), the site logins, the posting texts,
+# output/, the screenshots and the browser profiles.
 # Left out on purpose (big, or easy to make again): Frigate recordings, bg-taste-match audio and caches, Prometheus,
-# the registry, the session histories under /srv/apps/freemotion/home, fm-data (git, pushed) and all code (GitHub).
+# the registry, the session histories under /srv/apps/freemotion/home, the rest of fm-data (git snapshots by hand; the
+# big files the scan and the scoring make again, see FM_LEAVE) and all code (GitHub).
 # Restore: copy the file back while the app is stopped (scale it to 0), then start it. A test restore of cat-weight's
-# DB was run on 2026-11-23 (see services.yaml, backups).
+# DB was run on 2026-11-23 (see services.yaml, backups). Free Motion's records: stop the burn and wait for "FM: DONE"
+# first, then untar the night's freemotion-records.tar.gz into /srv/apps/freemotion/fm-data (paths start at data/ and
+# config/); freemotion-records.json next to it lists each file's size and sha256.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -20,7 +29,7 @@ metadata:
   namespace: apps
 data:
   backup.py: |
-    import datetime, json, os, shutil, sqlite3, sys, tarfile, traceback
+    import datetime, fnmatch, hashlib, io, json, os, shutil, sqlite3, sys, tarfile, time, traceback
     MODE = sys.argv[1]                       # server | acer
     DAY = datetime.datetime.now().strftime("%Y-%m-%d")
     KEEP = 7
@@ -72,12 +81,111 @@ data:
         for d in days[:-KEEP]:
             shutil.rmtree(os.path.join(folder, d), ignore_errors=True); print("pruned", folder, d)
 
+    # Free Motion's records (fm-data, written all day by the rounds). Only fm-data's data/ and config/ are mounted, so
+    # its .env never is, and only the files directly in data/, in data/lessons-weekly and in config/ are read: the site
+    # logins, posting texts, screenshots and caches are in other sub-folders. Left out by name: old hand-made copies,
+    # the machine file, and the big files the scan and the scoring make again (scores, scan history, pipeline, the
+    # live-check cache: ~15 MB a night more; adding them is the user's call).
+    FM = "/src/fm-data"
+    FM_FOLDERS = (("data", (".tsv", ".jsonl", ".json", ".md")), ("data/lessons-weekly", (".md",)),
+                  ("config", (".yml", ".json", ".md", ".txt")))
+    FM_LEAVE = ("*.bak*", "*.backup*", "*mojibake*", "llm-*.tsv", "scan-history*", "pipeline*", "posting-liveness*",
+                "playwright-mcp-*")
+    FM_SECRET = ("credential", "cookie", "token", "secret", "password", "auth", ".env")   # never copied, even if new
+    LEDGER, TRACKER = "data/freemotion-submissions.tsv", "data/applications.md"
+    STAMPS = "/textfile"   # the machine's /var/lib/node-exporter/textfile, read by node-exporter
+
+    def backup_stamp(item, place, taken):
+        # When the newest good copy of an item in this place was taken. alert-rules.yml reads it through node-exporter.
+        tmp = f"{STAMPS}/.backup-{item}-{place}.tmp"   # node-exporter reads only *.prom
+        with open(tmp, "w", newline="\n") as f:
+            f.write("# HELP homelab_backup_newest_copy_timestamp_seconds When the newest good copy of a backup item"
+                    " in this place was taken (k8s/apps/backups).\n"
+                    "# TYPE homelab_backup_newest_copy_timestamp_seconds gauge\n"
+                    f'homelab_backup_newest_copy_timestamp_seconds{{item="{item}",place="{place}"}} {taken:.0f}\n')
+        os.chmod(tmp, 0o644)   # node-exporter runs as uid 65534
+        os.replace(tmp, f"{STAMPS}/backup-{item}-{place}.prom")
+
+    def steady_read(path):
+        # The rounds write while this reads: the ledger is appended to, the tracker and the JSON files are swapped in
+        # by a rename. Read again until the file stayed the same during the read (and a JSON file parses).
+        for _ in range(5):
+            before = os.stat(path)
+            with open(path, "rb") as f: data = f.read()
+            after = os.stat(path)
+            same = (before.st_ino, before.st_mtime_ns) == (after.st_ino, after.st_mtime_ns) and len(data) == after.st_size
+            if same and path.endswith(".json"):
+                try: json.loads(data)
+                except ValueError: same = False
+            if same: return data, after, True
+            time.sleep(1)
+        return data, after, False
+
+    def fm_records(out, earlier):
+        # earlier: the earlier night folders, oldest first, for the ledger check.
+        taken = time.time()
+        files, changing, skipped = {}, [], []
+        for folder, types in FM_FOLDERS:
+            if not os.path.isdir(f"{FM}/{folder}"): continue   # a missing ledger or tracker is caught below
+            for n in sorted(os.listdir(f"{FM}/{folder}")):
+                rel, p = f"{folder}/{n}", f"{FM}/{folder}/{n}"
+                if os.path.islink(p) or not os.path.isfile(p) or not n.endswith(types): continue
+                if any(fnmatch.fnmatch(n, x) for x in FM_LEAVE): continue
+                if any(w in n.lower() for w in FM_SECRET):
+                    skipped.append(rel); print("skip  ", rel, "(its name looks like a secret)", flush=True); continue
+                data, st, steady = steady_read(p)
+                if not steady: changing.append(rel)
+                files[rel] = (data, st)
+        problems = [f"{m} is missing or empty" for m in (LEDGER, TRACKER) if not files.get(m, (b"",))[0]]
+        # The ledger only grows (append-only, fm-core lib/freemotion-submissions.mjs). Shorter than in the last good
+        # night means something cut it: alert, and keep that night's copy before it is pruned. Flagged nights are not
+        # compared with, so this fails every night until the ledger is whole again.
+        prev = None
+        for d in reversed(earlier):
+            if os.path.exists(f"{d}/freemotion-records.json"):
+                with open(f"{d}/freemotion-records.json") as f: m = json.load(f)
+                if not m["problems"]: prev = m; break
+        if prev and LEDGER in files and LEDGER in prev["files"] and len(files[LEDGER][0]) < prev["files"][LEDGER]["bytes"]:
+            problems.append(f"the ledger is shorter than in the {prev['day']} copy ({len(files[LEDGER][0])} <"
+                            f" {prev['files'][LEDGER]['bytes']} bytes): keep that night's copy before it is pruned")
+        dst = f"{out}/freemotion-records.tar.gz"
+        with tarfile.open(dst + ".part", "w:gz", compresslevel=6) as t:
+            for rel, (data, st) in files.items():
+                ti = tarfile.TarInfo(rel); ti.size = len(data); ti.mtime = st.st_mtime; ti.mode = st.st_mode & 0o777
+                t.addfile(ti, io.BytesIO(data))
+        os.replace(dst + ".part", dst)
+        man = {"taken": taken, "day": DAY, "problems": problems, "still_changing": changing, "skipped": skipped,
+               "ledger_rows": files[LEDGER][0].count(b"\n") if LEDGER in files else 0,
+               "files": {rel: {"bytes": len(d), "sha256": hashlib.sha256(d).hexdigest()} for rel, (d, st) in files.items()}}
+        with open(f"{out}/freemotion-records.json", "w") as f: json.dump(man, f, indent=1)
+        print(f"      {len(files)} files, {sum(len(d) for d, _ in files.values()) / 1e6:.1f} MB read,"
+              f" {os.path.getsize(dst) / 1e6:.1f} MB packed, {man['ledger_rows']} ledger rows"
+              + (f"; still changing after 5 reads (kept as read): {changing}" if changing else ""), flush=True)
+        if problems: raise RuntimeError("; ".join(problems))
+        backup_stamp("freemotion-records", "server", taken)
+
+    def fm_check_copy(night):
+        # The server's night, now on the Acer's own disk: check its Free Motion records against their manifest, then
+        # stamp the time they were read on the server, not now (an old night copied again must not look fresh).
+        with open(f"{night}/freemotion-records.json") as f: man = json.load(f)
+        if man["problems"]: raise RuntimeError("the server's copy reported: " + "; ".join(man["problems"]))
+        seen = {}
+        with tarfile.open(f"{night}/freemotion-records.tar.gz") as t:
+            for m in t:
+                if m.isfile(): seen[m.name] = hashlib.sha256(t.extractfile(m).read()).hexdigest()
+        bad = sorted(n for n, v in man["files"].items() if seen.get(n) != v["sha256"])
+        if bad or LEDGER not in seen or len(seen) != len(man["files"]):
+            raise RuntimeError(f"the copy differs from its manifest ({len(bad)} files, e.g. {bad[:3]})")
+        backup_stamp("freemotion-records", "acer", man["taken"])
+
     if MODE == "server":
         out = f"/backup/server/{DAY}"; os.makedirs(out, exist_ok=True)
         # The driver logins and the k3s snapshot + token (which together open every Secret) stay on the server, out of
         # the NFS export: NFS trusts the uid a client claims, and every pod on the Acer reaches the server's port 2049.
         priv = f"/private/{DAY}"; os.makedirs(priv, exist_ok=True)
         step("freemotion-hub hub.db", sqlite_copy, "/src/freemotion-hub/hub.db", f"{out}/freemotion-hub/hub.db")
+        earlier = [f"/backup/server/{d}" for d in sorted(os.listdir("/backup/server")) if len(d) == 10 and d < DAY]
+        step("freemotion records (ledger, tracker, ...)", fm_records, out, earlier)
         home = "/src/fm-home"
         logins = [(f"{home}/{a}/{f}", f"{a}/{f}") for a in (".claude-account1", ".claude-account2", ".claude-account3")
                   for f in (".credentials.json", ".claude.json", "settings.json")]
@@ -144,6 +252,8 @@ data:
                 if os.path.exists(dst): shutil.rmtree(dst)
                 shutil.copytree(f"/backup/server/{nights[-1]}", dst); secure(dst)
             step(f"server night {nights[-1]} copied to the Acer", pull)
+            if f"server night {nights[-1]} copied to the Acer" in done:
+                step("freemotion records checked on the Acer", fm_check_copy, dst)
             prune("/local/server")
         else:
             errors.append("no server night to copy"); print("FAIL  no server night to copy")
@@ -184,6 +294,9 @@ spec:
                 - { name: out, mountPath: /backup }
                 - { name: private, mountPath: /private }
                 - { name: hub, mountPath: /src/freemotion-hub }
+                - { name: fm-records, mountPath: /src/fm-data/data, readOnly: true }
+                - { name: fm-settings, mountPath: /src/fm-data/config, readOnly: true }
+                - { name: stamps, mountPath: /textfile }
                 - { name: fm-home, mountPath: /src/fm-home, readOnly: true }
                 - { name: tracking, mountPath: /src/tracking-data, readOnly: true }
                 - { name: storage, mountPath: /src/k3s-storage }
@@ -199,6 +312,11 @@ spec:
             - { name: private, hostPath: { path: /srv/backups/server-only, type: DirectoryOrCreate } }
             # SQLite folders are mounted read-write only so SQLite can use the -shm file: the script only reads them.
             - { name: hub, hostPath: { path: /srv/apps/freemotion-hub, type: Directory } }
+            # fm-data's data/ and config/ only, read-only: its .env (at the top of fm-data) is never in this pod.
+            - { name: fm-records, hostPath: { path: /srv/apps/freemotion/fm-data/data, type: Directory } }
+            - { name: fm-settings, hostPath: { path: /srv/apps/freemotion/fm-data/config, type: Directory } }
+            # node-exporter's textfile folder (k8s/monitoring/node-exporter.yaml): the backups' stamps.
+            - { name: stamps, hostPath: { path: /var/lib/node-exporter/textfile, type: DirectoryOrCreate } }
             - { name: fm-home, hostPath: { path: /srv/apps/freemotion/home, type: Directory } }
             - { name: tracking, hostPath: { path: /home/moudimash99/Personal-Website/tracking-data, type: Directory } }
             - { name: storage, hostPath: { path: /var/lib/rancher/k3s/storage, type: Directory } }
@@ -240,6 +358,7 @@ spec:
                 - { name: out, mountPath: /backup }
                 - { name: local, mountPath: /local }
                 - { name: apps, mountPath: /src/apps }
+                - { name: stamps, mountPath: /textfile }
               resources:
                 requests: { cpu: 50m, memory: 64Mi }
                 limits: { memory: 512Mi }
@@ -250,3 +369,5 @@ spec:
             - { name: local, hostPath: { path: /var/backups/nightly, type: DirectoryOrCreate } }
             # Read-write only so SQLite can use the -shm file: the script only reads them.
             - { name: apps, hostPath: { path: /srv/apps, type: Directory } }
+            # node-exporter's textfile folder (k8s/monitoring/node-exporter.yaml): the backups' stamps.
+            - { name: stamps, hostPath: { path: /var/lib/node-exporter/textfile, type: DirectoryOrCreate } }

@@ -252,6 +252,19 @@ groups:
         annotations:
           summary: "{{ $labels.cronjob }}: no good nightly backup in over a day"
           description: "The nightly copy (k8s/apps/backups) failed or didn't start. Its log names each item that failed: kubectl -n apps get jobs | grep backup, then kubectl -n apps logs job/<the last one>."
+      # backup-acer writes this stamp only after it checked the night's copy of Free Motion's records (the
+      # never-apply-twice ledger, the tracker, ...) on the Acer's own disk; its value is when backup-server read them.
+      # The other two lines: node-exporter can't read the stamp folder, or has run 26 h and never seen the stamp.
+      - alert: FreeMotionRecordsNotCopied
+        expr: |
+          time() - max(homelab_backup_newest_copy_timestamp_seconds{item="freemotion-records", place="acer"}) > 26 * 3600
+          or on () max(node_textfile_scrape_error{node="acer-laptop"}) > 0
+          or on () (absent(homelab_backup_newest_copy_timestamp_seconds{item="freemotion-records", place="acer"})
+                    and on () time() - max(process_start_time_seconds{job="node-exporter", node="acer-laptop"}) > 26 * 3600)
+        labels: { severity: warning }
+        annotations:
+          summary: "Free Motion: records not copied off the server for 26 h"
+          description: "No checked copy of the ledger, the tracker and the other record files has reached the Acer for over a day, so they are on the server's disk only. The backup-server and backup-acer logs say why (a ledger shorter than the night before is reported there): kubectl -n apps get jobs | grep backup, then kubectl -n apps logs job/<the last one>. homelab_backup_newest_copy_timestamp_seconds{place=\"server\"} shows whether the server's step ran."
       - alert: BgTasteMatchDownloadsStalled
         expr: time() - kube_cronjob_status_last_successful_time{cronjob="bg-taste-match-fetch"} > 12 * 3600
         labels: { severity: warning }

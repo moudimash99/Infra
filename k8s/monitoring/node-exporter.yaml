@@ -2,6 +2,8 @@
 # Host network and host PID so it sees the real interfaces (eno2, wlo1) and processes; the host's /
 # is mounted read-only for the disks. Port 9110, since the old Docker node-exporter (~/Infra, which
 # only sees its own container network) still holds 9100.
+# The textfile collector reads /var/lib/node-exporter/textfile on each machine: stamps the nightly backups write
+# (k8s/apps/backups: homelab_backup_newest_copy_timestamp_seconds, alert FreeMotionRecordsNotCopied).
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -28,11 +30,13 @@ spec:
             - --collector.filesystem.mount-points-exclude=^/(dev|proc|run|sys|var/lib/docker/.+|var/lib/kubelet/.+|run/k3s/.+)($|/)
             - --collector.netclass.ignored-devices=^(veth.*|cni.*|flannel.*)$
             - --collector.netdev.device-exclude=^(veth.*|cni.*|flannel.*)$
+            - --collector.textfile.directory=/textfile
           ports:
             - { name: metrics, containerPort: 9110 }
           volumeMounts:
             - { name: root, mountPath: /host, readOnly: true, mountPropagation: HostToContainer }
             - { name: udev, mountPath: /run/udev, readOnly: true }  # disk names and models
+            - { name: textfile, mountPath: /textfile, readOnly: true }
           resources:
             requests: { cpu: 10m, memory: 24Mi }
             limits: { memory: 64Mi }
@@ -41,5 +45,7 @@ spec:
           hostPath: { path: / }
         - name: udev
           hostPath: { path: /run/udev }
+        - name: textfile   # made here, so it exists before the first backup writes to it
+          hostPath: { path: /var/lib/node-exporter/textfile, type: DirectoryOrCreate }
       tolerations:
         - operator: Exists  # every node, control plane included

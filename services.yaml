@@ -1216,13 +1216,14 @@
     backup-acer: "20 3 * * * Europe/Paris (the mail classifier sleeps then)"
   url: null
   data:
-    - "Server: /srv/backups/nightly/server/<day> (hub.db, the personal site's tracking data, uptime-kuma, grafana, beszel, portainer) and /srv/backups/nightly/acer/<day> (from the Acer); /srv/backups/server-only/<day> (the driver logins only, the newest k3s snapshot and the token: not exported, not copied to the Acer)"
+    - "Server: /srv/backups/nightly/server/<day> (hub.db, Free Motion's records (freemotion-records.tar.gz and its manifest freemotion-records.json), the personal site's tracking data, uptime-kuma, grafana, beszel, portainer) and /srv/backups/nightly/acer/<day> (from the Acer); /srv/backups/server-only/<day> (the driver logins only, the newest k3s snapshot and the token: not exported, not copied to the Acer)"
     - "Acer: /var/backups/nightly/server/<day> (the server's latest night)"
     - "The Acer's copies: cat-weight, boardxplorer, unmatched, Games.db, bgtaste.db, captions and speakers, lab.db, email-remove, frigate config and frigate.db, cat-monitor reports"
-    - "Folders 700, files 600, uid 1000; 7 nights kept in each place; ~46 MB (server, exported), ~17 MB (server only) and ~380 MB (Acer) a night"
+    - "Folders 700, files 600, uid 1000; 7 nights kept in each place; ~51 MB (server, exported; Free Motion's records ~5 MB of it), ~17 MB (server only) and ~380 MB (Acer) a night"
+    - "Stamps for alerts: /var/lib/node-exporter/textfile/backup-freemotion-records-server.prom (server) and backup-freemotion-records-acer.prom (Acer), 644, read by node-exporter (homelab_backup_newest_copy_timestamp_seconds)"
   code: { repo: none (the script is in the manifest), branch: null }
   deploy: "kubectl apply -f k8s/apps/backups/backups.yaml"
-  check: "Both CronJobs succeed nightly (their log ends with a JSON line listing ok and failed items); alert BackupsMissed after 26 h"
+  check: "Both CronJobs succeed nightly (their log ends with a JSON line listing ok and failed items); alert BackupsMissed after 26 h; alert FreeMotionRecordsNotCopied when no checked copy of Free Motion's records has reached the Acer for 26 h"
   probes:
     - {k8s: apps/CronJob/backup-server, max_age_h: 26}
     - {k8s: apps/CronJob/backup-acer, max_age_h: 26}
@@ -1231,8 +1232,10 @@
     - "SQLite files are copied with SQLite's backup API (consistent while the app writes), then quick_check'ed; portainer.db (BoltDB) is copied as a file while Portainer runs."
     - "Tested 2026-11-23: both jobs ran by hand with no failed item; cat-weight's copy, restored into a scratch folder on the server, passed integrity_check with the same 150 weights as live."
     - "Since 2026-11-24 backup-acer writes /srv/apps/bg-taste-match/backup-stamp.json (the time the captions + speakers copy started) after that copy succeeds; Taste Match's audio_prune.py deletes a video's audio only when its captions and speakers are older than that stamp (bg-taste-match#8)."
-    - "Left out on purpose: Frigate recordings, bg-taste-match audio and caches, Prometheus, the registry, the session histories in /srv/apps/freemotion/home, fm-data (git) and code (GitHub). Nothing leaves the house yet: an encrypted copy elsewhere is the user's call (Infra#10)."
-    - "Restore: stop the app (scale to 0), copy the file back, start it."
+    - "Left out on purpose: Frigate recordings, bg-taste-match audio and caches, Prometheus, the registry, the session histories in /srv/apps/freemotion/home, the rest of fm-data (git snapshots, made by hand) and code (GitHub). Nothing leaves the house yet: an encrypted copy elsewhere is the user's call (Infra#10)."
+    - "Free Motion's records (architecture review 2026-11-27, finding 3 and recommendation 1; built 2026-11-27 on branch fm-records-backup, live once merged): until then they left the server's disk only in the hand-made fm-data git snapshots. backup-server reads the files directly in fm-data's data/ ending .tsv .jsonl .json .md, data/lessons-weekly/ and config/ (57 files on 2026-11-27: the never-apply-twice ledger, the tracker, the status log, reactions, the CV and letter tables, lessons, reply state, the agent inbox, the settings; 33 MB, 5.3 MB packed) into freemotion-records.tar.gz, with a manifest of each file's size and sha256, the ledger's row count and the read time. Only data/ and config/ are mounted, read-only, so fm-data's .env never is; sub-folders (site logins, posting texts, screenshots, caches) are never read; a name with credential, cookie, token, secret, password or auth is skipped and logged. Left out by name: old .bak/.backup copies and the big files the scan and the scoring make again (llm-*.tsv, scan-history, pipeline*.md, posting-liveness: ~15 MB packed more a night; adding them is the user's call). Each file is read again until it stayed the same during the read, since the rounds write all day. The step fails when the ledger or the tracker is missing or empty, or the ledger is shorter than the night before (it only grows). backup-acer checks the copy on its own disk against the manifest, then stamps the time the server read the files (an old night copied again stays old); FreeMotionRecordsNotCopied reads that stamp."
+    - "Restore: stop the app (scale to 0), copy the file back, start it. Free Motion's records: burn off and wait for 'FM: DONE', untar freemotion-records.tar.gz into /srv/apps/freemotion/fm-data (its paths start at data/ and config/), burn on."
+    - "Tested 2026-11-27 on the PC only, against copies of the live record files (nothing run on the server or the Acer): 20 checks of the records step (while a writer appended to the ledger and swapped a JSON file in 50 times; nothing on the never-copy list copied; a cut ledger (also the night after), a tampered copy and a missing tracker refused; an old night keeps its old time), the whole script in both modes with its paths moved to a test folder, and promtool (check rules, check metrics on the stamps, 5 unit tests of the alert plus one meant to fail). Not tested: Linux file owners and modes (WSL can't start on the PC)."
     - "Not private from the Acer's pods: NFS trusts the uid a client claims (all_squash makes it 1000, which owns everything), and every pod on the Acer reaches the server's port 2049 (checked 2026-11-23). So the export holds nothing that opens other systems (logins, k3s token and snapshot stay server-only), but it does hold the email archiver's files (email text) and the tools' databases (password hashes). Encrypting the cross-machine copies is the user's call (Infra#10)."
   menu:
     title: Backups
@@ -1253,7 +1256,7 @@
   data:
     - "/srv/apps/freemotion/fm-data to 192.168.1.93 (rw,sync)"
     - "/srv/apps/freemotion/ws to 192.168.1.93 (ro,sync)"
-    - "/srv/backups/nightly to 192.168.1.93 (rw,sync,all_squash,anonuid=1000,anongid=1000), since 2026-11-23, for backup-acer"
+    - "/srv/backups/nightly to 192.168.1.93 (rw,sync,all_squash,anonuid=1000,anongid=1000), since 2026-11-23, for backup-acer; once branch fm-records-backup is merged it also holds Free Motion's record files (no logins, no .env)"
   code: { repo: none, branch: null }
   deploy: "Edit /etc/exports on the server, exportfs -ra."
   check: "fm-browser-acer and fm-webllm pods start (they mount these); bg-taste-match-llm runs"

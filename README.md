@@ -312,7 +312,7 @@ draws it. What is collected is all in `k8s/monitoring/prometheus.yml`:
 
 | Job | What | From |
 |---|---|---|
-| node-exporter | each machine: CPU, memory, disks, network, temperatures | DaemonSet, port 9110 on every node |
+| node-exporter | each machine: CPU, memory, disks, network, temperatures; the backups' stamps (textfile folder `/var/lib/node-exporter/textfile`) | DaemonSet, port 9110 on every node |
 | process-exporter | each machine: memory per program, outside containers | DaemonSet, port 9256 on each pod |
 | kubelet-cadvisor | each pod's containers | the kubelets, through the API server |
 | kube-state-metrics | pods up, restarts, requests and limits | Deployment |
@@ -416,3 +416,13 @@ up. Nothing leaves the house yet. Older one-off copies: `~/backups/pre-k3s-20261
 in `~/homelab-backup/2026-11-02/` on the PC, and `/srv/backups/git-branches` on the server (bundles of the
 branches deleted on 2026-11-22; the user: keep about a month, delete after 2026-12-24). The other one-off copies in
 `/srv/backups` were deleted on 2026-11-24.
+
+**Free Motion's records** (once branch `fm-records-backup` is merged): `backup-server` also packs the record files of
+`/srv/apps/freemotion/fm-data` (the never-apply-twice ledger, the tracker, the status log, the other `.tsv`, `.json`,
+`.jsonl` and `.md` files directly in `data/`, `data/lessons-weekly/` and `config/`; about 5 MB packed) into
+`freemotion-records.tar.gz` in the night's folder, with a manifest `freemotion-records.json`. Only `data/` and
+`config/` are mounted, so `.env` never is; the site logins, the posting texts, `output/`, the screenshots and the
+browser profiles are never copied. `backup-acer` checks the copy on the Acer against the manifest and writes a stamp
+that node-exporter reads (its textfile folder `/var/lib/node-exporter/textfile` on each machine); alert
+`FreeMotionRecordsNotCopied` fires 26 h after the last checked copy. Until then the records left the server only in the
+hand-made git snapshots of `fm-data`, which stay the only copy outside the house.
