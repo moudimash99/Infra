@@ -49,12 +49,13 @@ spec:
             # The website writers: never a browser here (a ChatGPT one took 1.4 GB and, with the score loops, got the
             # controller OOM-killed on 2026-11-11 19:45). Every web-llm.py ask goes to the Acer's fm-webllm pod, which
             # holds the signed-in ChatGPT browser and the Gemini cookies (Gemini on by the user, 2026-11-11 23:10).
-            # OFF for now, as it has run since 2026-11-11 21:57: every website ask exits 6 at once and the next writer
-            # takes the job. Not turned on (2026-11-22) because fm-webllm's Gemini step hangs: every rating ask from
-            # bg-taste-match timed out at 900 s on the nights of 11-20 and 11-21. To turn it on once an ask answers,
-            # replace this line with { name: WEB_LLM_URL, value: "http://fm-webllm.apps.svc.cluster.local:8933" }
-            # (or keep Gemini off with WEB_LLM_OFF=gemini next to it) and apply this file between rounds.
-            - { name: WEB_LLM_OFF, value: "1" }
+            # Both were OFF from 2026-11-11 21:57 to 2026-11-27 (WEB_LLM_OFF=1): Gemini's step hung there, and ChatGPT
+            # went off with it although nothing was wrong with it (the user: it should not have been).
+            # ChatGPT ON since 2026-11-27 (user): a test ask answered in 92 s, the helper's start included.
+            # Gemini stays OFF: signed in (web-llm.py check), but its ask still gets no answer in 290 s (2026-11-27,
+            # as on 11-20/21). Turn it on by dropping WEB_LLM_OFF once a Gemini ask answers; apply between rounds.
+            - { name: WEB_LLM_URL, value: "http://fm-webllm.apps.svc.cluster.local:8933" }
+            - { name: WEB_LLM_OFF, value: "gemini" }
           securityContext: { allowPrivilegeEscalation: false, privileged: false }
           volumeMounts:
             - { name: ws, mountPath: /fm/ws }
