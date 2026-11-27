@@ -278,7 +278,7 @@ database, not in this repo:
 - Beszel, for every machine: down for 2 min; CPU or memory above 90% for 10 min; disk above 85%.
   Settings → Notifications in Beszel to change them. On the Acer its agent is the NVIDIA variant, so Beszel
   also shows the GTX 1050's load, memory, temperature and power.
-- Prometheus (since 2026-11-10): 52 rules in `k8s/monitoring/alert-rules.yml`, sent by Alertmanager. Its config
+- Prometheus (since 2026-11-10): 53 rules in `k8s/monitoring/alert-rules.yml`, sent by Alertmanager. Its config
   is in the repo, but the addresses aren't: an init container copies `user` and `to` from the Secret into it.
   Critical alerts repeat every 3 hours while they last, warnings every 12, and each one mails again once resolved.
   The rules cover what Beszel can't see:

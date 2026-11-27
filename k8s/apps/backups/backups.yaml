@@ -152,6 +152,7 @@ data:
         with tarfile.open(dst + ".part", "w:gz", compresslevel=6) as t:
             for rel, (data, st) in files.items():
                 ti = tarfile.TarInfo(rel); ti.size = len(data); ti.mtime = st.st_mtime; ti.mode = st.st_mode & 0o777
+                ti.uid, ti.gid = st.st_uid, st.st_gid   # moudimash99: a restore with sudo tar must not leave root's files
                 t.addfile(ti, io.BytesIO(data))
         os.replace(dst + ".part", dst)
         man = {"taken": taken, "day": DAY, "problems": problems, "still_changing": changing, "skipped": skipped,
