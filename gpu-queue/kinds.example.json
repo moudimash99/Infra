@@ -1,0 +1,9 @@
+{
+  "whisper": {
+    "input_dir": "/data/bg-taste-match-audio",
+    "result_dir": "/data/bg-taste-match/captions",
+    "result_ext": ".json3",
+    "check": "json",
+    "skip_ext": [".tries"]
+  }
+}

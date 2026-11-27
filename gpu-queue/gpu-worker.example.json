@@ -1,0 +1,20 @@
+{
+  "hub": "http://192.168.1.93:30895",
+  "worker": "pc",
+  "kinds": {
+    "whisper": {
+      "command": ["C:\\path\\to\\bg-taste-match\\.venv\\Scripts\\python.exe", "TRANSCRIBE_ONE_FILE.py", "{input}", "{output}"],
+      "cwd": "C:\\path\\to\\bg-taste-match",
+      "env": {"WHISPER_PIECE_MINUTES": "5"},
+      "output_ext": ".json3"
+    }
+  },
+  "hours": "01:00-07:30",
+  "idle_minutes": 20,
+  "busy_processes": [],
+  "max_gpu_c": 83,
+  "max_gpu_mem_used_mib": 800,
+  "memory_cap_mib": 2560,
+  "max_minutes": 400,
+  "newest_first": true
+}
