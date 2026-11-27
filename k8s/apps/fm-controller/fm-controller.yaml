@@ -11,13 +11,22 @@
 #
 # replicas: 1 since the cut-over (2026-11-11). The PC must never run Free Motion at the same time (two writers of the
 # never-apply-twice ledger): it is blocked by ~/.fm-moved.json. Memory: at most 4 GiB (below).
+#
+# A stop drains (fm-orchestrator freemotion-night/drain.mjs, review 2026-11-27 recommendation 2): a rollout, an apply, a
+# node drain or `kubectl delete pod` no longer kills the round. The daemon raises the stop files, each lane ends the
+# job in hand and takes no new one, no round starts, and the daemon exits once the round and any ledger or tracker
+# write are over. A job still running at FM_DRAIN_SECONDS is stopped and recorded as cut off ("check before any
+# retry"). The next start removes the drain's stop files, and auto-apply goes on by itself. So `kubectl rollout status`
+# can take up to the full deadline, and the pod shows Terminating meanwhile. A memory kill, a power cut or
+# `--grace-period=0 --force` still kills outright.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: fm-controller
   namespace: apps
   labels: { app: fm-controller }
-  # Flux leaves this alone (Infra#7): a change restarts it, so it is applied by hand between rounds.
+  # Flux leaves this alone (Infra#7): a change restarts it. Since the drain (above) a restart ends at a job boundary,
+  # so it could go back under Flux; until the owner decides, it is applied by hand, at any time.
   annotations: { kustomize.toolkit.fluxcd.io/reconcile: disabled }
 spec:
   replicas: 1
@@ -31,13 +40,23 @@ spec:
       nodeSelector: { kubernetes.io/hostname: moudimash99 }
       automountServiceAccountToken: false   # its drivers have a shell and read untrusted pages
       securityContext: { runAsUser: 1000, runAsGroup: 1000, fsGroup: 1000 }
-      terminationGracePeriodSeconds: 60
+      # The drain's time (above): FM_DRAIN_SECONDS (env, below) plus 2 minutes for the cut and the exit. Change the two
+      # together. 30 minutes because a driver may take 25 for the job in hand (run.sh JOB_MAX). Was 60, never used:
+      # the daemon had no stop handler.
+      terminationGracePeriodSeconds: 1800
       containers:
         - name: controller
           image: docker.io/library/fm:2026-11-26a   # Node Playwright's Chromium 1248 for the live check (Infra 6de552c)
           imagePullPolicy: Never
+          # The image's entrypoint, with tini but without its -g: the stop signal goes to the daemon alone, which drains.
+          # With -g (the Dockerfile's ENTRYPOINT, kept for the browser pods) it also reached Xvfb, which entrypoint.sh
+          # starts in the same process group, so the display went while the lanes still worked.
+          command: ["/usr/bin/tini", "--", "/usr/local/lib/fm/entrypoint.sh"]
           args: ["controller"]
           env:
+            # The one setting for a stop: how long a drain may take, in seconds (28 min). At the end a job still in hand
+            # is cut off. The grace period above is this plus 120.
+            - { name: FM_DRAIN_SECONDS, value: "1680" }
             - { name: FM_WS, value: /fm/ws }
             - { name: FM_DATA_DIR, value: /fm/fm-data }
             - { name: HOME, value: /fm/home }
